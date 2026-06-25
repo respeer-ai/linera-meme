@@ -26,7 +26,7 @@ defaults:
 active_focus:
   - id: GSTATE-004
     why: current state application umbrella; next review-gated subtask is GSTATE-004B
-    summary: Continue state app core behavior through small review-gated subtasks; next task is GSTATE-004D7 BatchWrite handler.
+    summary: Continue state app core behavior through small review-gated subtasks; next task is GSTATE-004D8 BatchDelete handler.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/state-application.md

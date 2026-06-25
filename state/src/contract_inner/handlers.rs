@@ -5,7 +5,8 @@ use crate::interfaces::state::StateInterface;
 use abi::state::{StateMessage, StateOperation, StateResponse};
 use base::handler::{Handler, HandlerError};
 use operation::{
-    batch_read::BatchReadHandler, create_namespace::CreateNamespaceHandler, delete::DeleteHandler,
+    batch_read::BatchReadHandler, batch_write::BatchWriteHandler,
+    create_namespace::CreateNamespaceHandler, delete::DeleteHandler,
     initialize_operator::InitializeOperatorHandler, read::ReadHandler, write::WriteHandler,
 };
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
@@ -37,6 +38,9 @@ impl HandlerFactory {
             }
             StateOperation::BatchRead { .. } => {
                 Ok(Box::new(BatchReadHandler::new(runtime, state, operation)))
+            }
+            StateOperation::BatchWrite { .. } => {
+                Ok(Box::new(BatchWriteHandler::new(runtime, state, operation)))
             }
             _ => Err(HandlerError::NotImplemented),
         }

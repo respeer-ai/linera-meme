@@ -1,4 +1,5 @@
 pub mod batch_read;
+pub mod batch_write;
 pub mod create_namespace;
 pub mod delete;
 pub mod initialize_operator;
