@@ -16,15 +16,11 @@ impl ServiceAbi for StateAbi {
 
 #[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize)]
 pub enum StateOperation {
-    InitializeOperator,
+    InitializeOperator {
+        operator: Account,
+    },
     CreateNamespace {
         namespace: u8,
-    },
-    FreezeNamespace,
-    UnfreezeNamespace,
-    Handoff {
-        namespace: u8,
-        new_application_id: ApplicationId,
     },
     BatchRead {
         namespace: u8,
@@ -33,6 +29,32 @@ pub enum StateOperation {
     BatchWrite {
         namespace: u8,
         writes: Vec<(Vec<u8>, Option<Vec<u8>>)>,
+    },
+    FreezeNamespace {
+        application_id: ApplicationId,
+    },
+    UnfreezeNamespace {
+        application_id: ApplicationId,
+    },
+    Handoff {
+        application_id: ApplicationId,
+        namespace: u8,
+        new_application_id: ApplicationId,
+    },
+    SetOperator {
+        application_id: ApplicationId,
+        new_operator: Account,
+    },
+}
+
+#[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize)]
+pub enum StateMessage {
+    FreezeNamespace,
+    UnfreezeNamespace,
+    Handoff {
+        application_id: ApplicationId,
+        namespace: u8,
+        new_application_id: ApplicationId,
     },
     SetOperator {
         new_operator: Account,

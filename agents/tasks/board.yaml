@@ -1794,7 +1794,7 @@ groups:
 
           Completed scope:
           - Added `abi/src/state.rs` and exported it from `abi/src/lib.rs`.
-          - Defined `StateAbi`, `StateOperation`, and `StateResponse`.
+          - Defined `StateAbi`, `StateOperation`, `StateMessage`, and `StateResponse`.
           - Did not add the `state` crate, runtime adapters, service queries, or business app integration.
 
           Validation:
@@ -1857,7 +1857,7 @@ groups:
 
           Scope:
           - Implement state shape: operator, frozen_namespaces, namespace_apps, records.
-          - Implement InitializeOperator, CreateNamespace, FreezeNamespace, UnfreezeNamespace, Handoff, BatchRead, BatchWrite, and SetOperator.
+          - Implement InitializeOperator { operator }, CreateNamespace, FreezeNamespace, UnfreezeNamespace, Handoff, BatchRead, BatchWrite, and SetOperator.
           - Implement slot-based record keying: [namespace][slot][business_key...].
           - Implement permission rules for operator, namespace management freeze, authenticated caller binding, and handoff.
           - Wire contract_inner handlers to `S: state::interfaces::state::StateInterface`.
@@ -2134,7 +2134,7 @@ groups:
           Scope:
           - Deploy one reusable state app id.
           - Pass or persist state_app_id through business deployment without relying on immutable parameters for mutable routing.
-          - Ensure business initialization calls InitializeOperator, CreateNamespace, and initial BatchWrite.
+          - Ensure business initialization calls InitializeOperator { operator }, CreateNamespace, and initial BatchWrite.
           - For mining or untrusted proposer chains, run FreezeNamespace before opening runtime access.
           - Update deployment config service/interface with active root app ids after deploy.
       - id: GSTATE-051

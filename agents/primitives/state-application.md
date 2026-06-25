@@ -152,19 +152,15 @@ struct State {
 - Do not add compare-and-set for the current design
 - Do not use verbose string or hash namespaces when a compact `u8` namespace is enough
 
-## Operation ABI
+## Operation And Message ABI
 
 ```rust
 enum StateOperation {
-    InitializeOperator,
+    InitializeOperator {
+        operator: Account,
+    },
     CreateNamespace {
         namespace: u8,
-    },
-    FreezeNamespace,
-    UnfreezeNamespace,
-    Handoff {
-        namespace: u8,
-        new_application_id: ApplicationId,
     },
     BatchRead {
         namespace: u8,
@@ -173,6 +169,33 @@ enum StateOperation {
     BatchWrite {
         namespace: u8,
         writes: Vec<(Vec<u8>, Option<Vec<u8>>)>,
+    },
+    FreezeNamespace {
+        application_id: ApplicationId,
+    },
+    UnfreezeNamespace {
+        application_id: ApplicationId,
+    },
+    Handoff {
+        application_id: ApplicationId,
+        namespace: u8,
+        new_application_id: ApplicationId,
+    },
+    SetOperator {
+        application_id: ApplicationId,
+        new_operator: Account,
+    },
+}
+```
+
+```rust
+enum StateMessage {
+    FreezeNamespace,
+    UnfreezeNamespace,
+    Handoff {
+        application_id: ApplicationId,
+        namespace: u8,
+        new_application_id: ApplicationId,
     },
     SetOperator {
         new_operator: Account,
@@ -187,12 +210,21 @@ enum StateResponse {
 }
 ```
 
-- `FreezeNamespace` and `UnfreezeNamespace` do not carry a namespace argument
-- `FreezeNamespace` and `UnfreezeNamespace` affect namespace management capability as a whole
+Operation source rules:
+
+- `InitializeOperator { operator }` is a current-chain operation used during first empty-replica initialization
+- `CreateNamespace`, `BatchRead`, and `BatchWrite` are same-chain business application calls
+- `FreezeNamespace`, `UnfreezeNamespace`, `Handoff`, and `SetOperator` are operator-chain operations that send authenticated `StateMessage` values to the target business application's creator chain
+- Management operations identify the target by business `application_id`, not by an externally supplied target chain id
+- The state contract resolves the target chain from `read_application_description(application_id).creator_chain_id`
+- Do not expose raw `read_application_description` through business-facing runtime interfaces; the state contract may use SDK/runtime capability internally to resolve the target chain
+
+Rules:
+
 - `CreateNamespace` does not carry an application id
 - The application id bound by `CreateNamespace` is always `authenticated_caller_id`
 - `CreateNamespace` does not initialize the operator
-- Operator initialization is only `InitializeOperator`
+- Operator initialization is only `InitializeOperator { operator }`
 - `BatchRead` returns `StateResponse::BatchRead`
 - `BatchWrite` and namespace management operations return `StateResponse::Ok`
 - `StateAbi::Operation` is `StateOperation`
@@ -245,27 +277,21 @@ Rules:
 
 ## InitializeOperator
 
-`InitializeOperator` initializes an empty state replica operator.
+`InitializeOperator { operator }` initializes an empty state replica operator on the current chain.
 
 Rules:
 
 1. Require `authenticated_signer`
-2. Require `operator == None`
-3. Store:
-   ```rust
-   operator = Account {
-       chain_id: runtime.chain_id(),
-       owner: authenticated_signer,
-   }
-   ```
-4. Do not accept an operator payload
+2. Require `operator == None` in current state
+3. Require the payload `operator.owner == authenticated_signer`
+4. Store the payload `operator`
 5. Reject repeated initialization
 
 Implications:
 
-- The first business application initialization path must call `InitializeOperator` before using namespace management operations
-- This makes the current chain signer the state operator for that chain's state application replica
-- `FreezeNamespace`, `UnfreezeNamespace`, and `SetOperator` cannot run before operator initialization
+- The first business application initialization path must call `InitializeOperator { operator }` before using namespace management operations
+- The initialized operator may be on a different chain than the current business chain because later management messages validate `message_origin_chain_id + authenticated_signer` against the stored operator account
+- `FreezeNamespace`, `UnfreezeNamespace`, `Handoff`, and `SetOperator` cannot run before operator initialization
 
 ## CreateNamespace
 
@@ -308,15 +334,23 @@ Implications:
 
 ## FreezeNamespace And UnfreezeNamespace
 
-`FreezeNamespace` and `UnfreezeNamespace` control namespace management capability.
+`FreezeNamespace` and `UnfreezeNamespace` control namespace management capability on a target business chain's state app replica.
 
-Rules:
+Operation rules on the operator chain:
 
 1. Require `authenticated_signer`
-2. Construct `actual = Account { chain_id: runtime.chain_id(), owner: authenticated_signer }`
-3. Require `actual == operator`
-4. `FreezeNamespace` sets `frozen_namespaces = true`
-5. `UnfreezeNamespace` sets `frozen_namespaces = false`
+2. Resolve `target_chain_id = read_application_description(application_id).creator_chain_id`
+3. Send an authenticated `StateMessage::FreezeNamespace` or `StateMessage::UnfreezeNamespace` to `target_chain_id`
+4. Do not mutate the operator chain's state app replica unless the target chain is the current chain and the same message-handling validation path is used
+
+Message rules on the target chain:
+
+1. Require `message_origin_chain_id`
+2. Require `authenticated_signer` carried by the authenticated message
+3. Construct `actual = Account { chain_id: message_origin_chain_id, owner: authenticated_signer }`
+4. Require `actual == operator`
+5. `FreezeNamespace` sets `frozen_namespaces = true`
+6. `UnfreezeNamespace` sets `frozen_namespaces = false`
 
 When `frozen_namespaces == true`:
 
@@ -330,14 +364,24 @@ When `frozen_namespaces == true`:
 
 `Handoff` replaces the bound application id in-place for an upgrade.
 
-Rules:
+Operation rules on the operator chain:
 
-1. Require authenticated application call
-2. Require `frozen_namespaces == false`
-3. Require caller exists in `namespace_apps[namespace]`
-4. Require `new_application_id.creator_chain_id == caller.creator_chain_id`
-5. Require `new_application_id` is not already bound in `namespace_apps[namespace]`
-6. Replace caller's existing slot with `new_application_id`
+1. Require `authenticated_signer`
+2. Resolve `target_chain_id = read_application_description(application_id).creator_chain_id`
+3. Send an authenticated `StateMessage::Handoff { application_id, namespace, new_application_id }` to `target_chain_id`
+4. Do not mutate the operator chain's state app replica unless the target chain is the current chain and the same message-handling validation path is used
+
+Message rules on the target chain:
+
+1. Require `message_origin_chain_id`
+2. Require `authenticated_signer` carried by the authenticated message
+3. Construct `actual = Account { chain_id: message_origin_chain_id, owner: authenticated_signer }`
+4. Require `actual == operator`
+5. Require `frozen_namespaces == false`
+6. Require `application_id` exists in `namespace_apps[namespace]`
+7. Require `new_application_id.creator_chain_id == application_id.creator_chain_id`
+8. Require `new_application_id` is not already bound in `namespace_apps[namespace]`
+9. Replace `application_id` in-place with `new_application_id`
 
 Do not:
 
@@ -346,20 +390,28 @@ Do not:
 - Do not change slot
 - Do not let the `state` application validate business governance
 
-Business application responsibility:
+Business application and deployment responsibility:
 
-- The old active business application validates operator, governance, quorum, target app identity, and upgrade policy before calling `Handoff`
+- The upgrade workflow validates business governance, quorum, target app identity, and upgrade policy before the operator sends `Handoff`
 
 ## SetOperator
 
-`SetOperator` rotates the state operator.
+`SetOperator` rotates the state operator on a target business chain's state app replica.
 
-Rules:
+Operation rules on the current operator chain:
 
-1. Require `frozen_namespaces == false`
-2. Require current operator signer
-3. Require `new_operator.chain_id == runtime.chain_id()`
-4. Store `new_operator`
+1. Require `authenticated_signer`
+2. Resolve `target_chain_id = read_application_description(application_id).creator_chain_id`
+3. Send an authenticated `StateMessage::SetOperator { new_operator }` to `target_chain_id`
+
+Message rules on the target chain:
+
+1. Require `message_origin_chain_id`
+2. Require `authenticated_signer` carried by the authenticated message
+3. Construct `actual = Account { chain_id: message_origin_chain_id, owner: authenticated_signer }`
+4. Require `actual == operator`
+5. Require `frozen_namespaces == false`
+6. Store `new_operator`
 
 ## Business Application State
 
@@ -675,9 +727,9 @@ enum StateError {
 
 GSTATE-001 is complete only when tests cover:
 
-- Repeated `InitializeOperator` rejects
-- Missing signer rejects `InitializeOperator`, `FreezeNamespace`, `UnfreezeNamespace`, and `SetOperator`
-- Non-operator signer rejects `FreezeNamespace`, `UnfreezeNamespace`, and `SetOperator`
+- Repeated `InitializeOperator { operator }` rejects
+- Missing signer rejects `InitializeOperator { operator }` and management operations that send `StateMessage` values
+- Non-operator message signer rejects `FreezeNamespace`, `UnfreezeNamespace`, `Handoff`, and `SetOperator` on the target chain
 - `CreateNamespace` rejects before operator initialization
 - `CreateNamespace` rejects without authenticated caller
 - `CreateNamespace` rejects caller from a different creator chain
@@ -690,7 +742,6 @@ GSTATE-001 is complete only when tests cover:
 - Separate namespaces isolate identical business keys
 - Separate caller slots in the same namespace isolate identical business keys
 - `Handoff` replaces in-place and preserves slot records
-- `Handoff` rejects when called by the new app instead of the old app
 - `Handoff` rejects a target already bound in the namespace
 - `SetOperator` rejects a `new_operator` on a different chain
 - `SetOperator` rotates operator and the old operator no longer authorizes namespace management

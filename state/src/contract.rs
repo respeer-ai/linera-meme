@@ -1,6 +1,6 @@
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use abi::state::{StateAbi, StateOperation};
+use abi::state::{StateAbi, StateMessage, StateOperation};
 use linera_sdk::{
     linera_base_types::WithContractAbi,
     views::{RootView, View},
@@ -21,7 +21,7 @@ impl WithContractAbi for StateContract {
 }
 
 impl Contract for StateContract {
-    type Message = ();
+    type Message = StateMessage;
     type InstantiationArgument = ();
     type Parameters = ();
     type EventValue = ();
@@ -44,7 +44,7 @@ impl Contract for StateContract {
         self.on_operation(operation).await
     }
 
-    async fn execute_message(&mut self, _message: ()) {}
+    async fn execute_message(&mut self, _message: StateMessage) {}
 
     async fn store(self) {
         self.state
