@@ -2060,11 +2060,19 @@ groups:
           - `python3 scripts/validate_prompt_state.py`
           - `git diff --check`
       - id: GSTATE-004E1
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-004D8]
         title: Phase 1D-E1 - Implement FreezeNamespace operation handler
-        notes: Implement only the FreezeNamespace operation handler.
+        notes: |
+          Implemented only the FreezeNamespace operation handler.
+          The handler requires an authenticated signer, resolves the target chain from the target application creator chain id, sends StateMessage::FreezeNamespace with tracking disabled, and returns StateResponse::Ok.
+
+          Validation:
+          - `cargo fmt -p state --check`
+          - `cargo check -p state` with `ulimit -v 6000000`
+          - `python3 scripts/validate_prompt_state.py`
+          - `git diff --check`
       - id: GSTATE-004E2
         status: Todo
         priority: P0

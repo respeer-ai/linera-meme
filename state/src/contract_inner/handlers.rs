@@ -7,7 +7,8 @@ use base::handler::{Handler, HandlerError};
 use operation::{
     batch_delete::BatchDeleteHandler, batch_read::BatchReadHandler, batch_write::BatchWriteHandler,
     create_namespace::CreateNamespaceHandler, delete::DeleteHandler,
-    initialize_operator::InitializeOperatorHandler, read::ReadHandler, write::WriteHandler,
+    freeze_namespace::FreezeNamespaceHandler, initialize_operator::InitializeOperatorHandler,
+    read::ReadHandler, write::WriteHandler,
 };
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
@@ -44,6 +45,9 @@ impl HandlerFactory {
             }
             StateOperation::BatchDelete { .. } => {
                 Ok(Box::new(BatchDeleteHandler::new(runtime, state, operation)))
+            }
+            StateOperation::FreezeNamespace { .. } => {
+                Ok(Box::new(FreezeNamespaceHandler::new(runtime, operation)))
             }
             _ => Err(HandlerError::NotImplemented),
         }
