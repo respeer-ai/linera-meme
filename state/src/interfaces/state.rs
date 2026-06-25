@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{Account, ApplicationId};
 
+use crate::state_key::StateKey;
+
 #[async_trait(?Send)]
 pub trait StateInterface {
     type Error: std::fmt::Debug + std::error::Error + 'static;
@@ -26,46 +28,24 @@ pub trait StateInterface {
 
     async fn set_operator(&mut self, new_operator: Account) -> Result<(), Self::Error>;
 
-    async fn read(
+    async fn application_slot(
         &mut self,
         namespace: u8,
         application_id: ApplicationId,
-        key: Vec<u8>,
-    ) -> Result<Option<Vec<u8>>, Self::Error>;
+    ) -> Result<u8, Self::Error>;
 
-    async fn write(
-        &mut self,
-        namespace: u8,
-        application_id: ApplicationId,
-        key: Vec<u8>,
-        value: Vec<u8>,
-    ) -> Result<(), Self::Error>;
+    async fn read(&mut self, key: StateKey) -> Result<Option<Vec<u8>>, Self::Error>;
 
-    async fn delete(
-        &mut self,
-        namespace: u8,
-        application_id: ApplicationId,
-        key: Vec<u8>,
-    ) -> Result<(), Self::Error>;
+    async fn write(&mut self, key: StateKey, value: Vec<u8>) -> Result<(), Self::Error>;
+
+    async fn delete(&mut self, key: StateKey) -> Result<(), Self::Error>;
 
     async fn batch_read(
         &mut self,
-        namespace: u8,
-        application_id: ApplicationId,
-        keys: Vec<Vec<u8>>,
+        keys: Vec<StateKey>,
     ) -> Result<Vec<Option<Vec<u8>>>, Self::Error>;
 
-    async fn batch_write(
-        &mut self,
-        namespace: u8,
-        application_id: ApplicationId,
-        writes: Vec<(Vec<u8>, Vec<u8>)>,
-    ) -> Result<(), Self::Error>;
+    async fn batch_write(&mut self, writes: Vec<(StateKey, Vec<u8>)>) -> Result<(), Self::Error>;
 
-    async fn batch_delete(
-        &mut self,
-        namespace: u8,
-        application_id: ApplicationId,
-        keys: Vec<Vec<u8>>,
-    ) -> Result<(), Self::Error>;
+    async fn batch_delete(&mut self, keys: Vec<StateKey>) -> Result<(), Self::Error>;
 }

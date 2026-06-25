@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{Account, ApplicationId};
 
-use crate::{interfaces::state::StateInterface, state::State};
+use crate::{interfaces::state::StateInterface, state::State, state_key::StateKey};
 
 pub struct StateAdapter {
     state: Rc<RefCell<State>>,
@@ -58,76 +58,41 @@ impl StateInterface for StateAdapter {
         self.state.borrow_mut().set_operator(new_operator).await
     }
 
-    async fn read(
+    async fn application_slot(
         &mut self,
         namespace: u8,
         application_id: ApplicationId,
-        key: Vec<u8>,
-    ) -> Result<Option<Vec<u8>>, Self::Error> {
+    ) -> Result<u8, Self::Error> {
         self.state
             .borrow_mut()
-            .read(namespace, application_id, key)
+            .application_slot(namespace, application_id)
             .await
     }
 
-    async fn write(
-        &mut self,
-        namespace: u8,
-        application_id: ApplicationId,
-        key: Vec<u8>,
-        value: Vec<u8>,
-    ) -> Result<(), Self::Error> {
-        self.state
-            .borrow_mut()
-            .write(namespace, application_id, key, value)
-            .await
+    async fn read(&mut self, key: StateKey) -> Result<Option<Vec<u8>>, Self::Error> {
+        self.state.borrow_mut().read(key).await
     }
 
-    async fn delete(
-        &mut self,
-        namespace: u8,
-        application_id: ApplicationId,
-        key: Vec<u8>,
-    ) -> Result<(), Self::Error> {
-        self.state
-            .borrow_mut()
-            .delete(namespace, application_id, key)
-            .await
+    async fn write(&mut self, key: StateKey, value: Vec<u8>) -> Result<(), Self::Error> {
+        self.state.borrow_mut().write(key, value).await
+    }
+
+    async fn delete(&mut self, key: StateKey) -> Result<(), Self::Error> {
+        self.state.borrow_mut().delete(key).await
     }
 
     async fn batch_read(
         &mut self,
-        namespace: u8,
-        application_id: ApplicationId,
-        keys: Vec<Vec<u8>>,
+        keys: Vec<StateKey>,
     ) -> Result<Vec<Option<Vec<u8>>>, Self::Error> {
-        self.state
-            .borrow_mut()
-            .batch_read(namespace, application_id, keys)
-            .await
+        self.state.borrow_mut().batch_read(keys).await
     }
 
-    async fn batch_write(
-        &mut self,
-        namespace: u8,
-        application_id: ApplicationId,
-        writes: Vec<(Vec<u8>, Vec<u8>)>,
-    ) -> Result<(), Self::Error> {
-        self.state
-            .borrow_mut()
-            .batch_write(namespace, application_id, writes)
-            .await
+    async fn batch_write(&mut self, writes: Vec<(StateKey, Vec<u8>)>) -> Result<(), Self::Error> {
+        self.state.borrow_mut().batch_write(writes).await
     }
 
-    async fn batch_delete(
-        &mut self,
-        namespace: u8,
-        application_id: ApplicationId,
-        keys: Vec<Vec<u8>>,
-    ) -> Result<(), Self::Error> {
-        self.state
-            .borrow_mut()
-            .batch_delete(namespace, application_id, keys)
-            .await
+    async fn batch_delete(&mut self, keys: Vec<StateKey>) -> Result<(), Self::Error> {
+        self.state.borrow_mut().batch_delete(keys).await
     }
 }

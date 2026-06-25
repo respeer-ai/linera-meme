@@ -1,5 +1,6 @@
-use crate::state_key::{StateKey, StateValue};
+use crate::state_key::StateValue;
 use async_trait::async_trait;
+use serde::Serialize;
 
 #[async_trait(?Send)]
 pub trait StateServiceInterface {
@@ -7,11 +8,11 @@ pub trait StateServiceInterface {
 
     async fn read<K, V>(&self, key: &K) -> Result<Option<V>, Self::Error>
     where
-        K: StateKey,
+        K: Serialize,
         V: StateValue;
 
     async fn batch_read<K, V>(&self, keys: &[K]) -> Result<Vec<Option<V>>, Self::Error>
     where
-        K: StateKey,
+        K: Serialize,
         V: StateValue;
 }

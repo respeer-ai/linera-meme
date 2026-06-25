@@ -1924,7 +1924,7 @@ groups:
           - `python3 scripts/validate_prompt_state.py`
           - `git diff --check`
       - id: GSTATE-004C
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-004B]
         title: Phase 1D-C - Implement state root view behavior
@@ -1935,9 +1935,17 @@ groups:
           - Implement operator initialization checks.
           - Implement namespace binding and freeze checks.
           - Implement slot-based record keys `[namespace][slot][business_key...]`.
-          - Implement read/write/delete behavior for raw bytes.
+          - Implement read/write/delete behavior for raw bytes behind `StateKey`.
           - Implement handoff and operator rotation state transitions.
+          - Convert `state::state_key::StateKey` into the internal physical state key type.
+          - Keep business-facing typed keys as `Serialize` inputs for later adapters; business code does not construct `StateKey`.
           - Do not implement operation or message handlers.
+
+          Validation:
+          - `cargo fmt -p state --check`
+          - `cargo check -p state` with `ulimit -v 6000000`
+          - `python3 scripts/validate_prompt_state.py`
+          - `git diff --check`
       - id: GSTATE-004D1
         status: Todo
         priority: P0

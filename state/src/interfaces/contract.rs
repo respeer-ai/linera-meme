@@ -1,6 +1,7 @@
-use crate::state_key::{StateKey, StateValue};
+use crate::state_key::StateValue;
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::ApplicationId;
+use serde::Serialize;
 
 #[async_trait(?Send)]
 pub trait StateContractInterface {
@@ -18,25 +19,25 @@ pub trait StateContractInterface {
 
     async fn read<K, V>(&mut self, key: &K) -> Result<Option<V>, Self::Error>
     where
-        K: StateKey,
+        K: Serialize,
         V: StateValue;
 
     async fn batch_read<K, V>(&mut self, keys: &[K]) -> Result<Vec<Option<V>>, Self::Error>
     where
-        K: StateKey,
+        K: Serialize,
         V: StateValue;
 
     async fn write<K, V>(&mut self, key: &K, value: &V) -> Result<(), Self::Error>
     where
-        K: StateKey,
+        K: Serialize,
         V: StateValue;
 
     async fn batch_write<K, V>(&mut self, writes: &[(K, Option<V>)]) -> Result<(), Self::Error>
     where
-        K: StateKey,
+        K: Serialize,
         V: StateValue;
 
     async fn delete<K>(&mut self, key: &K) -> Result<(), Self::Error>
     where
-        K: StateKey;
+        K: Serialize;
 }
