@@ -3,6 +3,13 @@ use linera_sdk::linera_base_types::{Account, ApplicationId, ContractAbi, Service
 use serde::{Deserialize, Serialize};
 
 pub struct StateAbi;
+pub trait StateBaseInterface {
+    type Error: std::fmt::Debug + std::error::Error + 'static;
+
+    fn state_app_id(&mut self) -> Result<ApplicationId, Self::Error>;
+
+    fn state_namespace(&mut self) -> Result<u8, Self::Error>;
+}
 
 impl ContractAbi for StateAbi {
     type Operation = StateOperation;

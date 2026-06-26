@@ -2158,45 +2158,37 @@ groups:
           - `cargo fmt -p state`
           - `cargo check -p state` with `ulimit -v 6000000`
       - id: GSTATE-005
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [GSTATE-004]
         title: Phase 1E - Implement state app service admin queries
         notes: |
-          Implement only raw state app administration and debug reads in `state/src/service.rs`.
+          Cancelled by product decision. Raw state app admin queries are not useful without business decoders and should not be implemented as a standalone phase.
 
-          Scope:
-          - Expose operator and frozen namespace status.
-          - Expose namespace app bindings.
-          - Expose raw record lookup by exact encoded key or by namespace, slot, and business key.
-          - Do not decode business records.
-          - Do not expose user-facing business queries from the state app service.
-
-          Review rule:
-          - This review is service admin query behavior only.
-          - It must not include business app integration or business-facing adapter instances.
+          Stable conclusion:
+          - Do not add raw state app admin query endpoints for operator, frozen namespace status, namespace bindings, or raw record lookup as a standalone service surface.
+          - Business-readable state must be exposed through business app services or typed adapters, not through undecoded state app records.
       - id: GSTATE-006
-        status: Todo
+        status: Done
         priority: P0
-        depends_on: [GSTATE-005]
+        depends_on: [GSTATE-004]
         title: Phase 1F - Implement business-facing state adapter instances
         notes: |
-          Implement concrete runtime-backed instances for the already-defined business-facing interfaces.
+          Implemented concrete runtime-backed contract adapter behavior for the business-facing StateContractInterface.
 
-          Scope:
-          - Implement `state::adapters::contract::StateContract` for `StateContractInterface`.
-          - Implement `state::adapters::service::StateService` for `StateServiceInterface`.
-          - Store state_app_id and state_namespace in adapter instances at construction time.
-          - Implement typed key/value helpers over `StateKey` and BCS values.
-          - Implement contract read/write/delete/batch APIs over BatchRead and BatchWrite.
-          - Implement service read-only APIs over query_application against the state app service.
-          - Implement initialization helper sequence: InitializeOperator -> CreateNamespace -> initial BatchWrite.
-          - Implement handoff helper for old business app upgrade flow.
-          - Do not change any business app in this task.
+          Complete:
+          - Added `abi::state::StateBaseInterface` as the common business-app binding capability for state_app_id and namespace.
+          - StateBaseInterface returns a raw `ApplicationId`; runtime does not depend on the state ABI, and the state adapter attaches `StateAbi` only at the call boundary.
+          - `state::adapters::contract::StateContract<R>` stores runtime, state_app_id, and namespace read from StateBaseInterface.
+          - Adapter wraps StateOperation construction and call_application for InitializeOperator, CreateNamespace, FreezeNamespace, UnfreezeNamespace, Handoff, Read, BatchRead, Write, BatchWrite, BatchDelete, and Delete.
+          - Typed keys and values are BCS encoded/decoded behind the adapter.
+          - `batch_write` maps Some values to BatchWrite and None values to BatchDelete.
+          - No concrete-only public helper APIs were added; the adapter exposes only `StateContract::new` and the StateContractInterface surface plus private implementation helpers.
+          - Service-side typed reads remain deferred because raw state app admin queries were cancelled in GSTATE-005.
 
-          Review rule:
-          - This review is concrete adapter instance behavior only.
-          - Business app wiring and examples belong to later tasks.
+          Validation:
+          - `cargo fmt -p state --check`
+          - `cargo check -p state` with `ulimit -v 6000000`
       - id: GSTATE-007
         status: Todo
         priority: P0
@@ -2208,9 +2200,9 @@ groups:
           Scope:
           - Add a small test-only or doc-test example using a sample key implementing `StateKey`.
           - Show contract-side code depending on `StateContractInterface`, not concrete `StateContract`.
-          - Show service-side code depending on `StateServiceInterface`, not concrete `StateService`.
           - Show concrete instances are constructed at the entry layer and injected.
           - Do not modify AMS, meme, pool, swap, or proxy.
+          - Service-side typed read examples are deferred until a typed service read path exists.
 
           Review rule:
           - This review is example usage only.
