@@ -2134,11 +2134,17 @@ groups:
           - `cargo fmt -p state`
           - `cargo check -p state` with `ulimit -v 6000000`
       - id: GSTATE-004F3
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-004F2]
         title: Phase 1D-F3 - Implement Handoff message handler
-        notes: Implement only the Handoff message handler.
+        notes: |
+          Implemented only the Handoff message handler.
+          The handler uses runtime message_signer_account, requires it to match the stored operator, rejects cross-creator-chain handoff, calls StateInterface::handoff, and emits no follow-up messages.
+
+          Validation:
+          - `cargo fmt -p state`
+          - `cargo check -p state` with `ulimit -v 6000000`
       - id: GSTATE-004F4
         status: Todo
         priority: P0

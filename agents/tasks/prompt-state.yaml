@@ -25,8 +25,8 @@ defaults:
     - canonical_doc_promotion_incomplete
 active_focus:
   - id: GSTATE-004
-    why: current state application umbrella; next review-gated subtask is GSTATE-004F3
-    summary: Continue state app core behavior through small review-gated subtasks; next task is GSTATE-004F3 Handoff message handler.
+    why: current state application umbrella; next review-gated subtask is GSTATE-004F4
+    summary: Continue state app core behavior through small review-gated subtasks; next task is GSTATE-004F4 SetOperator message handler.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/state-application.md
