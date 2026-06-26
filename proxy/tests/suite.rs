@@ -16,6 +16,8 @@ use abi::{
     store_type::StoreType,
     swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi, SwapParameters},
 };
+use std::str::FromStr;
+
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription, CryptoHash,
@@ -50,6 +52,11 @@ pub struct TestSuite {
 
 #[allow(dead_code)]
 impl TestSuite {
+    pub fn state_application_id() -> ApplicationId {
+        ApplicationId::from_str("b20ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap()
+    }
+
     pub async fn new() -> Self {
         let (validator, proxy_bytecode_id) =
             TestValidator::with_current_module::<ProxyAbi, (), InstantiationArgument>().await;
@@ -174,7 +181,9 @@ impl TestSuite {
                 .create_application::<AmsAbi, (), AmsInstantiationArgument>(
                     bytecode_id,
                     (),
-                    AmsInstantiationArgument { state_app_id: None },
+                    AmsInstantiationArgument {
+                        state_app_id: Self::state_application_id(),
+                    },
                     vec![],
                 )
                 .await,

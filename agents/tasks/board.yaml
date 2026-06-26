@@ -2240,9 +2240,9 @@ groups:
           Covered:
           - `abi/src/ams.rs` defines `AmsKey` for AMS business records.
           - `abi::namespace::AMS` defines the globally assigned AMS state namespace.
-          - `InstantiationArgument` carries only optional `state_app_id` for AMS initialization.
+          - `InstantiationArgument` requires `state_app_id` for AMS initialization.
           - `AmsState` stores the local `state_app_id` binding.
-          - Existing AMS creation call sites pass `state_app_id: None` until deployment wiring supplies the state app id.
+          - Existing AMS creation test call sites pass an explicit test state app id until deployment wiring supplies the real state app id.
           - No repository or backend abstraction was added.
 
           Validation:

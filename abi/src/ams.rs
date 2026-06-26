@@ -18,10 +18,9 @@ impl ServiceAbi for AmsAbi {
     type QueryResponse = Response;
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct InstantiationArgument {
-    #[serde(default)]
-    pub state_app_id: Option<ApplicationId>,
+    pub state_app_id: ApplicationId,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

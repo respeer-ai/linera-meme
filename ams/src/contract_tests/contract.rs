@@ -332,7 +332,7 @@ fn create_and_instantiate_ams() -> AmsContract {
 
     contract
         .instantiate(InstantiationArgument {
-            state_app_id: Some(state_application_id()),
+            state_app_id: state_application_id(),
         })
         .blocking_wait();
 
