@@ -18,8 +18,22 @@ impl ServiceAbi for AmsAbi {
     type QueryResponse = Response;
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct InstantiationArgument {
+    #[serde(default)]
+    pub state_app_id: Option<ApplicationId>,
+}
+
+pub mod namespace {
+    pub const AMS: u8 = 1;
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct InstantiationArgument {}
+pub enum AmsKey {
+    ApplicationTypes,
+    Application { application_id: ApplicationId },
+    Operator,
+}
 
 pub const MEME: &str = "Meme";
 pub const MEME_PROXY: &str = "MemeProxy";

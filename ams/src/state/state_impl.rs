@@ -11,8 +11,11 @@ use linera_sdk::{
 impl StateInterface for AmsState {
     type Error = StateError;
 
-    fn instantiate(&mut self, owner: Account, _argument: InstantiationArgument) {
+    fn instantiate(&mut self, owner: Account, argument: InstantiationArgument) {
         self.operator.set(Some(owner));
+        if let Some(state_app_id) = argument.state_app_id {
+            self.state_app_id.set(Some(state_app_id));
+        }
         for application_type in APPLICATION_TYPES {
             self.application_types
                 .push_back(application_type.to_string());

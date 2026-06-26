@@ -11,6 +11,7 @@ pub struct AmsState {
     pub application_types: QueueView<String>,
     pub applications: MapView<ApplicationId, Metadata>,
     pub operator: RegisterView<Option<Account>>,
+    pub state_app_id: RegisterView<Option<ApplicationId>>,
     pub subscribed_creator_chain: RegisterView<bool>,
 }
 

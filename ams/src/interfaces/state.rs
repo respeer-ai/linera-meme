@@ -1,6 +1,6 @@
 use abi::ams::{InstantiationArgument, Metadata};
 use async_trait::async_trait;
-use linera_sdk::linera_base_types::Account;
+use linera_sdk::linera_base_types::{Account, ApplicationId};
 
 #[async_trait(?Send)]
 pub trait StateInterface {
@@ -19,13 +19,13 @@ pub trait StateInterface {
     async fn claim_application(
         &mut self,
         owner: Account,
-        application_id: linera_sdk::linera_base_types::ApplicationId,
+        application_id: ApplicationId,
     ) -> Result<(), Self::Error>;
 
     async fn update_application(
         &mut self,
         owner: Account,
-        application_id: linera_sdk::linera_base_types::ApplicationId,
+        application_id: ApplicationId,
         metadata: Metadata,
     ) -> Result<(), Self::Error>;
 }

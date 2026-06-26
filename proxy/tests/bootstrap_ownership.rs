@@ -83,7 +83,7 @@ async fn bootstrap_multi_owner_single_leader_apps_process_frontend_protocol_oper
         .create_application::<abi::ams::AmsAbi, (), abi::ams::InstantiationArgument>(
             ams_bytecode_id,
             (),
-            abi::ams::InstantiationArgument {},
+            abi::ams::InstantiationArgument { state_app_id: None },
             vec![],
         )
         .await;

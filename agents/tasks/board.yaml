@@ -2230,19 +2230,26 @@ groups:
           - `cargo fmt -p state`
           - `ulimit -v 8000000; cargo test -p state -- --test-threads=1`
       - id: GSTATE-010
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-008]
         title: Phase 2 - Add AMS state keys and state binding
         notes: |
-          Use `ams` as the first business app integration target.
+          Complete. Added the AMS state-app binding foundation without moving AMS business records yet.
 
-          Scope:
-          - Add AMS business state key enum to `abi/src/ams.rs`.
-          - Implement state key encoding for AMS keys.
-          - Add minimal AMS local binding for state_app_id and state_namespace.
-          - Keep AMS business rules in the AMS crate.
-          - Do not add a repository or backend abstraction.
+          Covered:
+          - `abi/src/ams.rs` defines `AmsKey` for AMS business records.
+          - `abi::ams::namespace::AMS` defines the fixed AMS state namespace.
+          - `InstantiationArgument` carries only optional `state_app_id` for AMS initialization.
+          - `AmsState` stores the local `state_app_id` binding.
+          - Existing AMS creation call sites pass `state_app_id: None` until deployment wiring supplies the state app id.
+          - No repository or backend abstraction was added.
+
+          Validation:
+          - `cargo fmt -p abi -p ams -p proxy`
+          - `ulimit -v 6000000; cargo check -p abi -p ams`
+          - `ulimit -v 6000000; cargo check -p proxy`
+          - `ulimit -v 6000000; cargo test -p ams -- --test-threads=1`
       - id: GSTATE-011
         status: Todo
         priority: P0

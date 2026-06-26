@@ -37,6 +37,12 @@ active_focus:
       - agents/tasks/board.yaml
       - webui-v2/AGENTS.md
 on_demand_done:
+  - id: GSTATE-010
+    why: completed AMS state key and binding foundation before AMS contract state-app integration
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - abi/src/ams.rs
+      - ams/src/state.rs
   - id: GSTATE-008
     why: completed focused base state app and adapter test coverage before AMS integration
     canonical_refs:

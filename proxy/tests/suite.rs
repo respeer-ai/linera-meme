@@ -174,7 +174,7 @@ impl TestSuite {
                 .create_application::<AmsAbi, (), AmsInstantiationArgument>(
                     bytecode_id,
                     (),
-                    AmsInstantiationArgument {},
+                    AmsInstantiationArgument { state_app_id: None },
                     vec![],
                 )
                 .await,

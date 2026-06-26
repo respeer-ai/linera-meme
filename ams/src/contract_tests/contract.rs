@@ -331,7 +331,9 @@ fn create_and_instantiate_ams() -> AmsContract {
     };
 
     contract
-        .instantiate(InstantiationArgument {})
+        .instantiate(InstantiationArgument {
+            state_app_id: Some(state_application_id()),
+        })
         .blocking_wait();
 
     assert_eq!(
@@ -346,6 +348,10 @@ fn create_and_instantiate_ams() -> AmsContract {
         APPLICATION_TYPES.len()
     );
 
+    assert_eq!(
+        contract.state.borrow().state_app_id.get().as_ref().copied(),
+        Some(state_application_id())
+    );
     contract
 }
 
@@ -413,4 +419,26 @@ fn test_metadata(
         spec: None,
         created_at: Timestamp::from(1),
     }
+}
+
+#[test]
+fn ams_key_encoding_is_stable_for_state_app_records() {
+    let key = abi::ams::AmsKey::Application {
+        application_id: application_id(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+        ),
+    };
+
+    assert_eq!(
+        bcs::to_bytes(&key).unwrap(),
+        vec![
+            1, 177, 10, 193, 28, 53, 105, 217, 225, 182, 226, 47, 229, 15, 140, 29, 232, 179, 58,
+            1, 23, 59, 69, 99, 198, 20, 170, 7, 216, 184, 235, 91, 174,
+        ]
+    );
+}
+
+fn state_application_id() -> ApplicationId {
+    ApplicationId::from_str("b20ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+        .unwrap()
 }
