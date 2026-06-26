@@ -5,6 +5,7 @@ use crate::interfaces::state::StateInterface;
 use abi::state::{StateMessage, StateOperation, StateResponse};
 use base::handler::{Handler, HandlerError};
 use message::freeze_namespace::FreezeNamespaceMessageHandler;
+use message::unfreeze_namespace::UnfreezeNamespaceMessageHandler;
 use operation::{
     batch_delete::BatchDeleteHandler, batch_read::BatchReadHandler, batch_write::BatchWriteHandler,
     create_namespace::CreateNamespaceHandler, delete::DeleteHandler,
@@ -71,6 +72,9 @@ impl HandlerFactory {
             StateMessage::FreezeNamespace => {
                 Ok(Box::new(FreezeNamespaceMessageHandler::new(runtime, state)))
             }
+            StateMessage::UnfreezeNamespace => Ok(Box::new(UnfreezeNamespaceMessageHandler::new(
+                runtime, state,
+            ))),
             _ => Err(HandlerError::NotImplemented),
         }
     }

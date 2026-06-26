@@ -2122,11 +2122,17 @@ groups:
           - `cargo fmt -p state`
           - `cargo check -p state` with `ulimit -v 6000000`
       - id: GSTATE-004F2
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-004F1]
         title: Phase 1D-F2 - Implement UnfreezeNamespace message handler
-        notes: Implement only the UnfreezeNamespace message handler.
+        notes: |
+          Implemented only the UnfreezeNamespace message handler.
+          The handler uses runtime message_signer_account, requires it to match the stored operator, calls StateInterface::unfreeze_namespace, and emits no follow-up messages.
+
+          Validation:
+          - `cargo fmt -p state`
+          - `cargo check -p state` with `ulimit -v 6000000`
       - id: GSTATE-004F3
         status: Todo
         priority: P0
