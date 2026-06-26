@@ -1,6 +1,6 @@
 use crate::interfaces::contract::StateContractInterface;
 use crate::state_key::StateValue;
-use abi::state::{StateAbi, StateBaseInterface, StateOperation, StateResponse};
+use abi::state::{StateAbi, StateOperation, StateResponse};
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{Account, ApplicationId};
 use runtime::interfaces::contract::ContractRuntimeContext;
@@ -20,28 +20,19 @@ pub enum StateContractError {
     InvalidStateResponse,
 }
 
-pub struct StateContract<R: ContractRuntimeContext + StateBaseInterface> {
+pub struct StateContract<R: ContractRuntimeContext> {
     runtime: Rc<RefCell<R>>,
     state_app_id: ApplicationId,
     namespace: u8,
 }
 
-impl<R: ContractRuntimeContext + StateBaseInterface> StateContract<R> {
-    pub fn new(runtime: Rc<RefCell<R>>) -> Result<Self, StateContractError> {
-        let state_app_id = runtime
-            .borrow_mut()
-            .state_app_id()
-            .map_err(|error| StateContractError::Runtime(error.into()))?;
-        let namespace = runtime
-            .borrow_mut()
-            .state_namespace()
-            .map_err(|error| StateContractError::Runtime(error.into()))?;
-
-        Ok(Self {
+impl<R: ContractRuntimeContext> StateContract<R> {
+    pub fn new(runtime: Rc<RefCell<R>>, state_app_id: ApplicationId, namespace: u8) -> Self {
+        Self {
             runtime,
             state_app_id,
             namespace,
-        })
+        }
     }
 
     fn call_state(&mut self, operation: StateOperation) -> StateResponse {
@@ -100,7 +91,7 @@ impl<R: ContractRuntimeContext + StateBaseInterface> StateContract<R> {
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + StateBaseInterface> StateContractInterface for StateContract<R> {
+impl<R: ContractRuntimeContext> StateContractInterface for StateContract<R> {
     type Error = StateContractError;
 
     async fn initialize_operator(&mut self) -> Result<(), Self::Error> {

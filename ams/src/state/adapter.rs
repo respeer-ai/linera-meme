@@ -25,6 +25,11 @@ impl StateInterface for StateAdapter {
         self.state.borrow_mut().instantiate(owner, argument)
     }
 
+    fn state_app_id(&mut self) -> Result<ApplicationId, Self::Error> {
+        let mut state = self.state.borrow_mut();
+        StateInterface::state_app_id(&mut *state)
+    }
+
     async fn add_application_type(
         &mut self,
         owner: Account,

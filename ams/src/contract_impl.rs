@@ -1,16 +1,52 @@
 use super::AmsContract;
-use abi::ams::{AmsMessage, AmsOperation, AmsResponse, InstantiationArgument};
+use abi::{
+    ams::{
+        AmsKey, AmsMessage, AmsOperation, AmsResponse, InstantiationArgument, APPLICATION_TYPES,
+    },
+    namespace,
+};
 use ams::{
     contract_inner::handlers::HandlerFactory, interfaces::state::StateInterface,
     state::adapter::StateAdapter,
 };
 use runtime::{contract::ContractRuntimeAdapter, interfaces::contract::ContractRuntimeContext};
+use state::{adapters::contract::StateContract, interfaces::contract::StateContractInterface};
 use std::{cell::RefCell, rc::Rc};
 
 impl AmsContract {
-    pub fn _instantiate(&mut self, argument: InstantiationArgument) {
+    pub async fn _instantiate(&mut self, argument: InstantiationArgument) {
         let account = ContractRuntimeAdapter::new(self.runtime.clone()).authenticated_account();
-        self.state.borrow_mut().instantiate(account, argument);
+        let mut state_adapter = StateAdapter::new(self.state.clone());
+        state_adapter.instantiate(account, argument);
+
+        let state_app_id = state_adapter
+            .state_app_id()
+            .expect("Failed to read AMS state app id");
+        let state_runtime = Rc::new(RefCell::new(ContractRuntimeAdapter::new(
+            self.runtime.clone(),
+        )));
+        let mut state_contract = StateContract::new(state_runtime, state_app_id, namespace::AMS);
+        state_contract
+            .initialize_operator()
+            .await
+            .expect("Failed to initialize AMS state operator");
+        state_contract
+            .create_namespace()
+            .await
+            .expect("Failed to create AMS state namespace");
+        state_contract
+            .write(&AmsKey::Operator, &account)
+            .await
+            .expect("Failed to write AMS operator to state");
+
+        let application_types = APPLICATION_TYPES
+            .iter()
+            .map(|application_type| application_type.to_string())
+            .collect::<Vec<_>>();
+        state_contract
+            .write(&AmsKey::ApplicationTypes, &application_types)
+            .await
+            .expect("Failed to write AMS application types to state");
     }
 
     pub async fn on_op(&mut self, op: &AmsOperation) -> AmsResponse {

@@ -20,6 +20,10 @@ impl StateInterface for AmsState {
         }
     }
 
+    fn state_app_id(&mut self) -> Result<ApplicationId, StateError> {
+        self.state_app_id.get().ok_or(StateError::NotExists)
+    }
+
     async fn add_application_type(
         &mut self,
         owner: Account,

@@ -8,6 +8,8 @@ pub trait StateInterface {
 
     fn instantiate(&mut self, owner: Account, argument: InstantiationArgument);
 
+    fn state_app_id(&mut self) -> Result<ApplicationId, Self::Error>;
+
     async fn add_application_type(
         &mut self,
         owner: Account,

@@ -1,5 +1,5 @@
 use super::super::StateContract as StateAppContract;
-use abi::state::{StateAbi, StateBaseInterface, StateMessage, StateOperation, StateResponse};
+use abi::state::{StateAbi, StateMessage, StateOperation, StateResponse};
 use linera_sdk::{
     abi::ContractAbi,
     linera_base_types::{
@@ -62,8 +62,6 @@ where
 
 #[derive(Debug, Eq, PartialEq)]
 enum StateCall {
-    StateAppId,
-    StateNamespace,
     Read {
         application_id: ApplicationId,
         namespace: u8,
@@ -89,34 +87,16 @@ impl fmt::Display for MockRuntimeError {
 impl Error for MockRuntimeError {}
 
 struct MockRuntime {
-    state_app_id: ApplicationId,
-    namespace: u8,
     counter: Option<ExampleCounter>,
     calls: Vec<StateCall>,
 }
 
 impl MockRuntime {
-    fn new(state_app_id: ApplicationId, namespace: u8) -> Self {
+    fn new() -> Self {
         Self {
-            state_app_id,
-            namespace,
             counter: None,
             calls: Vec::new(),
         }
-    }
-}
-
-impl StateBaseInterface for MockRuntime {
-    type Error = MockRuntimeError;
-
-    fn state_app_id(&mut self) -> Result<ApplicationId, Self::Error> {
-        self.calls.push(StateCall::StateAppId);
-        Ok(self.state_app_id)
-    }
-
-    fn state_namespace(&mut self) -> Result<u8, Self::Error> {
-        self.calls.push(StateCall::StateNamespace);
-        Ok(self.namespace)
     }
 }
 
@@ -316,8 +296,8 @@ impl ContractRuntimeContext for MockRuntime {
 async fn business_handler_uses_concrete_state_contract_adapter() {
     let state_app_id = state_application_id();
     let namespace = 7;
-    let runtime = Rc::new(RefCell::new(MockRuntime::new(state_app_id, namespace)));
-    let state_adapter = StateContract::new(runtime.clone()).unwrap();
+    let runtime = Rc::new(RefCell::new(MockRuntime::new()));
+    let state_adapter = StateContract::new(runtime.clone(), state_app_id, namespace);
     let mut handler = ExampleBusinessHandler::new(state_adapter);
 
     let counter = handler.increment_counter().await.unwrap();
@@ -329,8 +309,6 @@ async fn business_handler_uses_concrete_state_contract_adapter() {
     assert_eq!(
         runtime.borrow().calls,
         vec![
-            StateCall::StateAppId,
-            StateCall::StateNamespace,
             StateCall::Read {
                 application_id: state_app_id,
                 namespace,

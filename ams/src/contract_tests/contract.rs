@@ -1,10 +1,13 @@
 use super::super::{AmsContract, AmsState};
 
 use abi::{
-    ams::{AmsAbi, AmsMessage, InstantiationArgument, Metadata, APPLICATION_TYPES},
+    ams::{AmsAbi, AmsKey, AmsMessage, InstantiationArgument, Metadata, APPLICATION_TYPES},
+    namespace,
+    state::{StateAbi, StateOperation, StateResponse},
     store_type::StoreType,
 };
 use linera_sdk::{
+    abi::ContractAbi,
     linera_base_types::{
         Account, AccountOwner, ApplicationId, ChainId, ChainOwnership, CryptoHash, TestString,
         Timestamp,
@@ -14,7 +17,13 @@ use linera_sdk::{
     Contract, ContractRuntime,
 };
 use std::str::FromStr;
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
+
+type RecordedStateCall = (bool, ApplicationId, StateOperation);
 
 #[tokio::test(flavor = "multi_thread")]
 async fn message_register_application_success() {
@@ -301,7 +310,57 @@ async fn message_update_application_rejects_unknown_application_type() {
     .await;
 }
 
+#[test]
+fn instantiate_initializes_state_app_records() {
+    let (_ams, calls) = create_and_instantiate_ams_recording_state_calls();
+    let calls = calls.lock().unwrap();
+    let expected_application_types = APPLICATION_TYPES
+        .iter()
+        .map(|application_type| application_type.to_string())
+        .collect::<Vec<_>>();
+
+    assert_eq!(calls.len(), 4);
+    assert!(calls
+        .iter()
+        .all(|(authenticated, application_id, _operation)| {
+            *authenticated && *application_id == state_application_id()
+        }));
+    assert_eq!(
+        calls[0].2,
+        StateOperation::InitializeOperator {
+            operator: creator_account()
+        }
+    );
+    assert_eq!(
+        calls[1].2,
+        StateOperation::CreateNamespace {
+            namespace: namespace::AMS
+        }
+    );
+    assert_eq!(
+        calls[2].2,
+        StateOperation::Write {
+            namespace: namespace::AMS,
+            key: bcs::to_bytes(&AmsKey::Operator).unwrap(),
+            value: bcs::to_bytes(&creator_account()).unwrap(),
+        }
+    );
+    assert_eq!(
+        calls[3].2,
+        StateOperation::Write {
+            namespace: namespace::AMS,
+            key: bcs::to_bytes(&AmsKey::ApplicationTypes).unwrap(),
+            value: bcs::to_bytes(&expected_application_types).unwrap(),
+        }
+    );
+}
+
 fn create_and_instantiate_ams() -> AmsContract {
+    create_and_instantiate_ams_recording_state_calls().0
+}
+
+fn create_and_instantiate_ams_recording_state_calls(
+) -> (AmsContract, Arc<Mutex<Vec<RecordedStateCall>>>) {
     let chain_id =
         ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
             .unwrap();
@@ -313,6 +372,8 @@ fn create_and_instantiate_ams() -> AmsContract {
         ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
             .unwrap()
             .with_abi::<AmsAbi>();
+    let state_calls = Arc::new(Mutex::new(Vec::new()));
+    let state_calls_for_handler = state_calls.clone();
     let runtime = ContractRuntime::new()
         .with_application_parameters(())
         .with_authenticated_signer(owner)
@@ -320,6 +381,15 @@ fn create_and_instantiate_ams() -> AmsContract {
         .with_application_creator_chain_id(chain_id)
         .with_chain_ownership(ChainOwnership::single(owner))
         .with_system_time(Timestamp::from(1))
+        .with_call_application_handler(move |authenticated, application_id, call| {
+            let operation = StateAbi::deserialize_operation(call).unwrap();
+            state_calls_for_handler.lock().unwrap().push((
+                authenticated,
+                application_id,
+                operation,
+            ));
+            StateAbi::serialize_response(StateResponse::Ok).unwrap()
+        })
         .with_application_id(application_id);
     let mut contract = AmsContract {
         state: Rc::new(RefCell::new(
@@ -352,7 +422,7 @@ fn create_and_instantiate_ams() -> AmsContract {
         contract.state.borrow().state_app_id.get().as_ref().copied(),
         Some(state_application_id())
     );
-    contract
+    (contract, state_calls)
 }
 
 fn creator_account() -> Account {

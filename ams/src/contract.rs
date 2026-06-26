@@ -38,7 +38,7 @@ impl Contract for AmsContract {
 
     async fn instantiate(&mut self, argument: InstantiationArgument) {
         self.runtime.borrow_mut().application_parameters();
-        self._instantiate(argument);
+        self._instantiate(argument).await;
     }
 
     async fn execute_operation(&mut self, operation: AmsOperation) -> Self::Response {

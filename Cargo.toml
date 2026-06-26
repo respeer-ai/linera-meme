@@ -61,6 +61,7 @@ ams = { path = "./ams" }
 deposit = { path = "./deposit" }
 base = { path = "./base" }
 runtime = { path = "./runtime" }
+state = { path = "./state" }
 
 [profile.release]
 debug = true
