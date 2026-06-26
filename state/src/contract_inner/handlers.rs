@@ -9,7 +9,8 @@ use operation::{
     create_namespace::CreateNamespaceHandler, delete::DeleteHandler,
     freeze_namespace::FreezeNamespaceHandler, handoff::HandoffHandler,
     initialize_operator::InitializeOperatorHandler, read::ReadHandler,
-    unfreeze_namespace::UnfreezeNamespaceHandler, write::WriteHandler,
+    set_operator::SetOperatorHandler, unfreeze_namespace::UnfreezeNamespaceHandler,
+    write::WriteHandler,
 };
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
@@ -54,7 +55,9 @@ impl HandlerFactory {
                 Ok(Box::new(UnfreezeNamespaceHandler::new(runtime, operation)))
             }
             StateOperation::Handoff { .. } => Ok(Box::new(HandoffHandler::new(runtime, operation))),
-            _ => Err(HandlerError::NotImplemented),
+            StateOperation::SetOperator { .. } => {
+                Ok(Box::new(SetOperatorHandler::new(runtime, operation)))
+            }
         }
     }
 

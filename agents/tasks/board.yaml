@@ -2098,11 +2098,17 @@ groups:
           - `cargo fmt -p state`
           - `cargo check -p state` with `ulimit -v 6000000`
       - id: GSTATE-004E4
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-004E3]
         title: Phase 1D-E4 - Implement SetOperator operation handler
-        notes: Implement only the SetOperator operation handler.
+        notes: |
+          Implemented only the SetOperator operation handler.
+          The handler requires an authenticated signer, resolves the target chain from the target application creator chain id, sends StateMessage::SetOperator with the new operator account, and returns StateResponse::Ok.
+
+          Validation:
+          - `cargo fmt -p state`
+          - `cargo check -p state` with `ulimit -v 6000000`
       - id: GSTATE-004F1
         status: Todo
         priority: P0
