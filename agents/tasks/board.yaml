@@ -2190,23 +2190,23 @@ groups:
           - `cargo fmt -p state --check`
           - `cargo check -p state` with `ulimit -v 6000000`
       - id: GSTATE-007
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-006]
         title: Phase 1G - Add minimal state adapter usage example
         notes: |
-          Add a minimal usage example that proves how a business app will consume state interfaces without starting AMS integration.
+          Complete. Added a minimal state adapter usage example in `state/src/contract_tests/contract.rs`.
 
-          Scope:
-          - Add a small test-only or doc-test example using a sample key implementing `StateKey`.
-          - Show contract-side code depending on `StateContractInterface`, not concrete `StateContract`.
-          - Show concrete instances are constructed at the entry layer and injected.
-          - Do not modify AMS, meme, pool, swap, or proxy.
-          - Service-side typed read examples are deferred until a typed service read path exists.
+          The example shows:
+          - Contract-side business code depends on `StateContractInterface`, not concrete `StateContract`.
+          - A typed business key/value pair is serialized through the state adapter boundary.
+          - A concrete `StateContract` is constructed at an entry-layer helper and injected into the business handler.
+          - The test uses a mock runtime to exercise the concrete `StateContract` read/write path through `call_application`.
+          - No AMS, meme, pool, swap, or proxy code was modified.
 
-          Review rule:
-          - This review is example usage only.
-          - Keep the example small enough to review without inspecting business app migrations.
+          Validation:
+          - `cargo fmt -p state`
+          - `ulimit -v 6000000; cargo test -p state business_handler_uses_concrete_state_contract_adapter -- --test-threads=1`
       - id: GSTATE-008
         status: Todo
         priority: P0

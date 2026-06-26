@@ -25,8 +25,8 @@ defaults:
     - canonical_doc_promotion_incomplete
 active_focus:
   - id: GSTATE-004
-    why: current state application umbrella; next review-gated subtask is GSTATE-007
-    summary: Continue state app core behavior through small review-gated subtasks; next task is GSTATE-007 minimal state adapter usage example.
+    why: current state application umbrella; next review-gated subtask is GSTATE-008
+    summary: Continue state app validation through small review-gated subtasks; next task is GSTATE-008 focused base state app and adapter tests.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/state-application.md
@@ -43,6 +43,11 @@ active_focus:
       - agents/tasks/board.yaml
       - webui-v2/AGENTS.md
 on_demand_done:
+  - id: GSTATE-007
+    why: completed minimal StateContractInterface usage example before GSTATE-008 test coverage
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - state/src/contract_tests/contract.rs
   - id: WEBUI-003
     why: completed FAQ copy, i18n component extraction, structured data alignment, and long-question layout fix
     canonical_refs:
