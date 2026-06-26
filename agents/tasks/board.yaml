@@ -2074,17 +2074,29 @@ groups:
           - `python3 scripts/validate_prompt_state.py`
           - `git diff --check`
       - id: GSTATE-004E2
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-004E1]
         title: Phase 1D-E2 - Implement UnfreezeNamespace operation handler
-        notes: Implement only the UnfreezeNamespace operation handler.
+        notes: |
+          Implemented only the UnfreezeNamespace operation handler.
+          The handler requires an authenticated signer, resolves the target chain from the target application creator chain id, sends StateMessage::UnfreezeNamespace with tracking disabled, and returns StateResponse::Ok.
+
+          Validation:
+          - `cargo fmt -p state`
+          - `cargo check -p state` with `ulimit -v 6000000`
       - id: GSTATE-004E3
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-004E2]
         title: Phase 1D-E3 - Implement Handoff operation handler
-        notes: Implement only the Handoff operation handler.
+        notes: |
+          Implemented only the Handoff operation handler.
+          The handler requires an authenticated signer, resolves the target chain from the current and new application creator chain ids, rejects cross-creator-chain handoff with HandlerError::NotAllowed, sends StateMessage::Handoff with the source application id, namespace, and new application id, and returns StateResponse::Ok.
+
+          Validation:
+          - `cargo fmt -p state`
+          - `cargo check -p state` with `ulimit -v 6000000`
       - id: GSTATE-004E4
         status: Todo
         priority: P0

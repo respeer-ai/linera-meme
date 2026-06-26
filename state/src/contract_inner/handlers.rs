@@ -7,8 +7,9 @@ use base::handler::{Handler, HandlerError};
 use operation::{
     batch_delete::BatchDeleteHandler, batch_read::BatchReadHandler, batch_write::BatchWriteHandler,
     create_namespace::CreateNamespaceHandler, delete::DeleteHandler,
-    freeze_namespace::FreezeNamespaceHandler, initialize_operator::InitializeOperatorHandler,
-    read::ReadHandler, write::WriteHandler,
+    freeze_namespace::FreezeNamespaceHandler, handoff::HandoffHandler,
+    initialize_operator::InitializeOperatorHandler, read::ReadHandler,
+    unfreeze_namespace::UnfreezeNamespaceHandler, write::WriteHandler,
 };
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
@@ -49,6 +50,10 @@ impl HandlerFactory {
             StateOperation::FreezeNamespace { .. } => {
                 Ok(Box::new(FreezeNamespaceHandler::new(runtime, operation)))
             }
+            StateOperation::UnfreezeNamespace { .. } => {
+                Ok(Box::new(UnfreezeNamespaceHandler::new(runtime, operation)))
+            }
+            StateOperation::Handoff { .. } => Ok(Box::new(HandoffHandler::new(runtime, operation))),
             _ => Err(HandlerError::NotImplemented),
         }
     }
