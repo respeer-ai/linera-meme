@@ -6,6 +6,7 @@ use abi::state::{StateMessage, StateOperation, StateResponse};
 use base::handler::{Handler, HandlerError};
 use message::freeze_namespace::FreezeNamespaceMessageHandler;
 use message::handoff::HandoffMessageHandler;
+use message::set_operator::SetOperatorMessageHandler;
 use message::unfreeze_namespace::UnfreezeNamespaceMessageHandler;
 use operation::{
     batch_delete::BatchDeleteHandler, batch_read::BatchReadHandler, batch_write::BatchWriteHandler,
@@ -79,7 +80,9 @@ impl HandlerFactory {
             StateMessage::Handoff { .. } => Ok(Box::new(HandoffMessageHandler::new(
                 runtime, state, message,
             ))),
-            _ => Err(HandlerError::NotImplemented),
+            StateMessage::SetOperator { .. } => Ok(Box::new(SetOperatorMessageHandler::new(
+                runtime, state, message,
+            ))),
         }
     }
 

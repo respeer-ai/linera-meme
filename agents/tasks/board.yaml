@@ -1848,7 +1848,7 @@ groups:
           - `python3 scripts/validate_prompt_state.py`
           - `git diff --check`
       - id: GSTATE-004
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [GSTATE-003]
         title: Phase 1D - Implement state app core behavior
@@ -2146,11 +2146,17 @@ groups:
           - `cargo fmt -p state`
           - `cargo check -p state` with `ulimit -v 6000000`
       - id: GSTATE-004F4
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-004F3]
         title: Phase 1D-F4 - Implement SetOperator message handler
-        notes: Implement only the SetOperator message handler.
+        notes: |
+          Implemented only the SetOperator message handler.
+          The handler uses runtime message_signer_account, requires it to match the stored operator, calls StateInterface::set_operator, and emits no follow-up messages.
+
+          Validation:
+          - `cargo fmt -p state`
+          - `cargo check -p state` with `ulimit -v 6000000`
       - id: GSTATE-005
         status: Todo
         priority: P0
