@@ -19,6 +19,10 @@ impl StateAdapter {
 impl StateInterface for StateAdapter {
     type Error = <State as StateInterface>::Error;
 
+    async fn operator(&mut self) -> Result<Account, Self::Error> {
+        self.state.borrow_mut().operator().await
+    }
+
     async fn initialize_operator(&mut self, operator: Account) -> Result<(), Self::Error> {
         self.state.borrow_mut().initialize_operator(operator).await
     }

@@ -11,6 +11,10 @@ const MAX_NAMESPACE_SLOTS: usize = u8::MAX as usize + 1;
 impl StateInterface for State {
     type Error = StateError;
 
+    async fn operator(&mut self) -> Result<Account, Self::Error> {
+        self.require_initialized_operator()
+    }
+
     async fn initialize_operator(&mut self, operator: Account) -> Result<(), Self::Error> {
         if self.operator.get().is_some() {
             return Err(StateError::OperatorAlreadyInitialized);

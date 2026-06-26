@@ -8,6 +8,7 @@ pub trait StateInterface {
     type Error: std::fmt::Debug + std::error::Error + 'static;
 
     async fn initialize_operator(&mut self, operator: Account) -> Result<(), Self::Error>;
+    async fn operator(&mut self) -> Result<Account, Self::Error>;
 
     async fn create_namespace(
         &mut self,

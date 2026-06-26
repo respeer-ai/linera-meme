@@ -4,6 +4,7 @@ pub mod operation;
 use crate::interfaces::state::StateInterface;
 use abi::state::{StateMessage, StateOperation, StateResponse};
 use base::handler::{Handler, HandlerError};
+use message::freeze_namespace::FreezeNamespaceMessageHandler;
 use operation::{
     batch_delete::BatchDeleteHandler, batch_read::BatchReadHandler, batch_write::BatchWriteHandler,
     create_namespace::CreateNamespaceHandler, delete::DeleteHandler,
@@ -62,11 +63,16 @@ impl HandlerFactory {
     }
 
     fn new_message_handler(
-        _runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
-        _state: impl StateInterface + 'static,
-        _message: &StateMessage,
+        runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
+        state: impl StateInterface + 'static,
+        message: &StateMessage,
     ) -> Result<Box<dyn Handler<StateMessage, StateResponse>>, HandlerError> {
-        Err(HandlerError::NotImplemented)
+        match message {
+            StateMessage::FreezeNamespace => {
+                Ok(Box::new(FreezeNamespaceMessageHandler::new(runtime, state)))
+            }
+            _ => Err(HandlerError::NotImplemented),
+        }
     }
 
     pub fn new(
