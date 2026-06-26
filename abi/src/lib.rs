@@ -5,6 +5,7 @@ pub mod deposit;
 pub mod hash;
 pub mod meme;
 pub mod meme_token;
+pub mod namespace;
 pub mod policy;
 pub mod proxy;
 pub mod state;

@@ -24,10 +24,6 @@ pub struct InstantiationArgument {
     pub state_app_id: Option<ApplicationId>,
 }
 
-pub mod namespace {
-    pub const AMS: u8 = 1;
-}
-
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum AmsKey {
     ApplicationTypes,
