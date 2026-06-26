@@ -2223,11 +2223,12 @@ groups:
           - Frozen namespace management rejects new namespace binding while record read/write remains available.
           - Handoff preserves slot records, rejects the old application, and rejects already-bound targets.
           - SetOperator operation routes a message without reading state; SetOperator message rejects non-current-operator signers and rotates authorization.
+          - `state/tests/multi_chain.rs` covers a real `TestValidator` multi-chain SetOperator operation routing one message to the state app creator chain.
           - GSTATE-007 concrete adapter usage test remains in the same file and covers StateContract read/write through call_application.
 
           Validation:
           - `cargo fmt -p state`
-          - `ulimit -v 6000000; cargo test -p state -- --test-threads=1`
+          - `ulimit -v 8000000; cargo test -p state -- --test-threads=1`
       - id: GSTATE-010
         status: Todo
         priority: P0
@@ -2283,6 +2284,20 @@ groups:
           - AMS service tests for read-only queries through the state app.
           - Tests for missing state binding and namespace binding errors.
           - Tests proving AMS handlers remain insulated from state_app_id, namespace, and BCS details.
+      - id: GSTATE-014
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-011, GSTATE-013]
+        title: Phase 2 - Test real business-app adapter calls across chains
+        notes: |
+          Add true multi-chain adapter integration coverage after AMS uses the state app from a real business contract.
+
+          Scope:
+          - Use a real business application call path, not a mock runtime, so state app operations have an authenticated caller application.
+          - Cover StateContractInterface initialize/create namespace/write/read through app-to-app `call_application`.
+          - Drive cross-chain delivery with `TestValidator` and `handle_received_messages()` where management operations route to the state app creator chain.
+          - Assert the authoritative state is observed after message delivery, not from a stale replica.
+          - Keep the test in the business integration phase; do not add a test-only business application just for the base state crate.
       - id: GSTATE-020
         status: Todo
         priority: P0
