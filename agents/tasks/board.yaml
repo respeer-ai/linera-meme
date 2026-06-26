@@ -2208,29 +2208,26 @@ groups:
           - `cargo fmt -p state`
           - `ulimit -v 6000000; cargo test -p state business_handler_uses_concrete_state_contract_adapter -- --test-threads=1`
       - id: GSTATE-008
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-004, GSTATE-005, GSTATE-006, GSTATE-007]
         title: Phase 1H - Test base state app and adapter behavior
         notes: |
-          Complete the state app phase with focused contract, service, and adapter tests.
+          Complete. Added focused state app contract tests in `state/src/contract_tests/contract.rs`.
 
-          Scope:
-          - Repeated InitializeOperator rejects.
-          - Missing signer rejects operator-only operations.
-          - Non-operator signer rejects operator-only operations.
-          - CreateNamespace rejects before operator initialization, without caller, duplicate caller, and wrong creator chain.
-          - frozen_namespaces rejects namespace management and still allows BatchRead and BatchWrite.
-          - BatchRead and BatchWrite reject unbound callers.
-          - BatchWrite Some(bytes) writes and None deletes only the caller slot record.
-          - Separate namespaces and caller slots isolate identical business keys.
-          - Handoff replaces in-place, preserves slot records, rejects new-app caller, and rejects already-bound targets.
-          - SetOperator rejects wrong-chain operators and rotates authorization.
-          - Business-facing adapters cannot write outside the authenticated app namespace slot.
+          Covered:
+          - Repeated InitializeOperator rejects without replacing the operator.
+          - Management operations reject missing signers.
+          - CreateNamespace rejects wrong creator-chain callers.
+          - BatchRead, BatchWrite, and BatchDelete use authenticated caller slots and isolate identical business keys across applications.
+          - Frozen namespace management rejects new namespace binding while record read/write remains available.
+          - Handoff preserves slot records, rejects the old application, and rejects already-bound targets.
+          - SetOperator operation routes a message without reading state; SetOperator message rejects non-current-operator signers and rotates authorization.
+          - GSTATE-007 concrete adapter usage test remains in the same file and covers StateContract read/write through call_application.
 
-          Review rule:
-          - This review is test coverage only, except for minimal fixes required by tests.
-          - If tests reveal behavior changes larger than small fixes, split them into a separate review.
+          Validation:
+          - `cargo fmt -p state`
+          - `ulimit -v 6000000; cargo test -p state -- --test-threads=1`
       - id: GSTATE-010
         status: Todo
         priority: P0

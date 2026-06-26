@@ -24,12 +24,6 @@ defaults:
     - unresolved_caveat_still_relevant
     - canonical_doc_promotion_incomplete
 active_focus:
-  - id: GSTATE-004
-    why: current state application umbrella; next review-gated subtask is GSTATE-008
-    summary: Continue state app validation through small review-gated subtasks; next task is GSTATE-008 focused base state app and adapter tests.
-    canonical_refs:
-      - agents/tasks/board.yaml
-      - agents/primitives/state-application.md
   - id: WEBUI-004
     why: current WebUI queue; improve Add Liquidity and Remove Liquidity pages
     summary: Review and implement liquidity page layout, hierarchy, interaction states, and usability after WEBUI-003.
@@ -43,6 +37,11 @@ active_focus:
       - agents/tasks/board.yaml
       - webui-v2/AGENTS.md
 on_demand_done:
+  - id: GSTATE-008
+    why: completed focused base state app and adapter test coverage before AMS integration
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - state/src/contract_tests/contract.rs
   - id: GSTATE-007
     why: completed minimal StateContractInterface usage example before GSTATE-008 test coverage
     canonical_refs:
