@@ -6,6 +6,13 @@ pub enum StateError {
     #[error("View error")]
     ViewError(#[from] linera_sdk::views::ViewError),
 
+    #[error(transparent)]
+    StateContract(#[from] state::adapters::contract::StateContractError),
+
+    #[error(transparent)]
+    StateService(#[from] state::adapters::service::StateServiceError),
+    #[error(transparent)]
+    Bcs(#[from] linera_sdk::bcs::Error),
     #[error("Already exists")]
     AlreadyExists,
 

@@ -34,7 +34,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMe
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<AmsMessage, AmsResponse>>, HandlerError> {
-        match self.state.register_application(self.metadata.clone()) {
+        match self.state.register_application(self.metadata.clone()).await {
             Ok(_) => Ok(None),
             Err(err) => Err(HandlerError::ProcessError(Box::new(err))),
         }

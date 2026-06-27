@@ -43,6 +43,31 @@ on_demand_done:
       - agents/tasks/board.yaml
       - abi/src/ams.rs
       - ams/src/state.rs
+  - id: GSTATE-011
+    why: completed AMS contract-side business record integration through state app
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - ams/src/state/adapter/
+      - ams/src/contract_impl.rs
+  - id: GSTATE-012
+    why: completed AMS service read integration through state app without scan-prefix API
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - ams/src/state/adapter/
+      - ams/src/service.rs
+      - state/src/service.rs
+  - id: GSTATE-013
+    why: completed AMS state-app integration test coverage
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: GSTATE-014
+    why: completed real AMS business-app adapter multi-chain coverage through state app
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - ams/tests/multi_chain.rs
+      - ams/src/contract_tests/contract.rs
+      - ams/src/contract_tests/contract.rs
+      - ams/src/service.rs
   - id: GSTATE-008
     why: completed focused base state app and adapter test coverage before AMS integration
     canonical_refs:

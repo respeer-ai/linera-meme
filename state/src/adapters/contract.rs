@@ -1,6 +1,5 @@
 use crate::interfaces::contract::StateContractInterface;
-use crate::state_key::StateValue;
-use abi::state::{StateAbi, StateOperation, StateResponse};
+use abi::state::{BatchWrite, StateAbi, StateOperation, StateResponse, StateValue};
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{Account, ApplicationId};
 use runtime::interfaces::contract::ContractRuntimeContext;
@@ -163,34 +162,12 @@ impl<R: ContractRuntimeContext> StateContractInterface for StateContract<R> {
         })
     }
 
-    async fn batch_write<K, V>(&mut self, writes: &[(K, Option<V>)]) -> Result<(), Self::Error>
-    where
-        K: Serialize,
-        V: StateValue,
-    {
-        let mut encoded_writes = Vec::new();
-        let mut delete_keys = Vec::new();
-
-        for (key, value) in writes {
-            let key = Self::key_bytes(key)?;
-            if let Some(value) = value {
-                encoded_writes.push((key, value.into_state_bytes()?));
-            } else {
-                delete_keys.push(key);
-            }
-        }
-
-        if !encoded_writes.is_empty() {
+    async fn batch_write(&mut self, batch: BatchWrite) -> Result<(), Self::Error> {
+        let writes = batch.into_writes();
+        if !writes.is_empty() {
             self.call_ok(StateOperation::BatchWrite {
                 namespace: self.namespace,
-                writes: encoded_writes,
-            })?;
-        }
-
-        if !delete_keys.is_empty() {
-            self.call_ok(StateOperation::BatchDelete {
-                namespace: self.namespace,
-                keys: delete_keys,
+                writes,
             })?;
         }
 

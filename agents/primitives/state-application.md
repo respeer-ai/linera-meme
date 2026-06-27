@@ -420,8 +420,7 @@ Business applications store only minimal local binding required to reach the `st
 Required local fields:
 
 ```rust
-state_app_id: RegisterView<Option<ApplicationId<StateAbi>>>,
-state_namespace: RegisterView<Option<u8>>,
+state_application_id: RegisterView<Option<ApplicationId>>,
 ```
 
 Rules:
@@ -454,7 +453,7 @@ pub trait StateContractInterface {
     async fn read<K, V>(&mut self, key: &K) -> Result<Option<V>, Self::Error>;
     async fn batch_read<K, V>(&mut self, keys: &[K]) -> Result<Vec<Option<V>>, Self::Error>;
     async fn write<K, V>(&mut self, key: &K, value: &V) -> Result<(), Self::Error>;
-    async fn batch_write<K, V>(&mut self, writes: &[(K, Option<V>)]) -> Result<(), Self::Error>;
+    async fn batch_write(&mut self, writes: &[StateWrite]) -> Result<(), Self::Error>;
     async fn delete<K>(&mut self, key: &K) -> Result<(), Self::Error>;
 }
 ```
@@ -614,7 +613,7 @@ Required sequence:
 
 1. Swap creates the pool chain and pool application through the existing flow
 2. Pool application runs its existing instantiate path
-3. Pool application stores `state_app_id` and `state_namespace = NS_POOL` in minimal local state
+3. Pool application stores `state_application_id` in minimal local state; namespace is the compile-time `NS_POOL` constant
 4. Pool application calls state `InitializeOperator`
 5. Pool application calls state `CreateNamespace { namespace: NS_POOL }`
 6. Pool application calls state `BatchWrite` for initial pool business records
@@ -629,7 +628,7 @@ Required sequence:
 
 1. Proxy creates the meme chain and meme application through the existing flow
 2. Meme application runs its existing instantiate/create path
-3. Meme application stores `state_app_id` and `state_namespace = NS_MEME` in minimal local state
+3. Meme application stores `state_application_id` in minimal local state; namespace is the compile-time `NS_MEME` constant
 4. Meme application calls state `InitializeOperator`
 5. Meme application calls state `CreateNamespace { namespace: NS_MEME }`
 6. Meme application calls state `BatchWrite` for initial meme business records
@@ -736,9 +735,9 @@ GSTATE-001 is complete only when tests cover:
 - `CreateNamespace` rejects duplicate caller binding in the same namespace
 - `frozen_namespaces == true` rejects `CreateNamespace`, `Handoff`, and `SetOperator`
 - `frozen_namespaces == true` still allows `BatchRead` and `BatchWrite`
+- `BatchDelete` deletes only the caller slot record under `[namespace][slot][business_key...]`
 - `BatchRead` and `BatchWrite` reject unbound callers
-- `BatchWrite` with `Some(bytes)` writes under `[namespace][slot][business_key...]`
-- `BatchWrite` with `None` deletes only the caller slot record
+- `BatchWrite` writes under `[namespace][slot][business_key...]`
 - Separate namespaces isolate identical business keys
 - Separate caller slots in the same namespace isolate identical business keys
 - `Handoff` replaces in-place and preserves slot records

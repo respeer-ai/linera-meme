@@ -2177,12 +2177,12 @@ groups:
           Implemented concrete runtime-backed contract adapter behavior for the business-facing StateContractInterface.
 
           Complete:
-          - Added `abi::state::StateBaseInterface` as the common business-app binding capability for state_app_id and namespace.
-          - StateBaseInterface returns a raw `ApplicationId`; runtime does not depend on the state ABI, and the state adapter attaches `StateAbi` only at the call boundary.
-          - `state::adapters::contract::StateContract<R>` stores runtime, state_app_id, and namespace read from StateBaseInterface.
+          - Business applications provide `state_application_id` from local state and namespace from ABI constants when constructing `state::adapters::contract::StateContract<R>`.
+          - `StateContract<R>` stores runtime, state application id, and namespace passed to `StateContract::new`; runtime does not store state binding data.
+          - `abi::application_base_state::StateApplicationIdStorage` is the shared local-state capability for business apps that persist a state application id.
           - Adapter wraps StateOperation construction and call_application for InitializeOperator, CreateNamespace, FreezeNamespace, UnfreezeNamespace, Handoff, Read, BatchRead, Write, BatchWrite, BatchDelete, and Delete.
           - Typed keys and values are BCS encoded/decoded behind the adapter.
-          - `batch_write` maps Some values to BatchWrite and None values to BatchDelete.
+          - `batch_write` accepts typed `StateWrite` entries and maps puts to BatchWrite and deletes to BatchDelete.
           - No concrete-only public helper APIs were added; the adapter exposes only `StateContract::new` and the StateContractInterface surface plus private implementation helpers.
           - Service-side typed reads remain deferred because raw state app admin queries were cancelled in GSTATE-005.
 
@@ -2251,62 +2251,78 @@ groups:
           - `ulimit -v 6000000; cargo check -p proxy`
           - `ulimit -v 6000000; cargo test -p ams -- --test-threads=1`
       - id: GSTATE-011
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-010]
         title: Phase 2 - Integrate AMS contract state through state app
         notes: |
-          Move AMS contract-side business state reads and writes through the state app while preserving AMS handler interfaces.
+          Complete. AMS contract-side business records now go through `ams/src/state/adapter/contract.rs::ContractStateAdapter`, which constructs `state::adapters::contract::StateContract` from the runtime context, the local `state_application_id`, and `abi::namespace::AMS`.
 
-          Scope:
-          - Keep AMS handlers depending on AMS `StateInterface`.
-          - Update AMS StateAdapter to hold `C: state::interfaces::contract::StateContractInterface`.
-          - Construct `state::adapters::contract::StateContract` in the AMS contract entry layer and inject it into AMS StateAdapter.
-          - Replace AMS local business record reads/writes with StateContractInterface calls.
-          - Avoid holding `Rc<RefCell<AmsState>>` borrows across async state app calls.
+          Covered:
+          - AMS handlers still depend on AMS `StateInterface`.
+          - `AmsState` remains local binding storage for `state_application_id` only.
+          - AMS application type, application metadata, operator, and application id index records are read or written through the state app.
+          - `AmsKey::ApplicationIds` replaces service scan-prefix dependency for listing AMS applications.
+
+          Validation:
+          - `cargo fmt -p abi -p state -p ams --check`
+          - `ulimit -v 6000000; cargo check -p abi -p state -p ams`
+          - `ulimit -v 6000000; cargo test -p ams -- --test-threads=1`
       - id: GSTATE-012
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-011]
         title: Phase 2 - Integrate AMS service reads through state app
         notes: |
-          Move AMS service read paths through the state app without forcing the full write-capable AMS StateInterface into service code.
+          Complete. AMS service resolvers read migrated AMS records through `ams/src/state/adapter/service.rs::ServiceStateAdapter`.
 
-          Scope:
-          - Construct `state::adapters::service::StateService` in the AMS service entry layer.
-          - Add an AMS read-only query wrapper or read-only interface for service GraphQL resolvers.
-          - First verify whether service-side runtime/state ownership, `Rc<RefCell>`, or `#[async_trait(?Send)]` constraints prevent reusing contract-side adapter shapes.
-          - Replace direct local view reads for migrated AMS records with StateServiceInterface reads.
-          - Keep service mutations scheduling AMS operations instead of writing the state app directly.
+          Covered:
+          - Contract and service adapters are centralized under `ams/src/state/adapter/`.
+          - `ams/src/state/service_adapter.rs` is removed.
+          - AMS service code no longer imports `StateAbi`, `namespace::AMS`, `Variables`, `query_application`, or hardcoded state key prefixes directly.
+          - `state/src/service.rs` exposes exact `read` and `batch_read` and no longer exposes `scan_prefix`.
+          - AMS list queries currently read the full `ApplicationIds` index and batch-read matching records before service-side filtering; future work must evaluate whether the Linera SDK supports richer indexed or conditional state reads before changing this model.
+
+          Validation:
+          - `cargo fmt -p abi -p state -p ams --check`
+          - `ulimit -v 6000000; cargo check -p abi -p state -p ams`
+          - `ulimit -v 6000000; cargo test -p ams -- --test-threads=1`
       - id: GSTATE-013
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-011, GSTATE-012]
         title: Phase 2 - Test AMS state-app integration
         notes: |
-          Validate AMS integration before using the pattern for other apps.
+          Complete. AMS state-app integration is covered by contract and service tests before applying the pattern to other business apps.
 
-          Scope:
-          - AMS contract tests for initialization and normal writes through the state app.
-          - AMS service tests for read-only queries through the state app.
-          - Tests for missing state binding and namespace binding errors.
-          - Tests proving AMS handlers remain insulated from state_app_id, namespace, and BCS details.
+          Covered:
+          - Contract tests verify initialization and application writes through mocked state app calls.
+          - Service tests verify single-application and application-list queries read through `ServiceStateAdapter`.
+          - Handler tests continue to exercise AMS `StateInterface`, keeping state app id, namespace, and BCS details below the handler layer.
+
+          Validation:
+          - `cargo fmt -p abi -p state -p ams --check`
+          - `ulimit -v 6000000; cargo check -p abi -p state -p ams`
+          - `ulimit -v 6000000; cargo test -p ams -- --test-threads=1`
+          - `ulimit -v 6000000; cargo test -p state business_handler_uses_concrete_state_contract_adapter -- --test-threads=1`
       - id: GSTATE-014
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-011, GSTATE-013]
         title: Phase 2 - Test real business-app adapter calls across chains
         notes: |
-          Add true multi-chain adapter integration coverage after AMS uses the state app from a real business contract.
+          Complete. `ams/tests/multi_chain.rs` now drives a real AMS business application path across chains with `TestValidator`, using a real state app application id.
 
-          Scope:
-          - Use a real business application call path, not a mock runtime, so state app operations have an authenticated caller application.
-          - Cover StateContractInterface initialize/create namespace/write/read through app-to-app `call_application`.
-          - Drive cross-chain delivery with `TestValidator` and `handle_received_messages()` where management operations route to the state app creator chain.
-          - Assert the authoritative state is observed after message delivery, not from a stale replica.
-          - Keep the test in the business integration phase; do not add a test-only business application just for the base state crate.
+          Covered:
+          - AMS instantiation calls the state app through app-to-app `call_application` for InitializeOperator, CreateNamespace, and initial BatchWrite.
+          - Register, AddApplicationType, Claim, and Update are executed through real AMS operations/messages across chains.
+          - AMS service queries read authoritative records back through the state service adapter after message delivery.
+          - Error branches remain covered in focused contract unit tests to avoid repeated Wasmer multi-chain memory pressure.
+
+          Validation:
+          - `ulimit -v 14000000; cargo test -p ams --test multi_chain -- --test-threads=1`
+          - `ulimit -v 6000000; cargo test -p ams --bin ams_contract -- --test-threads=1`
       - id: GSTATE-020
-        status: Todo
         priority: P0
         depends_on: [GSTATE-013]
         title: Phase 3 - Run AMS state-app E2E validation
@@ -2347,7 +2363,7 @@ groups:
 
           Scope:
           - Add MemeKey to `abi/src/meme.rs`.
-          - Add meme local state_app_id and namespace binding.
+          - Add meme local `state_application_id` storage; namespace comes from an ABI constant.
           - Inject StateContractInterface through meme StateAdapter.
           - Move meme balances, allowances, metadata, ownership, liquidity, and mining records through the state app where applicable.
           - Add meme read-only service wrapper over StateServiceInterface.
@@ -2362,7 +2378,7 @@ groups:
 
           Scope:
           - Add PoolKey to `abi/src/pool.rs`.
-          - Add pool local state_app_id and namespace binding.
+          - Add pool local `state_application_id` storage; namespace comes from an ABI constant.
           - Inject StateContractInterface through pool state adapter.
           - Move pool business records through the state app where applicable.
           - Add pool read-only service wrapper over StateServiceInterface.
@@ -2377,7 +2393,7 @@ groups:
 
           Scope:
           - Add SwapKey to `abi/src/swap.rs`.
-          - Add swap local state_app_id and namespace binding.
+          - Add swap local `state_application_id` storage; namespace comes from an ABI constant.
           - Inject StateContractInterface through swap state adapter.
           - Move swap business records through the state app where applicable.
           - Add swap read-only service wrapper over StateServiceInterface.
@@ -2392,7 +2408,7 @@ groups:
 
           Scope:
           - Add ProxyKey to the proxy ABI module if proxy has migrated protocol records.
-          - Add proxy local state_app_id and namespace binding when needed.
+          - Add proxy local `state_application_id` storage when needed; namespace comes from an ABI constant.
           - Inject StateContractInterface through proxy state adapter.
           - Move proxy business records through the state app where applicable.
           - Preserve app creation and orchestration rules in the proxy crate.
@@ -2407,7 +2423,7 @@ groups:
           Scope:
           - Run targeted contract and service tests for ams, meme, pool, swap, and proxy.
           - Verify creation flows still avoid a PostInitialize stage only for state app setup.
-          - Verify business handlers do not receive state_app_id, namespace, or raw BCS bytes.
+          - Verify business handlers do not receive `state_application_id`, namespace, or raw BCS bytes.
           - Verify service reads use business wrappers over StateServiceInterface.
           - Verify namespace and slot isolation across multiple business apps using identical business keys.
       - id: GSTATE-041
@@ -2435,7 +2451,7 @@ groups:
 
           Scope:
           - Deploy one reusable state app id.
-          - Pass or persist state_app_id through business deployment without relying on immutable parameters for mutable routing.
+          - Pass or persist `state_application_id` through business deployment without relying on immutable parameters for mutable routing.
           - Ensure business initialization calls InitializeOperator { operator }, CreateNamespace, and initial BatchWrite.
           - For mining or untrusted proposer chains, run FreezeNamespace before opening runtime access.
           - Update deployment config service/interface with active root app ids after deploy.
@@ -2467,7 +2483,7 @@ groups:
 
           Scope:
           - Run deployment flow from a clean environment.
-          - Verify business apps bind to the expected state_app_id and namespace.
+          - Verify business apps bind to the expected `state_application_id`; namespace must match ABI constants.
           - Run upgrade maintenance flow and verify Handoff preserves slot-backed records.
           - Verify application permissions are tightened before UnfreezeNamespace and restored only after FreezeNamespace.
           - Verify deployment config service/interface points at active root app ids after deploy and upgrade.

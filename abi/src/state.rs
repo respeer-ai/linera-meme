@@ -1,8 +1,57 @@
 use async_graphql::{Request, Response};
 use linera_sdk::linera_base_types::{Account, ApplicationId, ContractAbi, ServiceAbi};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub struct StateAbi;
+
+pub trait StateValue: Sized {
+    fn into_state_bytes(&self) -> Result<Vec<u8>, bcs::Error>;
+
+    fn from_state_bytes(bytes: &[u8]) -> Result<Self, bcs::Error>;
+}
+
+impl<T> StateValue for T
+where
+    T: Serialize + DeserializeOwned,
+{
+    fn into_state_bytes(&self) -> Result<Vec<u8>, bcs::Error> {
+        bcs::to_bytes(self)
+    }
+
+    fn from_state_bytes(bytes: &[u8]) -> Result<Self, bcs::Error> {
+        bcs::from_bytes(bytes)
+    }
+}
+
+pub struct BatchWrite {
+    writes: Vec<(Vec<u8>, Vec<u8>)>,
+}
+
+impl BatchWrite {
+    pub fn new() -> Self {
+        Self { writes: Vec::new() }
+    }
+
+    pub fn put<K, V>(&mut self, key: &K, value: &V) -> Result<(), bcs::Error>
+    where
+        K: Serialize,
+        V: StateValue,
+    {
+        self.writes
+            .push((bcs::to_bytes(key)?, value.into_state_bytes()?));
+        Ok(())
+    }
+
+    pub fn into_writes(self) -> Vec<(Vec<u8>, Vec<u8>)> {
+        self.writes
+    }
+}
+
+impl Default for BatchWrite {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl ContractAbi for StateAbi {
     type Operation = StateOperation;

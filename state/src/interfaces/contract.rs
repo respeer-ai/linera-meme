@@ -1,4 +1,4 @@
-use crate::state_key::StateValue;
+use abi::state::{BatchWrite, StateValue};
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::ApplicationId;
 use serde::Serialize;
@@ -22,6 +22,8 @@ pub trait StateContractInterface {
         K: Serialize,
         V: StateValue;
 
+    // Batch reads are homogeneous: every key in `keys` must decode to the same `V`.
+    // Do not mix enum key variants that map to different value types in one call.
     async fn batch_read<K, V>(&mut self, keys: &[K]) -> Result<Vec<Option<V>>, Self::Error>
     where
         K: Serialize,
@@ -32,10 +34,7 @@ pub trait StateContractInterface {
         K: Serialize,
         V: StateValue;
 
-    async fn batch_write<K, V>(&mut self, writes: &[(K, Option<V>)]) -> Result<(), Self::Error>
-    where
-        K: Serialize,
-        V: StateValue;
+    async fn batch_write(&mut self, batch: BatchWrite) -> Result<(), Self::Error>;
 
     async fn delete<K>(&mut self, key: &K) -> Result<(), Self::Error>
     where

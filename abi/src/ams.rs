@@ -28,6 +28,7 @@ pub enum AmsKey {
     ApplicationTypes,
     Application { application_id: ApplicationId },
     Operator,
+    ApplicationIds,
 }
 
 pub const MEME: &str = "Meme";
