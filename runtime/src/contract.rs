@@ -336,11 +336,7 @@ impl<T: Contract<Message = M>, M> AccessControl for ContractRuntimeAdapter<T, M>
             .authenticated_caller_id()
             .ok_or(RuntimeError::InvalidAuthenticatedCaller)?;
         let chain_id = self.runtime.borrow_mut().chain_id();
-        let caller_creator_chain_id = self
-            .runtime
-            .borrow_mut()
-            .read_application_description(caller)
-            .creator_chain_id;
+        let caller_creator_chain_id = self.creator_chain_id(caller);
 
         (chain_id == caller_creator_chain_id)
             .then_some(())

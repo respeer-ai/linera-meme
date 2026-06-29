@@ -24,6 +24,12 @@ defaults:
     - unresolved_caveat_still_relevant
     - canonical_doc_promotion_incomplete
 active_focus:
+  - id: TSTATE-010C
+    why: next typed-state task; produce review-only AMS typed StateV1 contract diffs under the 50-line limit
+    summary: Show AMS local state_versions/latest_state_version, shell instantiate, AppendState/Bootstrap/Handoff/SetOperator handler shapes, and adapter version routing; do not apply code before approval.
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/typed-state-versioning.md
   - id: WEBUI-004
     why: current WebUI queue; improve Add Liquidity and Remove Liquidity pages
     summary: Review and implement liquidity page layout, hierarchy, interaction states, and usability after WEBUI-003.
@@ -37,6 +43,26 @@ active_focus:
       - agents/tasks/board.yaml
       - webui-v2/AGENTS.md
 on_demand_done:
+  - id: TSTATE-010B
+    why: completed reviewed AMS ABI restructure and typed StateV1 ABI proposal
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/typed-state-versioning.md
+  - id: TSTATE-010A
+    why: completed AMS typed StateV1 record layout design
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/typed-state-versioning.md
+  - id: TSTATE-002C
+    why: completed runtime creator-chain cleanup reused existing BaseRuntimeContext capability
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - runtime/src/contract.rs
+  - id: TSTATE-001
+    why: canonical typed state versioning architecture supersedes generic bytes state as the default business-state model
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/typed-state-versioning.md
   - id: GSTATE-010
     why: completed AMS state key and binding foundation before AMS contract state-app integration
     canonical_refs:

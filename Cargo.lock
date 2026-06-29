@@ -20,6 +20,7 @@ dependencies = [
  "async-graphql",
  "async-graphql-parser",
  "async-graphql-value",
+ "async-trait",
  "base",
  "bcs",
  "env_logger",

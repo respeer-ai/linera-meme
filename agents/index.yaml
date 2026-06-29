@@ -159,6 +159,17 @@ navigation:
         - designing contract upgrade mechanics
         - separating state applications from business applications
         - reviewing business app upgrade authorization
+    - path: agents/primitives/typed-state-versioning.md
+      canonical_for:
+        - typed_state_app_versioning
+        - append_only_business_state_versions
+        - no_migration_business_state_upgrade
+        - business_app_state_handoff
+      when_to_read:
+        - designing business app upgradeable state
+        - implementing typed state app versions
+        - reviewing AppendState Bootstrap or Handoff semantics
+        - replacing generic bytes state app integration
     - path: agents/primitives/liquidity-and-funds.md
       canonical_for:
         - lp_share_semantics

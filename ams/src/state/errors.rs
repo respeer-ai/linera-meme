@@ -24,4 +24,10 @@ pub enum StateError {
 
     #[error("Permission denied")]
     PermissionDenied,
+
+    #[error("Invalid state version")]
+    InvalidStateVersion,
+
+    #[error("Invalid state response")]
+    InvalidStateResponse,
 }

@@ -4,15 +4,20 @@ Type: Primitive
 Audience: Coding assistants
 Authority: Medium
 
+## Supersession Notice
+
+This generic BCS-bytes state application is historical and experimental for business-state design. The default upgradeable business-state architecture is now [`typed-state-versioning.md`](typed-state-versioning.md). Do not extend this generic state app into AMS, meme, pool, swap, or proxy business state unless a future task explicitly reopens it.
+
 ## Purpose
 
-Record the current design for the reusable `state` application shared by upgradeable business applications.
+Record the historical generic BCS-bytes `state` application design and existing implementation background.
 
 ## Status
 
-- Design only
-- Do not implement from this document without a task that explicitly enters implementation
-- This document is the canonical assistant-facing design for the `state` application
+- Historical / experimental for business-state architecture
+- Do not implement from this document without a task that explicitly reopens generic bytes state work
+- This document is canonical only for understanding the existing generic `state` application background
+- Use [`typed-state-versioning.md`](typed-state-versioning.md) for new upgradeable business-state design
 
 ## Facts
 
@@ -32,7 +37,7 @@ Record the current design for the reusable `state` application shared by upgrade
 - Business-facing state interfaces are traits under `state::interfaces`
 - Business-facing concrete state app request instances are under `state::adapters`
 
-## Target Model
+## Historical Generic Target Model
 
 - One `state_app_id` is reused by many business chains
 - Each business chain stores its business state in that chain's state application replica

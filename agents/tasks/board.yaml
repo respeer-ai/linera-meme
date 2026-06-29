@@ -2323,181 +2323,551 @@ groups:
           - `ulimit -v 14000000; cargo test -p ams --test multi_chain -- --test-threads=1`
           - `ulimit -v 6000000; cargo test -p ams --bin ams_contract -- --test-threads=1`
       - id: GSTATE-020
+        status: Cancelled
         priority: P0
         depends_on: [GSTATE-013]
-        title: Phase 3 - Run AMS state-app E2E validation
+        title: Phase 3 - Run AMS generic state-app E2E validation
         notes: |
-          Validate the full AMS + state app flow in a running Linera environment before touching the remaining business apps.
+          Cancelled by TSTATE-001. Do not extend the generic BCS-bytes state app as the default business-state architecture.
 
-          Scope:
-          - Deploy or instantiate the reusable state app.
-          - Instantiate AMS with state_app_id and AMS namespace binding.
-          - Execute AMS operations that write state-app-backed records.
-          - Query AMS service and verify reads come through state app-backed storage.
-          - Query raw state app service for admin/debug confirmation only.
-          - Record the exact E2E commands and expected observable outputs in task notes or an assistant-facing runbook.
+          Use TSTATE-010 through TSTATE-013 for AMS typed state first-deploy, upgrade, and multi-chain validation.
       - id: GSTATE-030
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: []
         title: Phase 4 - Move meme creator-chain capability out of runtime interfaces
         notes: |
-          Runtime must stay a generic Linera SDK wrapper and generic capability declaration layer.
-          Do not expose raw `read_application_description` through business-facing runtime interfaces yet.
-
-          Scope:
-          - Add a generic runtime capability method that returns an application's creator chain id by wrapping SDK `read_application_description(application_id).creator_chain_id`.
-          - Remove `runtime/src/interfaces/meme.rs`.
-          - Remove `MemeRuntimeContext` from `runtime/src/contract.rs`.
-          - Replace handler bounds that currently require `MemeRuntimeContext` with the generic creator-chain-id capability.
-          - Keep domain-specific state app interfaces inside the `state` crate, not in `runtime`.
-          - Keep business typed state codecs/helpers inside each business crate or state-owned interfaces, not in `runtime`.
-          - Tests that currently mock `MemeOperation::CreatorChainId` must mock application descriptions instead.
+          Superseded by TSTATE-002. The generic runtime creator-chain capability is still required, but it now belongs to typed state authorization work rather than the generic state-app integration sequence.
       - id: GSTATE-031
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [GSTATE-020, GSTATE-030]
-        title: Phase 4 - Integrate meme with state app
+        title: Phase 4 - Integrate meme with generic state app
         notes: |
-          Apply the AMS-proven state app integration pattern to meme.
-
-          Scope:
-          - Add MemeKey to `abi/src/meme.rs`.
-          - Add meme local `state_application_id` storage; namespace comes from an ABI constant.
-          - Inject StateContractInterface through meme StateAdapter.
-          - Move meme balances, allowances, metadata, ownership, liquidity, and mining records through the state app where applicable.
-          - Add meme read-only service wrapper over StateServiceInterface.
-          - Preserve meme business invariants in the meme crate.
+          Cancelled by TSTATE-001. Use TSTATE-030 for Meme typed state version design.
       - id: GSTATE-032
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [GSTATE-020]
-        title: Phase 4 - Integrate pool with state app
+        title: Phase 4 - Integrate pool with generic state app
         notes: |
-          Apply the AMS-proven state app integration pattern to pool.
-
-          Scope:
-          - Add PoolKey to `abi/src/pool.rs`.
-          - Add pool local `state_application_id` storage; namespace comes from an ABI constant.
-          - Inject StateContractInterface through pool state adapter.
-          - Move pool business records through the state app where applicable.
-          - Add pool read-only service wrapper over StateServiceInterface.
-          - Preserve AMM and liquidity invariants in the pool crate.
+          Cancelled by TSTATE-001. Use TSTATE-040 for Pool typed state version design.
       - id: GSTATE-033
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [GSTATE-020]
-        title: Phase 4 - Integrate swap with state app
+        title: Phase 4 - Integrate swap with generic state app
         notes: |
-          Apply the AMS-proven state app integration pattern to swap.
-
-          Scope:
-          - Add SwapKey to `abi/src/swap.rs`.
-          - Add swap local `state_application_id` storage; namespace comes from an ABI constant.
-          - Inject StateContractInterface through swap state adapter.
-          - Move swap business records through the state app where applicable.
-          - Add swap read-only service wrapper over StateServiceInterface.
-          - Preserve pool creation and routing business rules in the swap crate.
+          Cancelled by TSTATE-001. Use TSTATE-050 for Swap typed state version design.
       - id: GSTATE-034
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [GSTATE-020]
-        title: Phase 4 - Integrate proxy with state app
+        title: Phase 4 - Integrate proxy with generic state app
         notes: |
-          Apply the AMS-proven state app integration pattern to proxy.
-
-          Scope:
-          - Add ProxyKey to the proxy ABI module if proxy has migrated protocol records.
-          - Add proxy local `state_application_id` storage when needed; namespace comes from an ABI constant.
-          - Inject StateContractInterface through proxy state adapter.
-          - Move proxy business records through the state app where applicable.
-          - Preserve app creation and orchestration rules in the proxy crate.
+          Cancelled by TSTATE-001. Use TSTATE-020 for Proxy typed state version design.
       - id: GSTATE-040
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [GSTATE-031, GSTATE-032, GSTATE-033, GSTATE-034]
-        title: Phase 5 - Run integrated business validation
+        title: Phase 5 - Run generic state integrated business validation
         notes: |
-          Validate the migrated business apps together after module-level integration.
-
-          Scope:
-          - Run targeted contract and service tests for ams, meme, pool, swap, and proxy.
-          - Verify creation flows still avoid a PostInitialize stage only for state app setup.
-          - Verify business handlers do not receive `state_application_id`, namespace, or raw BCS bytes.
-          - Verify service reads use business wrappers over StateServiceInterface.
-          - Verify namespace and slot isolation across multiple business apps using identical business keys.
+          Cancelled by TSTATE-001. Integrated validation must be redesigned around typed state versions after each business app has a reviewed typed state design.
       - id: GSTATE-041
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [GSTATE-040]
-        title: Phase 5 - Run integrated E2E validation
+        title: Phase 5 - Run generic state integrated E2E validation
         notes: |
-          Validate real multi-app behavior in a running Linera environment after all business integrations.
-
-          Scope:
-          - Deploy state app and integrated business apps.
-          - Exercise AMS registration/update flows.
-          - Exercise meme creation, liquidity initialization, transfer, approval, mining or redeem flows as applicable.
-          - Exercise swap and pool creation and liquidity flows as applicable.
-          - Verify business service queries match contract effects.
-          - Verify raw state app service only exposes admin/debug records, not business-facing query semantics.
+          Cancelled by TSTATE-001. E2E validation must follow typed state deployment and upgrade flows.
       - id: GSTATE-050
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [GSTATE-041]
-        title: Phase 6 - Implement state app deployment flow
+        title: Phase 6 - Implement generic state app deployment flow
         notes: |
-          Implement deployment workflow after integrated validation proves the model.
-
-          Scope:
-          - Deploy one reusable state app id.
-          - Pass or persist `state_application_id` through business deployment without relying on immutable parameters for mutable routing.
-          - Ensure business initialization calls InitializeOperator { operator }, CreateNamespace, and initial BatchWrite.
-          - For mining or untrusted proposer chains, run FreezeNamespace before opening runtime access.
-          - Update deployment config service/interface with active root app ids after deploy.
+          Cancelled by TSTATE-001. Typed state deployment uses per-business typed state app versions, `AppendState`, and `Bootstrap`; it does not deploy one reusable generic state app id.
       - id: GSTATE-051
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [GSTATE-050]
-        title: Phase 6 - Implement state app upgrade and handoff flow
+        title: Phase 6 - Implement generic state app upgrade and handoff flow
         notes: |
-          Implement the upgrade maintenance workflow after deployment flow is stable.
-
-          Scope:
-          - Pause business writes before upgrade.
-          - Tighten application_permissions to operator maintenance mode.
-          - Run UnfreezeNamespace.
-          - Deploy new business app and obtain the new application id.
-          - Have the old business app validate governance and call Handoff.
-          - Replace permissions from old app to new app while still in maintenance mode.
-          - Run FreezeNamespace.
-          - Restore runtime permissions and resume business writes.
-          - Update deployment config service/interface with active root app ids after upgrade.
+          Cancelled by TSTATE-001. Typed state handoff is owned by the business app and calls each old typed state version; no namespace freeze/unfreeze flow is part of the default architecture.
       - id: GSTATE-052
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [GSTATE-050, GSTATE-051]
-        title: Phase 6 - Validate deployment and upgrade flows
+        title: Phase 6 - Validate generic state deployment and upgrade flows
         notes: |
-          Validate deployment and upgrade operations end to end.
-
-          Scope:
-          - Run deployment flow from a clean environment.
-          - Verify business apps bind to the expected `state_application_id`; namespace must match ABI constants.
-          - Run upgrade maintenance flow and verify Handoff preserves slot-backed records.
-          - Verify application permissions are tightened before UnfreezeNamespace and restored only after FreezeNamespace.
-          - Verify deployment config service/interface points at active root app ids after deploy and upgrade.
+          Cancelled by TSTATE-001. Use TSTATE-010 through TSTATE-013 for typed state deployment and upgrade validation.
       - id: GSTATE-060
-        status: Todo
+        status: Cancelled
         priority: P1
         depends_on: [GSTATE-052]
-        title: Phase 7 - Implement state-app observability
+        title: Phase 7 - Implement generic state-app observability
         notes: |
-          Implement observability after business integration, validation, and deployment flows are complete.
+          Cancelled by TSTATE-001. Observability for upgradeable business state must be redesigned around typed state versions and active business app roots.
+
+  - name: Typed State Versioning
+    tasks:
+      - id: TSTATE-001
+        status: Done
+        priority: P0
+        depends_on: []
+        title: Solidify typed state versioning architecture
+        notes: |
+          Complete. The canonical assistant-facing design is `agents/primitives/typed-state-versioning.md`.
+
+          Stable conclusions:
+          - Generic BCS-bytes state app is not the default business-state architecture.
+          - Business apps use append-only typed state app versions.
+          - Historical records are never migrated, copied, deleted, or overwritten.
+          - New fields and corrections are represented by appended typed state versions.
+          - Business apps expose `AppendState`, `Bootstrap`, and `Handoff` semantics.
+          - `AppendState` auto-assigns the next version and never accepts a user-supplied version.
+          - Normal handlers require exact `EXPECTED_LATEST_STATE_VERSION`; `>=` checks are forbidden.
+          - Typed state reads are open; typed state writes require authenticated caller app equality and creator-chain execution.
+          - Code review diffs must target at most 50 changed lines; split larger work before applying.
+      - id: TSTATE-002
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-001]
+        title: Runtime creator-chain capability work package
+        notes: |
+          Umbrella only. Do not implement directly from this task.
+
+          Typed state app writes require `authenticated_caller_application_id == business_application_id` and `runtime.chain_id() == creator_chain_id(authenticated_caller_application_id)`.
+
+          Complete through TSTATE-002A, TSTATE-002B, and TSTATE-002C.
+      - id: TSTATE-002A
+        status: Done
+        priority: P0
+        depends_on: [TSTATE-001]
+        title: Design runtime creator-chain capability boundary
+        notes: |
+          Complete. No code changes were made.
+
+          Findings:
+          - `BaseRuntimeContext::creator_chain_id(application_id) -> ChainId` already exists.
+          - `ContractRuntimeAdapter` already implements it by reading `read_application_description(application_id).creator_chain_id`.
+          - The capability is business-agnostic and can be used by typed state authorization.
+          - Existing state tests already mock `ApplicationDescription` for creator-chain behavior.
+          - No ABI change is needed for this runtime capability boundary.
+      - id: TSTATE-002B
+        status: Done
+        priority: P0
+        depends_on: [TSTATE-002A]
+        title: Produce runtime creator-chain diff for review
+        notes: |
+          Complete. No code changes were applied.
+
+          Proposed review diff:
+          - Keep the existing runtime trait method name and return type.
+          - Change `AccessControl::only_caller_creator` to call `self.creator_chain_id(caller)` instead of duplicating direct SDK `read_application_description` access.
+          - Diff is under the 50 changed-line review limit.
+      - id: TSTATE-002C
+        status: Done
+        priority: P0
+        depends_on: [TSTATE-002B]
+        title: Apply reviewed runtime creator-chain capability
+        notes: |
+          Complete. Applied the reviewed runtime cleanup only.
+
+          Changed:
+          - `AccessControl::only_caller_creator` now reuses `BaseRuntimeContext::creator_chain_id(caller)` instead of duplicating direct SDK `read_application_description` access.
+
+          Validation:
+          - `cargo fmt -p runtime --check`
+          - `ulimit -v 6000000; cargo check -p runtime`
+          - `ulimit -v 6000000; cargo test -p runtime -- --test-threads=1`
+          - `ulimit -v 6000000; cargo check -p state`
+          - `ulimit -v 6000000; cargo test -p state create_namespace_rejects_wrong_creator_chain_and_unbound_caller_reads -- --test-threads=1`
+      - id: TSTATE-010
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-001, TSTATE-002C]
+        title: AMS typed state V1 first-deploy work package
+        notes: |
+          Umbrella only. Do not implement directly from this task.
+
+          Complete through TSTATE-010A through TSTATE-010L. TSTATE-010I through TSTATE-010K clean AMS generic BCS state usage after typed StateV1 validation.
+      - id: TSTATE-010A
+        status: Done
+        priority: P0
+        depends_on: [TSTATE-001, TSTATE-002C]
+        title: Design AMS typed state V1 record layout
+        notes: |
+          Complete. Design only; no ABI or contract changes were made.
+
+          Current generic BCS-backed AMS records:
+          - `AmsKey::Operator -> Account`
+          - `AmsKey::ApplicationTypes -> Vec<String>`
+          - `AmsKey::Application { application_id } -> Metadata`
+          - `AmsKey::ApplicationIds -> Vec<ApplicationId>`
+
+          AMS StateV1 typed records:
+          - `business_application_id: RegisterView<ApplicationId>` for typed state write authorization and handoff.
+          - `operator: RegisterView<Option<Account>>`.
+          - `application_types: RegisterView<Vec<String>>` for the currently small operator-managed type list.
+          - `applications: MapView<ApplicationId, Metadata>` for point reads and contract updates.
+          - No `application_ids` index in StateV1; list queries derive ids from `applications: MapView<ApplicationId, Metadata>` keys.
+
+          Contract path reads/writes:
+          - `Bootstrap` initializes `operator` and default `application_types` through the AMS adapter.
+          - `AddApplicationType` reads `operator` and `application_types`, then writes `application_types`.
+          - `Register` reads `application_types`, checks `applications[application_id]`, and writes `applications[application_id]`; it does not maintain a separate id list.
+          - `Claim` reads and writes `applications[application_id]`.
+          - `Update` reads `applications[application_id]` and `application_types`, then writes `applications[application_id]`.
+
+          Service-only reads:
+          - `application(application_id)` reads `applications[application_id]`.
+          - `applications(...)` enumerates `applications` keys or key/value pairs from the typed state service, then applies existing service-side filters.
+
+          Boundaries:
+          - No raw BCS `AmsKey` or namespace usage remains in the typed StateV1 design.
+          - No whole-map contract reads are introduced; full application listing remains service-only.
+          - Handler code continues to depend only on AMS `StateInterface`; the adapter owns state version routing and typed state app calls.
+      - id: TSTATE-010B
+        status: Done
+        priority: P0
+        depends_on: [TSTATE-010A]
+        title: Produce AMS typed state V1 ABI diff for review
+        notes: |
+          Complete. Review-only ABI diffs were produced and confirmed; no ABI changes were applied.
+
+          Confirmed structure:
+          - Move current AMS ABI content from `abi/src/ams.rs` to `abi/src/ams/abi.rs`.
+          - Keep `abi/src/ams.rs` as the module entry with `pub mod abi;` and `pub mod state_v1;`.
+          - Do not add `pub use abi::*`; callers must use `abi::ams::abi::...` explicitly.
+          - Add `abi/src/ams/state_v1.rs` for typed AMS StateV1 ABI.
+
+          Confirmed business ABI changes:
+          - `InstantiationArgument {}` for AMS business shell instantiate.
+          - Add `AppendState { state_application_id }`; version remains internal.
+          - Add `Bootstrap`.
+          - Add `Handoff { new_business_application_id }`.
+          - Add `SetOperator { new_operator }`.
+
+          Confirmed StateV1 ABI shape:
+          - `StateInstantiationArgument { business_application_id, operator: Option<Account> }`.
+          - `AmsStateOperation::{Bootstrap, SetOperator, AddApplicationType, RegisterApplication, ClaimApplication, UpdateApplication, Application, Handoff}`.
+          - `AmsStateResponse::{Ok, Application(Option<Metadata>)}`.
+          - No `application_ids`, namespace, slot, generic bytes, or `AmsKey` in StateV1.
+      - id: TSTATE-010C
+        status: Doing
+        priority: P0
+        depends_on: [TSTATE-010B]
+        title: Produce AMS typed state V1 contract diff for review
+        notes: |
+          Diff proposal only. Do not apply contract changes.
 
           Scope:
-          - Parse and project state-app-backed business facts from finalized blocks.
-          - Track active business app ids across handoff.
-          - Preserve stable dynamic object identity outside raw application ids.
-          - Do not make observability the authoritative frontend routing source.
-          - Keep deployment config service/interface as the source for active root app ids.
+          - Show AMS local `state_versions: MapView<u16, ApplicationId>` and `latest_state_version: RegisterView<u16>`.
+          - Show AMS shell instantiate with no state app call and no business-record initialization.
+          - Show `AppendState`, `Bootstrap`, and `Handoff` handler shapes.
+          - Show AMS adapter owning version routing.
+          - Stop for user review before applying code.
+      - id: TSTATE-010D
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010B, TSTATE-010C]
+        title: Apply reviewed AMS typed state V1 ABI and shell
+        notes: |
+          Implement only after TSTATE-010B and TSTATE-010C are approved.
+
+          Scope:
+          - Apply reviewed ABI changes.
+          - Add AMS typed state V1 crate/module shell as reviewed.
+          - Add compile-only entrypoints and minimal state shape.
+          - Run explicit-memory Rust validation for touched crates.
+      - id: TSTATE-010E
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010D]
+        title: Implement AMS AppendState and Bootstrap
+        notes: |
+          Scope:
+          - Implement append-only `AppendState`.
+          - Auto-increment versions internally.
+          - Reject duplicate state application ids.
+          - Implement `Bootstrap` through the AMS adapter.
+          - Require exact `EXPECTED_LATEST_STATE_VERSION`.
+          - Add focused unit tests for append and bootstrap edge cases.
+      - id: TSTATE-010F
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010E]
+        title: Implement AMS typed state V1 adapter routing
+        notes: |
+          Scope:
+          - Route AMS fields to AMS StateV1 through the adapter.
+          - Keep handlers dependent on AMS `StateInterface`.
+          - Keep state app ids and versions out of handlers.
+          - Add focused unit tests proving handlers do not construct state app calls directly.
+      - id: TSTATE-010G
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010F]
+        title: Add AMS typed state V1 first-deploy tests
+        notes: |
+          Scope:
+          - Unit test shell instantiate with empty state versions.
+          - Unit test `AppendState` auto-increment and duplicate rejection.
+          - Unit test `Bootstrap` exact-version requirement.
+          - Multi-chain test first deploy: shell, StateV1, `AppendState`, `Bootstrap`, normal AMS operation, service read.
+      - id: TSTATE-010H
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010G]
+        title: Validate AMS typed state V1 first-deploy path
+        notes: |
+          Scope:
+          - Run focused AMS typed state unit tests.
+          - Run AMS typed state multi-chain first-deploy test with explicit memory limit.
+          - Record exact commands and outcomes in the task notes.
+      - id: TSTATE-010I
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010H]
+        title: Design AMS generic BCS state cleanup scope
+        notes: |
+          Design only. No ABI or contract changes.
+
+          Scope:
+          - Inventory AMS references to the generic BCS-bytes `state` app, `StateContractInterface`, `StateServiceInterface`, generic state keys, namespaces, and `state_application_id` bindings.
+          - Separate AMS cleanup from repository-wide generic `state` crate deletion.
+          - Decide which old AMS tests are removed, rewritten to typed state, or kept only as historical generic-state tests.
+          - Confirm no AMS handler, adapter, service, or deployment path can use generic BCS state after cleanup.
+          - Stop before producing or applying a code diff.
+      - id: TSTATE-010J
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010I]
+        title: Produce AMS generic BCS state cleanup diff for review
+        notes: |
+          Diff proposal only. Do not apply ABI or contract changes.
+
+          Scope:
+          - Remove AMS generic state app bindings and adapter usage from the proposed diff.
+          - Remove AMS namespace and generic key usage if no longer needed by typed state.
+          - Rewrite AMS tests to prove only typed state paths are used.
+          - Keep the generic `state` crate and ABI unless a separate cleanup task approves deleting them.
+          - Stop for user review before applying code.
+      - id: TSTATE-010K
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010J]
+        title: Apply reviewed AMS generic BCS state cleanup
+        notes: |
+          Implement only after TSTATE-010J is approved.
+
+          Scope:
+          - Apply the reviewed AMS cleanup diff.
+          - Verify AMS no longer imports or constructs generic BCS state adapters.
+          - Run focused AMS unit tests and AMS typed state multi-chain tests with explicit memory limits.
+      - id: TSTATE-010L
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010K]
+        title: Decide repository-wide generic state cleanup
+        notes: |
+          Design only. No ABI or contract changes.
+
+          Scope:
+          - Inventory remaining non-AMS references to the generic `state` crate and `abi::state`.
+          - Decide whether the generic BCS-bytes state app remains as historical test-only code, is isolated, or is deleted.
+          - If deletion is desired, create a separate reviewed cleanup task; do not delete it as part of AMS typed state work.
+      - id: TSTATE-011
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010K]
+        title: AMS upgrade without new typed state work package
+        notes: |
+          Umbrella only. Complete through TSTATE-011A through TSTATE-011D.
+      - id: TSTATE-011A
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010K]
+        title: Design AMS same-state upgrade flow
+        notes: |
+          Design only. No ABI or contract changes.
+
+          Scope:
+          - Define AMS V1 to AMS V2 upgrade with StateV1 reused.
+          - Confirm old app owns handoff for old StateV1.
+          - Confirm no records move and no migration path exists.
+      - id: TSTATE-011B
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-011A]
+        title: Produce AMS same-state upgrade diff for review
+        notes: |
+          Diff proposal only. Do not apply ABI or contract changes.
+
+          Scope:
+          - Show business `Handoff` flow for old owned states.
+          - Show state app `Handoff` authorization checks.
+          - Stop for user review before applying code.
+      - id: TSTATE-011C
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-011B]
+        title: Apply reviewed AMS same-state upgrade support
+        notes: |
+          Implement only after TSTATE-011B is approved.
+
+          Scope:
+          - Apply reviewed handoff support.
+          - Add unit tests for old app write rejection and new app write success.
+      - id: TSTATE-011D
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-011C]
+        title: Validate AMS same-state upgrade multi-chain flow
+        notes: |
+          Scope:
+          - Deploy AMS V2 shell.
+          - Append existing AMS StateV1 id to AMS V2.
+          - Have AMS V1 handoff StateV1 to AMS V2.
+          - Verify AMS V2 reads old records.
+          - Verify AMS V1 writes are rejected.
+      - id: TSTATE-012
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-011D]
+        title: AMS upgrade with appended typed state V2 work package
+        notes: |
+          Umbrella only. Complete through TSTATE-012A through TSTATE-012E.
+      - id: TSTATE-012A
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-011D]
+        title: Design AMS StateV2 appended record
+        notes: |
+          Design only. No ABI or contract changes.
+
+          Scope:
+          - Choose a minimal AMS StateV2 typed field or correction record.
+          - Define adapter composition from StateV1 plus StateV2.
+          - Confirm old StateV1 data remains unchanged.
+      - id: TSTATE-012B
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-012A]
+        title: Produce AMS StateV2 append diff for review
+        notes: |
+          Diff proposal only. Do not apply ABI or contract changes.
+
+          Scope:
+          - Show StateV2 ABI and typed state shape.
+          - Show adapter version routing and composition.
+          - Show bootstrap of StateV2-only required records.
+          - Stop for user review before applying code.
+      - id: TSTATE-012C
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-012B]
+        title: Apply reviewed AMS StateV2 append support
+        notes: |
+          Implement only after TSTATE-012B is approved.
+
+          Scope:
+          - Add reviewed StateV2 support.
+          - Keep StateV1 records unchanged.
+          - Add unit tests for composed reads and exact latest-version checks.
+      - id: TSTATE-012D
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-012C]
+        title: Validate AMS StateV2 appended upgrade multi-chain flow
+        notes: |
+          Scope:
+          - Append StateV1 and StateV2 to the new AMS app.
+          - Bootstrap only StateV2 required records.
+          - Handoff old StateV1 from old AMS to new AMS.
+          - Verify composed V1+V2 reads and unchanged V1 records.
+      - id: TSTATE-012E
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-012D]
+        title: Document AMS typed state upgrade findings
+        notes: |
+          Scope:
+          - Record test commands and outcomes.
+          - Record any read-count or gas-sensitive paths discovered during AMS validation.
+          - Keep durable architecture conclusions in `agents/primitives/typed-state-versioning.md` if the design changes.
+      - id: TSTATE-013
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-011D, TSTATE-012D]
+        title: Multi-state handoff atomicity work package
+        notes: |
+          Umbrella only. Complete through TSTATE-013A through TSTATE-013C.
+      - id: TSTATE-013A
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-011D, TSTATE-012D]
+        title: Design multi-state rollback test cases
+        notes: |
+          Design only. No ABI or contract changes.
+
+          Scope:
+          - Define same-transaction rollback tests for multiple state app handoff calls.
+          - Define rollback tests for business operations that write multiple state app versions.
+          - Define the observable failure injection point.
+      - id: TSTATE-013B
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-013A]
+        title: Implement multi-state rollback tests
+        notes: |
+          Scope:
+          - Add tests only unless the design review requires code support.
+          - Verify failed partial handoff leaves no previous state handoff committed.
+          - Verify failed multi-version write leaves no partial state writes committed.
+      - id: TSTATE-013C
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-013B]
+        title: Decide whether two-phase handoff is required
+        notes: |
+          Scope:
+          - If rollback tests pass, record atomicity as validated.
+          - If rollback tests fail, stop implementation and create a reviewed two-phase handoff design task.
+      - id: TSTATE-020
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010K]
+        title: Design Proxy typed state versions
+        notes: |
+          Design only. No ABI or contract changes.
+
+          Define typed state versions and indexes for proxy operators, miners, genesis miners, chains, and owner lookups. Avoid full-list reads in contract paths.
+      - id: TSTATE-030
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010K]
+        title: Design Meme typed state versions
+        notes: |
+          Design only. No ABI or contract changes.
+
+          Define fine-grained typed state for balances and allowances. Do not use whole `HashMap<Account, Amount>` records for high-frequency contract reads.
+      - id: TSTATE-040
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010K]
+        title: Design Pool typed state versions
+        notes: |
+          Design only. No ABI or contract changes.
+
+          Define pool snapshot, shares, claimable balances, and claiming balances with handler-level read reuse and typed state writes.
+      - id: TSTATE-050
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-010K]
+        title: Design Swap typed state versions
+        notes: |
+          Design only. No ABI or contract changes.
+
+          Define pair-keyed pool records and pool-chain state. Avoid `token_0 -> HashMap<token_1, Pool>` contract reads.

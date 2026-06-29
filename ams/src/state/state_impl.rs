@@ -1,15 +1,48 @@
-use crate::state::{errors::StateError, AmsState};
-use abi::application_base_state::StateApplicationIdStorage;
+use crate::state::{errors::StateError, AmsState, EXPECTED_LATEST_STATE_VERSION};
+use abi::application_base_state::LocalStateInterface;
+use async_trait::async_trait;
 use linera_sdk::linera_base_types::ApplicationId;
 
-impl StateApplicationIdStorage for AmsState {
+#[async_trait(?Send)]
+impl LocalStateInterface for AmsState {
     type Error = StateError;
 
-    fn set_state_application_id(&mut self, state_application_id: ApplicationId) {
-        self.state_app_id.set(Some(state_application_id));
+    async fn append_state(
+        &mut self,
+        state_application_id: ApplicationId,
+    ) -> Result<(), StateError> {
+        let next_version = self.latest_state_version.get() + 1;
+        if next_version > EXPECTED_LATEST_STATE_VERSION {
+            return Err(StateError::InvalidStateVersion);
+        }
+        if self.state_applications.contains_key(&next_version).await? {
+            return Err(StateError::AlreadyExists);
+        }
+        self.state_applications
+            .insert(&next_version, state_application_id)?;
+        self.latest_state_version.set(next_version);
+        Ok(())
     }
 
-    fn get_state_application_id(&self) -> Result<ApplicationId, StateError> {
-        self.state_app_id.get().ok_or(StateError::NotExists)
+    async fn state_application(&self, version: u16) -> Result<ApplicationId, StateError> {
+        if version == 0 || version > EXPECTED_LATEST_STATE_VERSION {
+            return Err(StateError::InvalidStateVersion);
+        }
+        self.state_applications
+            .get(&version)
+            .await?
+            .ok_or(StateError::NotExists)
+    }
+
+    async fn latest_state_application(&self) -> Result<ApplicationId, StateError> {
+        let version = self.latest_state_version.get();
+        if version != EXPECTED_LATEST_STATE_VERSION {
+            return Err(StateError::InvalidStateVersion);
+        }
+        self.state_application(version).await
+    }
+
+    async fn state_applications(&self) -> Result<Vec<(u16, ApplicationId)>, StateError> {
+        Ok(self.state_applications.index_values().await?)
     }
 }
