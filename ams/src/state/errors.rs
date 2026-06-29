@@ -7,6 +7,9 @@ pub enum StateError {
     ViewError(#[from] linera_sdk::views::ViewError),
 
     #[error(transparent)]
+    ApplicationStateResponse(#[from] abi::application_state_base::ApplicationStateResponseError),
+
+    #[error(transparent)]
     StateContract(#[from] state::adapters::contract::StateContractError),
 
     #[error(transparent)]

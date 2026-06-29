@@ -2,52 +2,70 @@ use std::sync::Arc;
 
 use crate::state::AmsState;
 use abi::{
-    ams::{AmsKey, Metadata},
-    application_base_state::StateApplicationIdStorage,
-    namespace,
+    ams::{abi::Metadata, state_v1::AmsStateAbi as AmsStateV1Abi},
+    application_state_base::{decode_response_field, LocalStateInterface},
 };
-use linera_sdk::{linera_base_types::ApplicationId, Service, ServiceRuntime};
-use state::{adapters::service::StateServiceAdapter, interfaces::service::StateServiceInterface};
+use async_graphql::{Request, Variables};
+use linera_sdk::{linera_base_types::ApplicationId, serde_json::json, Service, ServiceRuntime};
 
 use super::StateError;
 
+enum AmsQuery {
+    Application { application_id: ApplicationId },
+    Applications,
+}
+
+impl AmsQuery {
+    const APPLICATION_FIELD: &'static str = "application";
+    const APPLICATIONS_FIELD: &'static str = "applications";
+
+    fn request(&self) -> Request {
+        match self {
+            Self::Application { application_id } => Request::new(
+                "query($applicationId: ApplicationId!) { application(applicationId: $applicationId) }",
+            )
+            .variables(Variables::from_json(json!({
+                "applicationId": application_id,
+            }))),
+            Self::Applications => Request::new("query { applications }"),
+        }
+    }
+}
+
 pub struct ServiceStateAdapter<S: Service> {
-    state_service: StateServiceAdapter<S>,
+    runtime: Arc<ServiceRuntime<S>>,
+    state: Arc<AmsState>,
 }
 
 impl<S: Service> ServiceStateAdapter<S> {
     pub fn new(runtime: Arc<ServiceRuntime<S>>, state: Arc<AmsState>) -> Result<Self, StateError> {
-        let state_application_id = state.get_state_application_id()?;
-        Ok(Self {
-            state_service: StateServiceAdapter::new(runtime, state_application_id, namespace::AMS),
-        })
+        Ok(Self { runtime, state })
     }
 
-    pub fn application(
+    pub async fn application(
         &self,
         application_id: ApplicationId,
     ) -> Result<Option<Metadata>, StateError> {
-        Ok(self
-            .state_service
-            .read(&AmsKey::Application { application_id })?)
+        let query = AmsQuery::Application { application_id };
+        let state_application_id = self.state.latest_state_application().await?;
+        Ok(decode_response_field(
+            self.runtime.query_application(
+                state_application_id.with_abi::<AmsStateV1Abi>(),
+                &query.request(),
+            ),
+            AmsQuery::APPLICATION_FIELD,
+        )?)
     }
 
-    pub fn applications(&self) -> Result<Vec<Metadata>, StateError> {
-        let application_ids = self
-            .state_service
-            .read::<_, Vec<ApplicationId>>(&AmsKey::ApplicationIds)?
-            .unwrap_or_default();
-        // Batch-read only `AmsKey::Application` records here. Other `AmsKey` variants
-        // store different value types and must be read with separate typed `read` calls.
-        let keys = application_ids
-            .into_iter()
-            .map(|application_id| AmsKey::Application { application_id })
-            .collect::<Vec<_>>();
-        Ok(self
-            .state_service
-            .batch_read::<_, Metadata>(&keys)?
-            .into_iter()
-            .flatten()
-            .collect())
+    pub async fn applications(&self) -> Result<Vec<Metadata>, StateError> {
+        let query = AmsQuery::Applications;
+        let state_application_id = self.state.latest_state_application().await?;
+        Ok(decode_response_field(
+            self.runtime.query_application(
+                state_application_id.with_abi::<AmsStateV1Abi>(),
+                &query.request(),
+            ),
+            AmsQuery::APPLICATIONS_FIELD,
+        )?)
     }
 }

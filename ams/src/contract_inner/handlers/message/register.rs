@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::ams::{AmsMessage, AmsResponse, Metadata};
+use abi::ams::abi::{AmsMessage, AmsResponse, Metadata};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};

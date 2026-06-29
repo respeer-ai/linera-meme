@@ -1,6 +1,6 @@
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use abi::ams::{AmsAbi, AmsMessage, AmsOperation, InstantiationArgument};
+use abi::ams::abi::{AmsAbi, AmsMessage, AmsOperation, InstantiationArgument};
 use ams::state::AmsState;
 use linera_sdk::{
     linera_base_types::WithContractAbi,

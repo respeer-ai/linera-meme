@@ -9,7 +9,7 @@ use abi::{
             AmsStateResponse as AmsStateV1Response,
         },
     },
-    application_base_state::{LocalStateInterface, PublicStateBaseInterface},
+    application_state_base::{LocalStateInterface, PublicStateBaseInterface},
 };
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{Account, ApplicationId};
@@ -62,7 +62,7 @@ impl<R: ContractRuntimeContext> PublicStateBaseInterface for ContractStateAdapte
         &mut self,
         new_business_application_id: ApplicationId,
     ) -> Result<(), Self::Error> {
-        for (version, state_application_id) in self.state.borrow().state_applications().await? {
+        for (version, state_application_id) in self.state.borrow()._state_applications().await? {
             let response = match version {
                 1 => self.runtime_context.borrow_mut().call_application(
                     state_application_id.with_abi::<AmsStateV1Abi>(),

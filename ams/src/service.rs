@@ -1,6 +1,6 @@
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use abi::ams::{AmsAbi, Metadata};
+use abi::ams::abi::{AmsAbi, Metadata};
 use ams::state::{adapter::ServiceStateAdapter, AmsState};
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
@@ -68,6 +68,7 @@ impl QueryRoot {
             .state_adapter()
             .expect("Failed to create AMS service state adapter")
             .applications()
+            .await
             .expect("Failed to read AMS applications from state")
             .into_iter()
             .filter(|value| {
@@ -117,6 +118,7 @@ impl QueryRoot {
         self.state_adapter()
             .expect("Failed to create AMS service state adapter")
             .application(application_id)
+            .await
             .expect("Failed to read AMS application from state")
     }
 }

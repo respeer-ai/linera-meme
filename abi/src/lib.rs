@@ -1,5 +1,5 @@
 pub mod ams;
-pub mod application_base_state;
+pub mod application_state_base;
 pub mod approval;
 pub mod blob_gateway;
 pub mod deposit;

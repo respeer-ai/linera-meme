@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::ams::{AmsMessage, AmsOperation, AmsResponse};
+use abi::ams::abi::{AmsMessage, AmsOperation, AmsResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::ApplicationId;

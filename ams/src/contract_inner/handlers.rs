@@ -2,7 +2,10 @@ pub mod message;
 pub mod operation;
 
 use crate::interfaces::state::StateInterface;
-use abi::ams::{AmsMessage, AmsOperation, AmsResponse};
+use abi::{
+    ams::abi::{AmsMessage, AmsOperation, AmsResponse},
+    application_state_base::PublicStateBaseInterface,
+};
 use base::handler::Handler;
 use base::handler::HandlerError;
 use message::{
@@ -13,6 +16,7 @@ use message::{
 };
 use operation::{
     add_application_type::AddApplicationTypeHandler as OperationAddApplicationTypeHandler,
+    append_state::AppendStateHandler as OperationAppendStateHandler,
     claim::ClaimHandler as OperationClaimHandler,
     register::RegisterHandler as OperationRegisterHandler,
     update::UpdateHandler as OperationUpdateHandler,
@@ -25,7 +29,7 @@ pub struct HandlerFactory;
 impl HandlerFactory {
     fn new_operation_handler(
         runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
-        state: impl StateInterface + 'static,
+        state: impl StateInterface + PublicStateBaseInterface + 'static,
         op: &AmsOperation,
     ) -> Box<dyn Handler<AmsMessage, AmsResponse>> {
         match &op {
@@ -38,6 +42,14 @@ impl HandlerFactory {
             }
             AmsOperation::Update { .. } => {
                 Box::new(OperationUpdateHandler::new(runtime, state, op))
+            }
+            AmsOperation::AppendState { .. } => {
+                Box::new(OperationAppendStateHandler::new(runtime, state, op))
+            }
+            AmsOperation::Bootstrap
+            | AmsOperation::Handoff { .. }
+            | AmsOperation::SetOperator { .. } => {
+                todo!("maintenance operation handlers are reviewed separately")
             }
         }
     }
@@ -61,7 +73,7 @@ impl HandlerFactory {
 
     pub fn new(
         runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
-        state: impl StateInterface + 'static,
+        state: impl StateInterface + PublicStateBaseInterface + 'static,
         op: Option<&AmsOperation>,
         msg: Option<&AmsMessage>,
     ) -> Result<Box<dyn Handler<AmsMessage, AmsResponse>>, HandlerError> {

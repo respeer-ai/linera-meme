@@ -24,9 +24,9 @@ defaults:
     - unresolved_caveat_still_relevant
     - canonical_doc_promotion_incomplete
 active_focus:
-  - id: TSTATE-010C
-    why: next typed-state task; produce review-only AMS typed StateV1 contract diffs under the 50-line limit
-    summary: Show AMS local state_versions/latest_state_version, shell instantiate, AppendState/Bootstrap/Handoff/SetOperator handler shapes, and adapter version routing; do not apply code before approval.
+  - id: TSTATE-010D
+    why: current typed-state task; apply confirmed AMS typed StateV1 shell work while continuing small review/apply cycles
+    summary: Reviewed ABI/local-state/adapter/service shell changes have been applied; next diffs cover maintenance operation handlers, StateV1 app shell/handlers, and tests.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/typed-state-versioning.md
@@ -45,6 +45,11 @@ active_focus:
 on_demand_done:
   - id: TSTATE-010B
     why: completed reviewed AMS ABI restructure and typed StateV1 ABI proposal
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/typed-state-versioning.md
+  - id: TSTATE-010C
+    why: completed reviewed AMS typed StateV1 contract/local-state/adapter/service shell application
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/typed-state-versioning.md

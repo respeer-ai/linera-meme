@@ -2484,7 +2484,7 @@ groups:
           - `ulimit -v 6000000; cargo check -p state`
           - `ulimit -v 6000000; cargo test -p state create_namespace_rejects_wrong_creator_chain_and_unbound_caller_reads -- --test-threads=1`
       - id: TSTATE-010
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [TSTATE-001, TSTATE-002C]
         title: AMS typed state V1 first-deploy work package
@@ -2555,32 +2555,34 @@ groups:
           - `AmsStateResponse::{Ok, Application(Option<Metadata>)}`.
           - No `application_ids`, namespace, slot, generic bytes, or `AmsKey` in StateV1.
       - id: TSTATE-010C
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [TSTATE-010B]
         title: Produce AMS typed state V1 contract diff for review
         notes: |
-          Diff proposal only. Do not apply contract changes.
+          Complete. Reviewed AMS typed StateV1 contract/local-state/adapter/service diffs were confirmed and applied in stages.
 
-          Scope:
-          - Show AMS local `state_versions: MapView<u16, ApplicationId>` and `latest_state_version: RegisterView<u16>`.
-          - Show AMS shell instantiate with no state app call and no business-record initialization.
-          - Show `AppendState`, `Bootstrap`, and `Handoff` handler shapes.
-          - Show AMS adapter owning version routing.
-          - Stop for user review before applying code.
+          Execution rule:
+          - Continue with small review diffs first.
+          - After user confirmation, apply the reviewed diff.
+          - Do not keep the task in review-only mode after confirmation.
       - id: TSTATE-010D
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [TSTATE-010B, TSTATE-010C]
         title: Apply reviewed AMS typed state V1 ABI and shell
         notes: |
-          Implement only after TSTATE-010B and TSTATE-010C are approved.
+          In progress. Reviewed ABI/local-state/adapter/service shell changes have been applied.
 
-          Scope:
-          - Apply reviewed ABI changes.
-          - Add AMS typed state V1 crate/module shell as reviewed.
-          - Add compile-only entrypoints and minimal state shape.
-          - Run explicit-memory Rust validation for touched crates.
+          Validation so far:
+          - `cargo check -p abi`
+          - `ulimit -v 6000000; cargo check -p ams`
+
+          Remaining scope:
+          - Add maintenance operation handlers.
+          - Add AMS StateV1 app shell and handlers.
+          - Add focused unit and multi-chain tests.
+          - Continue using small review diffs, then apply only after confirmation.
       - id: TSTATE-010E
         status: Todo
         priority: P0

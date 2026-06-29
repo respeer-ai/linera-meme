@@ -1,9 +1,9 @@
 use crate::state::{errors::StateError, AmsState, EXPECTED_LATEST_STATE_VERSION};
-use abi::application_base_state::LocalStateInterface;
+use abi::application_state_base::LocalStateInterface;
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::ApplicationId;
 
-#[async_trait(?Send)]
+#[async_trait]
 impl LocalStateInterface for AmsState {
     type Error = StateError;
 
@@ -35,14 +35,17 @@ impl LocalStateInterface for AmsState {
     }
 
     async fn latest_state_application(&self) -> Result<ApplicationId, StateError> {
-        let version = self.latest_state_version.get();
+        let version = *self.latest_state_version.get();
         if version != EXPECTED_LATEST_STATE_VERSION {
             return Err(StateError::InvalidStateVersion);
         }
-        self.state_application(version).await
+        self.state_applications
+            .get(&version)
+            .await?
+            .ok_or(StateError::NotExists)
     }
 
-    async fn state_applications(&self) -> Result<Vec<(u16, ApplicationId)>, StateError> {
+    async fn _state_applications(&self) -> Result<Vec<(u16, ApplicationId)>, StateError> {
         Ok(self.state_applications.index_values().await?)
     }
 }
