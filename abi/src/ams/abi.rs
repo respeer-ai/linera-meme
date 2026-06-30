@@ -74,7 +74,6 @@ pub enum AmsOperation {
     AppendState {
         state_application_id: ApplicationId,
     },
-    Bootstrap,
     Handoff {
         new_business_application_id: ApplicationId,
     },

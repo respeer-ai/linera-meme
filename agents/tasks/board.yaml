@@ -2514,7 +2514,7 @@ groups:
           - No `application_ids` index in StateV1; list queries derive ids from `applications: MapView<ApplicationId, Metadata>` keys.
 
           Contract path reads/writes:
-          - `Bootstrap` initializes `operator` and default `application_types` through the AMS adapter.
+          - StateV1 instantiate initializes `operator` and default `application_types`.
           - `AddApplicationType` reads `operator` and `application_types`, then writes `application_types`.
           - `Register` reads `application_types`, checks `applications[application_id]`, and writes `applications[application_id]`; it does not maintain a separate id list.
           - `Claim` reads and writes `applications[application_id]`.
@@ -2545,13 +2545,12 @@ groups:
           Confirmed business ABI changes:
           - `InstantiationArgument {}` for AMS business shell instantiate.
           - Add `AppendState { state_application_id }`; version remains internal.
-          - Add `Bootstrap`.
           - Add `Handoff { new_business_application_id }`.
           - Add `SetOperator { new_operator }`.
 
           Confirmed StateV1 ABI shape:
           - `StateInstantiationArgument { business_application_id, operator: Option<Account> }`.
-          - `AmsStateOperation::{Bootstrap, SetOperator, AddApplicationType, RegisterApplication, ClaimApplication, UpdateApplication, Application, Handoff}`.
+          - `AmsStateOperation::{SetOperator, AddApplicationType, RegisterApplication, ClaimApplication, UpdateApplication, Application, Handoff}`.
           - `AmsStateResponse::{Ok, Application(Option<Metadata>)}`.
           - No `application_ids`, namespace, slot, generic bytes, or `AmsKey` in StateV1.
       - id: TSTATE-010C
@@ -2567,49 +2566,51 @@ groups:
           - After user confirmation, apply the reviewed diff.
           - Do not keep the task in review-only mode after confirmation.
       - id: TSTATE-010D
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [TSTATE-010B, TSTATE-010C]
         title: Apply reviewed AMS typed state V1 ABI and shell
         notes: |
-          In progress. Reviewed ABI/local-state/adapter/service shell changes and maintenance operation handlers have been applied.
+          Complete. Reviewed ABI/local-state/adapter/service shell changes, AMS app/state package split, AMS StateV1 app shell, and AMS StateV1 operation handlers have been applied.
 
           Validation so far:
           - `cargo check -p abi`
           - `ulimit -v 6000000; cargo check -p ams`
           - `cargo fmt -p ams --check`
           - `ulimit -v 6000000; cargo check -p ams` after maintenance handler wiring
+          - `cargo fmt -p ams-app --check`
+          - `cargo fmt -p ams-state --check`
+          - `ulimit -v 6000000; cargo check -p ams-app`
+          - `ulimit -v 6000000; cargo check -p ams-state`
+          - `cargo fmt -p ams-app -p ams-state --check`
+          - `ulimit -v 6000000; cargo check -p ams-app -p ams-state`
+          - `bash -n scripts/run_local.sh`
+          - `bash -n docker/compose.sh`
 
-          Remaining scope:
-          - Split AMS implementation into separate business app and typed StateV1 app packages.
-          - Add AMS StateV1 app shell and handlers.
-          - Add focused unit and multi-chain tests.
-          - Continue using small review diffs, then apply only after confirmation.
+          Caveats:
+          - Review whether `AmsStateOperation::AddApplicationType { owner, .. }`, `AmsStateOperation::ClaimApplication { owner, .. }`, and `AmsStateOperation::UpdateApplication { owner, .. }` can safely trust the business app to pass the original actor account; current implementation keeps these fields and validates them against typed state records, but this identity handoff requires a later security review.
       - id: TSTATE-010D1
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [TSTATE-010B, TSTATE-010C]
         title: Split AMS app and StateV1 app packages
         notes: |
-          Scope:
-          - Restructure AMS into separate `ams/app` and `ams/state` Rust packages before implementing StateV1 app internals.
-          - `ams-app` and `ams-state` must depend on `abi`, `runtime`, `base`, and Linera SDK only; neither package may depend on the other.
-          - Keep cross-application coupling through `abi::ams::abi` and `abi::ams::state_v1`.
-          - Update workspace, bin names, tests, and local/deployment publish paths in small review diffs.
-          - Preserve current AMS business app behavior while moving files.
+          Complete. Current AMS business app moved to `ams/app` package as `ams-app`; typed StateV1 package skeleton added under `ams/state` as `ams-state`.
+          App bins are now `ams_app_contract` / `ams_app_service`; state bins are `ams_state_contract` / `ams_state_service`.
+          Runtime/deployment publish paths for the current AMS business app now use `ams_app_*` wasm names.
+          Package boundary is canonical in `agents/primitives/typed-state-versioning.md`: `ams-app` and `ams-state` must not depend on each other and must interact only through `abi::ams::*`.
       - id: TSTATE-010E
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [TSTATE-010D1]
-        title: Implement AMS AppendState and Bootstrap
+        title: Implement AMS AppendState
         notes: |
           Scope:
           - Implement append-only `AppendState`.
           - Auto-increment versions internally.
           - Reject duplicate state application ids.
-          - Implement `Bootstrap` through the AMS adapter.
           - Require exact `EXPECTED_LATEST_STATE_VERSION`.
-          - Add focused unit tests for append and bootstrap edge cases.
+          - Add focused unit tests for append edge cases.
       - id: TSTATE-010F
         status: Todo
         priority: P0
@@ -2630,8 +2631,7 @@ groups:
           Scope:
           - Unit test shell instantiate with empty state versions.
           - Unit test `AppendState` auto-increment and duplicate rejection.
-          - Unit test `Bootstrap` exact-version requirement.
-          - Multi-chain test first deploy: shell, StateV1, `AppendState`, `Bootstrap`, normal AMS operation, service read.
+          - Multi-chain test first deploy: shell, StateV1, `AppendState`, normal AMS operation, service read.
       - id: TSTATE-010H
         status: Todo
         priority: P0

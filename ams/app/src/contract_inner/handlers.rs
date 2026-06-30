@@ -17,7 +17,6 @@ use message::{
 use operation::{
     add_application_type::AddApplicationTypeHandler as OperationAddApplicationTypeHandler,
     append_state::AppendStateHandler as OperationAppendStateHandler,
-    bootstrap::BootstrapHandler as OperationBootstrapHandler,
     claim::ClaimHandler as OperationClaimHandler,
     handoff::HandoffHandler as OperationHandoffHandler,
     register::RegisterHandler as OperationRegisterHandler,
@@ -32,7 +31,7 @@ pub struct HandlerFactory;
 impl HandlerFactory {
     fn new_operation_handler(
         runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
-        state: impl StateInterface + PublicStateBaseInterface<BootstrapArgument = ()> + 'static,
+        state: impl StateInterface + PublicStateBaseInterface + 'static,
         op: &AmsOperation,
     ) -> Box<dyn Handler<AmsMessage, AmsResponse>> {
         match &op {
@@ -49,7 +48,6 @@ impl HandlerFactory {
             AmsOperation::AppendState { .. } => {
                 Box::new(OperationAppendStateHandler::new(runtime, state, op))
             }
-            AmsOperation::Bootstrap => Box::new(OperationBootstrapHandler::new(runtime, state, op)),
             AmsOperation::Handoff { .. } => {
                 Box::new(OperationHandoffHandler::new(runtime, state, op))
             }
@@ -78,7 +76,7 @@ impl HandlerFactory {
 
     pub fn new(
         runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
-        state: impl StateInterface + PublicStateBaseInterface<BootstrapArgument = ()> + 'static,
+        state: impl StateInterface + PublicStateBaseInterface + 'static,
         op: Option<&AmsOperation>,
         msg: Option<&AmsMessage>,
     ) -> Result<Box<dyn Handler<AmsMessage, AmsResponse>>, HandlerError> {

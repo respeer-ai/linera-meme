@@ -122,8 +122,6 @@ AppendState {
     state_application_id: ApplicationId,
 }
 
-Bootstrap
-
 Handoff {
     new_business_application_id: ApplicationId,
 }
@@ -146,7 +144,7 @@ latest_state_version = next_version
 - It rejects a state application id that is already present.
 - It does not migrate, copy, or initialize historical records.
 
-`Bootstrap` writes initial typed business records through the business adapter. It does not introduce a separate lifecycle field. Bootstrap completion is proven by the required initial records existing.
+Typed state app initialization happens in typed state app instantiate when the required binding and initial records are known at deployment time. Do not add a no-op `Bootstrap` lifecycle only to mirror older generic-state flows.
 
 ## Typed State App Model
 
@@ -224,6 +222,7 @@ Handoff {
 ```text
 authenticated_caller_application_id == current business_application_id
 runtime.chain_id() == creator_chain_id(current business_application_id)
+runtime.chain_id() == creator_chain_id(new_business_application_id)
 ```
 
 On success it only updates:
@@ -234,7 +233,7 @@ business_application_id = new_business_application_id
 
 It does not move, copy, rewrite, or migrate business records.
 
-The `new_business_application_id` does not need to have the same creator chain during handoff. Future writes by the new app are checked against the new app's creator chain.
+The `new_business_application_id` must have the same creator chain as the state app chain. Otherwise the handoff would bind the state app to a business app that cannot continue writing the existing state records on the state app chain.
 
 ## First Deploy Flow
 
@@ -245,8 +244,7 @@ First deploy must obtain the business app id before creating its state app:
 2. Obtain BusinessApp id.
 3. Deploy BusinessStateV1 with business_application_id = BusinessApp id.
 4. Call BusinessApp.AppendState(StateV1 id).
-5. Call BusinessApp.Bootstrap.
-6. Start normal operations only when exact version and bootstrap-record checks pass.
+5. Start normal operations only when the exact expected state version exists.
 ```
 
 Business app instantiate does not call a state app and does not initialize business records.
@@ -347,14 +345,14 @@ Typed state app tests:
 - authorized app writes from a non-creator chain fail
 - handoff preserves all records
 - old app writes fail after handoff
-- new app writes succeed on its creator chain after handoff
+- handoff rejects a new app whose creator chain differs from the state app chain
+- new app writes succeed on the shared creator chain after handoff
 
 Business app tests:
 
 - shell instantiate has empty state versions and does not call state apps
 - `AppendState` auto-increments versions and rejects duplicates
 - no user-supplied version exists
-- `Bootstrap` requires the exact expected version
 - normal handlers require exact `EXPECTED_LATEST_STATE_VERSION`
 - handler code does not know state app ids or versions
 - adapter routes fields to fixed versions
@@ -363,7 +361,7 @@ Business app tests:
 
 Multi-chain tests:
 
-- first deploy: shell, StateV1, `AppendState`, `Bootstrap`, normal business operation, service read
+- first deploy: shell, StateV1, `AppendState`, normal business operation, service read
 - upgrade without new state: old writes, new shell, append old StateV1, old handoff, new reads old data, old write rejected
 - upgrade with new state: append StateV1, create/append StateV2, bootstrap StateV2, handoff StateV1, compose V1+V2
 - multi-state handoff success

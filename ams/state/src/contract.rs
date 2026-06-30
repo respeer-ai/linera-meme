@@ -1,24 +1,20 @@
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
+use std::{cell::RefCell, rc::Rc};
+
 use abi::ams::state_v1::{
     AmsStateAbi, AmsStateOperation, AmsStateResponse, StateInstantiationArgument,
 };
-use linera_sdk::views::linera_views;
+use ams_state::state::AmsState;
 use linera_sdk::{
-    linera_base_types::{ApplicationId, WithContractAbi},
-    views::{RegisterView, RootView, View, ViewStorageContext},
+    linera_base_types::WithContractAbi,
+    views::{RootView, View},
     Contract, ContractRuntime,
 };
 
 pub struct AmsStateContract {
-    state: AmsState,
-    runtime: ContractRuntime<Self>,
-}
-
-#[derive(RootView)]
-#[view(context = ViewStorageContext)]
-pub struct AmsState {
-    pub business_application_id: RegisterView<Option<ApplicationId>>,
+    state: Rc<RefCell<AmsState>>,
+    runtime: Rc<RefCell<ContractRuntime<Self>>>,
 }
 
 linera_sdk::contract!(AmsStateContract);
@@ -37,26 +33,33 @@ impl Contract for AmsStateContract {
         let state = AmsState::load(runtime.root_view_storage_context())
             .await
             .expect("Failed to load AMS StateV1 state");
-        Self { state, runtime }
+        Self {
+            state: Rc::new(RefCell::new(state)),
+            runtime: Rc::new(RefCell::new(runtime)),
+        }
     }
 
     async fn instantiate(&mut self, argument: StateInstantiationArgument) {
-        self.runtime.application_parameters();
-        self.state
-            .business_application_id
-            .set(Some(argument.business_application_id));
+        self.runtime.borrow_mut().application_parameters();
+        self._instantiate(argument);
     }
 
-    async fn execute_operation(&mut self, _operation: AmsStateOperation) -> AmsStateResponse {
-        todo!("AMS StateV1 operation handlers are implemented in later review diffs")
+    async fn execute_operation(&mut self, operation: AmsStateOperation) -> AmsStateResponse {
+        self.on_op(&operation).await
     }
 
     async fn execute_message(&mut self, _message: ()) {}
 
-    async fn store(mut self) {
+    async fn store(self) {
         self.state
+            .borrow_mut()
             .save()
             .await
             .expect("Failed to save AMS StateV1 state");
     }
 }
+
+mod contract_impl;
+
+#[cfg(test)]
+mod contract_tests;

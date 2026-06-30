@@ -34,7 +34,6 @@ impl<R: ContractRuntimeContext> ContractStateAdapter<R> {
 #[async_trait(?Send)]
 impl<R: ContractRuntimeContext> PublicStateBaseInterface for ContractStateAdapter<R> {
     type Error = StateError;
-    type BootstrapArgument = ();
 
     async fn append_state(
         &mut self,
@@ -44,18 +43,6 @@ impl<R: ContractRuntimeContext> PublicStateBaseInterface for ContractStateAdapte
             .borrow_mut()
             .append_state(state_application_id)
             .await
-    }
-
-    async fn bootstrap(&mut self, _argument: ()) -> Result<(), Self::Error> {
-        let state_application_id = self.state.borrow().latest_state_application().await?;
-        let response = self.runtime_context.borrow_mut().call_application(
-            state_application_id.with_abi::<AmsStateV1Abi>(),
-            &AmsStateV1Operation::Bootstrap,
-        );
-        match response {
-            AmsStateV1Response::Ok => Ok(()),
-            _ => Err(StateError::InvalidStateResponse),
-        }
     }
 
     async fn handoff(

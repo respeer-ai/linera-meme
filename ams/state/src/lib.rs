@@ -1,1 +1,3 @@
-// AMS typed StateV1 app package.
+pub mod contract_inner;
+pub mod interfaces;
+pub mod state;

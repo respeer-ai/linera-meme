@@ -8,14 +8,12 @@ use thiserror::Error;
 #[async_trait(?Send)]
 pub trait PublicStateBaseInterface {
     type Error: std::fmt::Debug + std::error::Error + 'static;
-    type BootstrapArgument;
 
     async fn append_state(
         &mut self,
         state_application_id: ApplicationId,
     ) -> Result<(), Self::Error>;
 
-    async fn bootstrap(&mut self, argument: Self::BootstrapArgument) -> Result<(), Self::Error>;
 
     async fn handoff(
         &mut self,

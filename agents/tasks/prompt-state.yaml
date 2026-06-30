@@ -24,15 +24,9 @@ defaults:
     - unresolved_caveat_still_relevant
     - canonical_doc_promotion_incomplete
 active_focus:
-  - id: TSTATE-010D
-    why: current typed-state task; preserve confirmed maintenance shell work and split AMS app/state package boundaries before StateV1 implementation
-    summary: Reviewed ABI/local-state/adapter/service shell and maintenance handler changes have been applied; next diffs split AMS into `ams/app` and `ams/state` packages before StateV1 app shell/handlers and tests.
-    canonical_refs:
-      - agents/tasks/board.yaml
-      - agents/primitives/typed-state-versioning.md
-  - id: TSTATE-010D1
-    why: current typed-state implementation structure task before AMS StateV1 app internals
-    summary: Split AMS into separate `ams/app` and `ams/state` Rust packages with no implementation dependency between them; update workspace, bins, tests, and publish paths in small review diffs.
+  - id: TSTATE-010E
+    why: current typed-state task; implement AMS AppendState after StateV1 app shell and handlers
+    summary: AMS StateV1 app shell and operation handlers are complete; next diffs implement AMS business-app AppendState and exact latest-version enforcement without Bootstrap.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/typed-state-versioning.md
@@ -49,6 +43,16 @@ active_focus:
       - agents/tasks/board.yaml
       - webui-v2/AGENTS.md
 on_demand_done:
+  - id: TSTATE-010D
+    why: completed AMS StateV1 app shell and operation handlers before AppendState work
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/typed-state-versioning.md
+  - id: TSTATE-010D1
+    why: completed AMS app/state package split and bin rename foundation before StateV1 app internals
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/typed-state-versioning.md
   - id: TSTATE-010B
     why: completed reviewed AMS ABI restructure and typed StateV1 ABI proposal
     canonical_refs:

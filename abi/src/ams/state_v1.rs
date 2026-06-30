@@ -23,7 +23,6 @@ pub struct StateInstantiationArgument {
 
 #[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize)]
 pub enum AmsStateOperation {
-    Bootstrap,
     SetOperator {
         new_operator: Account,
     },
