@@ -17,8 +17,11 @@ use message::{
 use operation::{
     add_application_type::AddApplicationTypeHandler as OperationAddApplicationTypeHandler,
     append_state::AppendStateHandler as OperationAppendStateHandler,
+    bootstrap::BootstrapHandler as OperationBootstrapHandler,
     claim::ClaimHandler as OperationClaimHandler,
+    handoff::HandoffHandler as OperationHandoffHandler,
     register::RegisterHandler as OperationRegisterHandler,
+    set_operator::SetOperatorHandler as OperationSetOperatorHandler,
     update::UpdateHandler as OperationUpdateHandler,
 };
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
@@ -29,7 +32,7 @@ pub struct HandlerFactory;
 impl HandlerFactory {
     fn new_operation_handler(
         runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
-        state: impl StateInterface + PublicStateBaseInterface + 'static,
+        state: impl StateInterface + PublicStateBaseInterface<BootstrapArgument = ()> + 'static,
         op: &AmsOperation,
     ) -> Box<dyn Handler<AmsMessage, AmsResponse>> {
         match &op {
@@ -46,10 +49,12 @@ impl HandlerFactory {
             AmsOperation::AppendState { .. } => {
                 Box::new(OperationAppendStateHandler::new(runtime, state, op))
             }
-            AmsOperation::Bootstrap
-            | AmsOperation::Handoff { .. }
-            | AmsOperation::SetOperator { .. } => {
-                todo!("maintenance operation handlers are reviewed separately")
+            AmsOperation::Bootstrap => Box::new(OperationBootstrapHandler::new(runtime, state, op)),
+            AmsOperation::Handoff { .. } => {
+                Box::new(OperationHandoffHandler::new(runtime, state, op))
+            }
+            AmsOperation::SetOperator { .. } => {
+                Box::new(OperationSetOperatorHandler::new(runtime, state, op))
             }
         }
     }
@@ -73,7 +78,7 @@ impl HandlerFactory {
 
     pub fn new(
         runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
-        state: impl StateInterface + PublicStateBaseInterface + 'static,
+        state: impl StateInterface + PublicStateBaseInterface<BootstrapArgument = ()> + 'static,
         op: Option<&AmsOperation>,
         msg: Option<&AmsMessage>,
     ) -> Result<Box<dyn Handler<AmsMessage, AmsResponse>>, HandlerError> {
