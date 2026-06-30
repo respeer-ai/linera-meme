@@ -97,7 +97,7 @@ spec:
             fi
             if [ ! -f /shared-app-data/AMS_MODULE_ID -o -z $MODULE_ID ]; then
               echo "Publishing bytecode ..."
-              MODULE_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db publish-module /bytecodes/ams_contract.wasm /bytecodes/ams_service.wasm)
+              MODULE_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db publish-module /bytecodes/ams_app_contract.wasm /bytecodes/ams_app_service.wasm)
               echo $MODULE_ID > /shared-app-data/AMS_MODULE_ID
             fi
           fi

@@ -6,6 +6,7 @@ members = [
     "pool",
     "blob-gateway",
     "ams/app",
+    "ams/state",
     "state",
     "abi",
     "base",
@@ -58,6 +59,7 @@ swap = { path = "./swap" }
 pool = { path = "./pool" }
 blob-gateway = { path = "./blob-gateway" }
 ams-app = { path = "./ams/app" }
+ams-state = { path = "./ams/state" }
 deposit = { path = "./deposit" }
 base = { path = "./base" }
 runtime = { path = "./runtime" }

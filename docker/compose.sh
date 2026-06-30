@@ -373,7 +373,7 @@ function publish_bytecode() {
 # Publish bytecode then create applications
 # Create blob gateway
 BLOB_GATEWAY_MODULE_ID=$(publish_bytecode blob-gateway)
-AMS_MODULE_ID=$(publish_bytecode ams)
+AMS_MODULE_ID=$(publish_bytecode_on_chain ams ams-app)
 SWAP_MODULE_ID=$(publish_bytecode swap)
 POOL_MODULE_ID=$(publish_bytecode_on_chain swap pool)
 PROXY_MODULE_ID=$(publish_bytecode proxy)

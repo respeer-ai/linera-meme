@@ -2321,7 +2321,7 @@ groups:
 
           Validation:
           - `ulimit -v 14000000; cargo test -p ams --test multi_chain -- --test-threads=1`
-          - `ulimit -v 6000000; cargo test -p ams --bin ams_contract -- --test-threads=1`
+          - `ulimit -v 6000000; cargo test -p ams-app --bin ams_app_contract -- --test-threads=1`
       - id: GSTATE-020
         status: Cancelled
         priority: P0
