@@ -55,6 +55,35 @@ The generic BCS-bytes state app is not part of the main business-state architect
 - Handlers do not receive state application ids, state versions, or patch details.
 - Business adapters own version routing and multi-state composition.
 
+## Package Boundary
+
+Typed business app and typed state app implementations are separate Rust packages and separate Linera applications.
+
+For AMS, use this package shape:
+
+```text
+ams/app     # business app package
+ams/state   # typed StateV1 package
+```
+
+Dependency direction:
+
+```text
+ams-app   -> abi, runtime, base, linera-sdk
+ams-state -> abi, runtime, base, linera-sdk
+
+ams-app   -X-> ams-state
+ams-state -X-> ams-app
+```
+
+Rules:
+
+- Business app code must not import typed state app implementation modules.
+- Typed state app code must not import business app implementation modules.
+- Cross-application calls use only `abi::ams::state_v1` ABI types and runtime application calls.
+- Shared implementation code is allowed only when it belongs in `abi`, `runtime`, or `base`.
+- Do not use one `ams` library target to expose both app and state implementation modules.
+
 ## Business App Local State
 
 Each business app stores state versions append-only:

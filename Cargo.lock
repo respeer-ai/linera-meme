@@ -121,7 +121,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ams"
+name = "ams-app"
 version = "0.1.0"
 dependencies = [
  "abi",

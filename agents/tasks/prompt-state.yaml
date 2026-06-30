@@ -25,8 +25,14 @@ defaults:
     - canonical_doc_promotion_incomplete
 active_focus:
   - id: TSTATE-010D
-    why: current typed-state task; apply confirmed AMS typed StateV1 shell work while continuing small review/apply cycles
-    summary: Reviewed ABI/local-state/adapter/service shell changes have been applied; next diffs cover maintenance operation handlers, StateV1 app shell/handlers, and tests.
+    why: current typed-state task; preserve confirmed maintenance shell work and split AMS app/state package boundaries before StateV1 implementation
+    summary: Reviewed ABI/local-state/adapter/service shell and maintenance handler changes have been applied; next diffs split AMS into `ams/app` and `ams/state` packages before StateV1 app shell/handlers and tests.
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/typed-state-versioning.md
+  - id: TSTATE-010D1
+    why: current typed-state implementation structure task before AMS StateV1 app internals
+    summary: Split AMS into separate `ams/app` and `ams/state` Rust packages with no implementation dependency between them; update workspace, bins, tests, and publish paths in small review diffs.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/typed-state-versioning.md

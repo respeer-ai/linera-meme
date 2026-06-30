@@ -78,7 +78,7 @@ async fn bootstrap_multi_owner_single_leader_apps_process_frontend_protocol_oper
         )
         .await;
 
-    let ams_bytecode_id = ams_chain.publish_bytecode_files_in("../ams").await;
+    let ams_bytecode_id = ams_chain.publish_bytecode_files_in("../ams/app").await;
     let ams_application_id = ams_chain
         .create_application::<abi::ams::AmsAbi, (), abi::ams::InstantiationArgument>(
             ams_bytecode_id,

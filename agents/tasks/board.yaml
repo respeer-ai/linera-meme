@@ -2572,21 +2572,35 @@ groups:
         depends_on: [TSTATE-010B, TSTATE-010C]
         title: Apply reviewed AMS typed state V1 ABI and shell
         notes: |
-          In progress. Reviewed ABI/local-state/adapter/service shell changes have been applied.
+          In progress. Reviewed ABI/local-state/adapter/service shell changes and maintenance operation handlers have been applied.
 
           Validation so far:
           - `cargo check -p abi`
           - `ulimit -v 6000000; cargo check -p ams`
+          - `cargo fmt -p ams --check`
+          - `ulimit -v 6000000; cargo check -p ams` after maintenance handler wiring
 
           Remaining scope:
-          - Add maintenance operation handlers.
+          - Split AMS implementation into separate business app and typed StateV1 app packages.
           - Add AMS StateV1 app shell and handlers.
           - Add focused unit and multi-chain tests.
           - Continue using small review diffs, then apply only after confirmation.
+      - id: TSTATE-010D1
+        status: Doing
+        priority: P0
+        depends_on: [TSTATE-010B, TSTATE-010C]
+        title: Split AMS app and StateV1 app packages
+        notes: |
+          Scope:
+          - Restructure AMS into separate `ams/app` and `ams/state` Rust packages before implementing StateV1 app internals.
+          - `ams-app` and `ams-state` must depend on `abi`, `runtime`, `base`, and Linera SDK only; neither package may depend on the other.
+          - Keep cross-application coupling through `abi::ams::abi` and `abi::ams::state_v1`.
+          - Update workspace, bin names, tests, and local/deployment publish paths in small review diffs.
+          - Preserve current AMS business app behavior while moving files.
       - id: TSTATE-010E
         status: Todo
         priority: P0
-        depends_on: [TSTATE-010D]
+        depends_on: [TSTATE-010D1]
         title: Implement AMS AppendState and Bootstrap
         notes: |
           Scope:

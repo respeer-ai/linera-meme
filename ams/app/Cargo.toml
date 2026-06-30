@@ -1,5 +1,5 @@
 [package]
-name = "ams"
+name = "ams-app"
 version = "0.1.0"
 authors = ["ResPeer <contact@respeer.ai>"]
 edition = "2021"

@@ -1,7 +1,7 @@
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
 use abi::ams::abi::{AmsAbi, Metadata};
-use ams::state::{adapter::ServiceStateAdapter, AmsState};
+use ams_app::state::{adapter::ServiceStateAdapter, AmsState};
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     linera_base_types::WithServiceAbi,
@@ -126,7 +126,7 @@ impl QueryRoot {
 impl QueryRoot {
     fn state_adapter(
         &self,
-    ) -> Result<ServiceStateAdapter<AmsService>, ams::state::errors::StateError> {
+    ) -> Result<ServiceStateAdapter<AmsService>, ams_app::state::errors::StateError> {
         ServiceStateAdapter::new(self.runtime.clone(), self.state.clone())
     }
 }

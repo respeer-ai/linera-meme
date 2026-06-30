@@ -1,6 +1,6 @@
 use super::AmsContract;
 use abi::ams::abi::{AmsMessage, AmsOperation, AmsResponse, InstantiationArgument};
-use ams::{contract_inner::handlers::HandlerFactory, state::adapter::ContractStateAdapter};
+use ams_app::{contract_inner::handlers::HandlerFactory, state::adapter::ContractStateAdapter};
 use runtime::{contract::ContractRuntimeAdapter, interfaces::contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 

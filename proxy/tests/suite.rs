@@ -174,7 +174,7 @@ impl TestSuite {
     }
 
     pub async fn create_ams_application(&mut self) {
-        let bytecode_id = self.proxy_chain.publish_bytecode_files_in("../ams").await;
+        let bytecode_id = self.proxy_chain.publish_bytecode_files_in("../ams/app").await;
 
         self.ams_application_id = Some(
             self.proxy_chain

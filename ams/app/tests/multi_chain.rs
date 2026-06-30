@@ -30,7 +30,7 @@ impl TestSuite {
             .new_chain_with_keypair(user_chain.key_pair().copy())
             .await;
         let state_bytecode_id = state_creator_chain
-            .publish_bytecode_files_in("../state")
+            .publish_bytecode_files_in("../../state")
             .await;
         let state_application_id = state_creator_chain
             .create_application::<StateAbi, (), ()>(state_bytecode_id, (), (), vec![])
