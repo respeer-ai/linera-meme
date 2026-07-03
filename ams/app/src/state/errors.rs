@@ -9,19 +9,11 @@ pub enum StateError {
     #[error(transparent)]
     ApplicationStateResponse(#[from] abi::application_state_base::ApplicationStateResponseError),
 
-    #[error(transparent)]
-    Bcs(#[from] linera_sdk::bcs::Error),
     #[error("Already exists")]
     AlreadyExists,
 
     #[error("Not exists")]
     NotExists,
-
-    #[error("Invalid application type")]
-    InvalidApplicationType,
-
-    #[error("Permission denied")]
-    PermissionDenied,
 
     #[error("Invalid state version")]
     InvalidStateVersion,

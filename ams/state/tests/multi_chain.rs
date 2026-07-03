@@ -159,18 +159,18 @@ async fn write_operations_from_user_chain_are_rejected_without_business_app_call
             new_operator: TestSuite::chain_owner_account(&suite.user_chain),
         },
         AmsStateOperation::AddApplicationType {
-            owner: TestSuite::chain_owner_account_placeholder(),
+            origin: TestSuite::chain_owner_account_placeholder(),
             application_type: "Analytics".to_string(),
         },
         AmsStateOperation::RegisterApplication {
             metadata: TestSuite::metadata(tracked_application_id, "Meme"),
         },
         AmsStateOperation::ClaimApplication {
-            owner: TestSuite::chain_owner_account_placeholder(),
+            origin: TestSuite::chain_owner_account_placeholder(),
             application_id: tracked_application_id,
         },
         AmsStateOperation::UpdateApplication {
-            owner: TestSuite::chain_owner_account_placeholder(),
+            origin: TestSuite::chain_owner_account_placeholder(),
             application_id: tracked_application_id,
             metadata: TestSuite::metadata(other_tracked_application_id, "Game"),
         },

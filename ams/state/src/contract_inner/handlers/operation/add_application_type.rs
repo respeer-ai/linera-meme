@@ -10,14 +10,14 @@ use crate::interfaces::state::StateInterface;
 pub struct AddApplicationTypeHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
     runtime: Rc<RefCell<R>>,
     state: S,
-    owner: Account,
+    origin: Account,
     application_type: String,
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> AddApplicationTypeHandler<R, S> {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, operation: &AmsStateOperation) -> Self {
         let AmsStateOperation::AddApplicationType {
-            owner,
+            origin,
             application_type,
         } = operation
         else {
@@ -26,7 +26,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> AddApplicatio
         Self {
             runtime,
             state,
-            owner: *owner,
+            origin: *origin,
             application_type: application_type.clone(),
         }
     }
@@ -66,7 +66,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<(), A
             .await
             .map_err(|error| HandlerError::ProcessError(error.into()))?;
 
-        if self.owner != operator {
+        if self.origin != operator {
             return Err(HandlerError::NotAllowed);
         }
 

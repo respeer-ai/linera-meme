@@ -90,14 +90,14 @@ impl<R: ContractRuntimeContext> StateInterface for ContractStateAdapter<R> {
 
     async fn add_application_type(
         &mut self,
-        owner: Account,
+        origin: Account,
         application_type: String,
     ) -> Result<(), Self::Error> {
         let state_application_id = self.state.borrow().state_application(1).await?;
         let response = self.runtime_context.borrow_mut().call_application(
             state_application_id.with_abi::<AmsStateV1Abi>(),
             &AmsStateV1Operation::AddApplicationType {
-                owner,
+                origin,
                 application_type,
             },
         );
@@ -123,14 +123,14 @@ impl<R: ContractRuntimeContext> StateInterface for ContractStateAdapter<R> {
 
     async fn claim_application(
         &mut self,
-        owner: Account,
+        origin: Account,
         application_id: ApplicationId,
     ) -> Result<(), Self::Error> {
         let state_application_id = self.state.borrow().state_application(1).await?;
         let response = self.runtime_context.borrow_mut().call_application(
             state_application_id.with_abi::<AmsStateV1Abi>(),
             &AmsStateV1Operation::ClaimApplication {
-                owner,
+                origin,
                 application_id,
             },
         );
@@ -142,7 +142,7 @@ impl<R: ContractRuntimeContext> StateInterface for ContractStateAdapter<R> {
 
     async fn update_application(
         &mut self,
-        owner: Account,
+        origin: Account,
         application_id: ApplicationId,
         metadata: Metadata,
     ) -> Result<(), Self::Error> {
@@ -150,7 +150,7 @@ impl<R: ContractRuntimeContext> StateInterface for ContractStateAdapter<R> {
         let response = self.runtime_context.borrow_mut().call_application(
             state_application_id.with_abi::<AmsStateV1Abi>(),
             &AmsStateV1Operation::UpdateApplication {
-                owner,
+                origin,
                 application_id,
                 metadata,
             },

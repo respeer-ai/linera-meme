@@ -10,14 +10,14 @@ pub struct AddApplicationTypeHandler<R: ContractRuntimeContext + AccessControl, 
     _runtime: Rc<RefCell<R>>,
     state: S,
 
-    owner: Account,
+    origin: Account,
     application_type: String,
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> AddApplicationTypeHandler<R, S> {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &AmsMessage) -> Self {
         let AmsMessage::AddApplicationType {
-            owner,
+            origin,
             application_type,
         } = msg
         else {
@@ -28,7 +28,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> AddApplicatio
             state,
             _runtime: runtime,
 
-            owner: *owner,
+            origin: *origin,
             application_type: application_type.clone(),
         }
     }
@@ -43,7 +43,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMe
     ) -> Result<Option<HandlerOutcome<AmsMessage, AmsResponse>>, HandlerError> {
         match self
             .state
-            .add_application_type(self.owner, self.application_type.clone())
+            .add_application_type(self.origin, self.application_type.clone())
             .await
         {
             Ok(_) => Ok(None),

@@ -104,11 +104,11 @@ pub enum AmsMessage {
         application_id: ApplicationId,
     },
     AddApplicationType {
-        owner: Account,
+        origin: Account,
         application_type: String,
     },
     Update {
-        owner: Account,
+        origin: Account,
         application_id: ApplicationId,
         metadata: Metadata,
     },

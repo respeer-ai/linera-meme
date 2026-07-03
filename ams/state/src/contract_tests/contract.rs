@@ -326,7 +326,7 @@ async fn add_application_type_success() {
     assert_eq!(
         suite
             .execute_operation(AmsStateOperation::AddApplicationType {
-                owner: TestSuite::operator(),
+                origin: TestSuite::operator(),
                 application_type: "Analytics".to_string(),
             })
             .await,
@@ -349,7 +349,7 @@ async fn add_application_type_rejects_unbound_business_app() {
 
     suite
         .execute_operation(AmsStateOperation::AddApplicationType {
-            owner: TestSuite::operator(),
+            origin: TestSuite::operator(),
             application_type: "Analytics".to_string(),
         })
         .await;
@@ -362,7 +362,7 @@ async fn add_application_type_rejects_non_operator_owner() {
 
     suite
         .execute_operation(AmsStateOperation::AddApplicationType {
-            owner: TestSuite::other_operator(),
+            origin: TestSuite::other_operator(),
             application_type: "Analytics".to_string(),
         })
         .await;
@@ -376,7 +376,7 @@ async fn add_application_type_rejects_duplicate_type() {
     assert_eq!(
         suite
             .execute_operation(AmsStateOperation::AddApplicationType {
-                owner: TestSuite::operator(),
+                origin: TestSuite::operator(),
                 application_type: "Analytics".to_string(),
             })
             .await,
@@ -384,7 +384,7 @@ async fn add_application_type_rejects_duplicate_type() {
     );
     suite
         .execute_operation(AmsStateOperation::AddApplicationType {
-            owner: TestSuite::operator(),
+            origin: TestSuite::operator(),
             application_type: "Analytics".to_string(),
         })
         .await;
@@ -409,7 +409,7 @@ async fn claim_application_success() {
     assert_eq!(
         suite
             .execute_operation(AmsStateOperation::ClaimApplication {
-                owner: TestSuite::operator(),
+                origin: TestSuite::operator(),
                 application_id,
             })
             .await,
@@ -431,7 +431,7 @@ async fn claim_application_rejects_unbound_business_app() {
 
     suite
         .execute_operation(AmsStateOperation::ClaimApplication {
-            owner: TestSuite::operator(),
+            origin: TestSuite::operator(),
             application_id: TestSuite::application_id(
                 "d20ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
             ),
@@ -446,7 +446,7 @@ async fn claim_application_rejects_missing_application() {
 
     suite
         .execute_operation(AmsStateOperation::ClaimApplication {
-            owner: TestSuite::operator(),
+            origin: TestSuite::operator(),
             application_id: TestSuite::application_id(
                 "d30ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
             ),
@@ -472,7 +472,7 @@ async fn claim_application_rejects_owner_mismatch() {
     );
     suite
         .execute_operation(AmsStateOperation::ClaimApplication {
-            owner: TestSuite::other_operator(),
+            origin: TestSuite::other_operator(),
             application_id,
         })
         .await;
@@ -499,7 +499,7 @@ async fn update_application_success() {
     assert_eq!(
         suite
             .execute_operation(AmsStateOperation::UpdateApplication {
-                owner: TestSuite::operator(),
+                origin: TestSuite::operator(),
                 application_id,
                 metadata: updated.clone(),
             })
@@ -525,7 +525,7 @@ async fn update_application_rejects_unbound_business_app() {
 
     suite
         .execute_operation(AmsStateOperation::UpdateApplication {
-            owner: TestSuite::operator(),
+            origin: TestSuite::operator(),
             application_id,
             metadata: TestSuite::metadata(application_id, "Meme"),
         })
@@ -542,7 +542,7 @@ async fn update_application_rejects_missing_application() {
 
     suite
         .execute_operation(AmsStateOperation::UpdateApplication {
-            owner: TestSuite::operator(),
+            origin: TestSuite::operator(),
             application_id,
             metadata: TestSuite::metadata(application_id, "Meme"),
         })
@@ -567,7 +567,7 @@ async fn update_application_rejects_owner_mismatch() {
     );
     suite
         .execute_operation(AmsStateOperation::UpdateApplication {
-            owner: TestSuite::other_operator(),
+            origin: TestSuite::other_operator(),
             application_id,
             metadata: TestSuite::metadata(application_id, "Meme"),
         })
@@ -592,7 +592,7 @@ async fn update_application_rejects_unknown_application_type() {
     );
     suite
         .execute_operation(AmsStateOperation::UpdateApplication {
-            owner: TestSuite::operator(),
+            origin: TestSuite::operator(),
             application_id,
             metadata: TestSuite::metadata(application_id, "Analytics"),
         })

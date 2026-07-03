@@ -114,11 +114,11 @@ impl TestSuite {
             }
             (
                 AmsMessage::AddApplicationType {
-                    owner: actual_owner,
+                    origin: actual_owner,
                     application_type: actual_type,
                 },
                 AmsMessage::AddApplicationType {
-                    owner: expected_owner,
+                    origin: expected_owner,
                     application_type: expected_type,
                 },
             ) => {
@@ -127,12 +127,12 @@ impl TestSuite {
             }
             (
                 AmsMessage::Update {
-                    owner: actual_owner,
+                    origin: actual_owner,
                     application_id: actual_id,
                     metadata: actual_metadata,
                 },
                 AmsMessage::Update {
-                    owner: expected_owner,
+                    origin: expected_owner,
                     application_id: expected_id,
                     metadata: expected_metadata,
                 },
@@ -395,7 +395,7 @@ async fn operation_add_application_type_routes_message_without_state_write() {
         .await;
 
     suite.assert_operation_sent_message(AmsMessage::AddApplicationType {
-        owner: TestSuite::creator_account(),
+        origin: TestSuite::creator_account(),
         application_type: "Analytics".to_string(),
     });
 }
@@ -430,7 +430,7 @@ async fn operation_update_routes_message_without_state_write() {
         .await;
 
     suite.assert_operation_sent_message(AmsMessage::Update {
-        owner: TestSuite::creator_account(),
+        origin: TestSuite::creator_account(),
         application_id,
         metadata,
     });
@@ -497,7 +497,7 @@ async fn message_add_application_type_success() {
             assert_eq!(
                 AmsStateV1Abi::deserialize_operation(call).unwrap(),
                 AmsStateV1Operation::AddApplicationType {
-                    owner: TestSuite::creator_account(),
+                    origin: TestSuite::creator_account(),
                     application_type: "Analytics".to_string(),
                 }
             );
@@ -507,7 +507,7 @@ async fn message_add_application_type_success() {
 
     suite
         .execute_message(AmsMessage::AddApplicationType {
-            owner: TestSuite::creator_account(),
+            origin: TestSuite::creator_account(),
             application_type: "Analytics".to_string(),
         })
         .await;
@@ -529,7 +529,7 @@ async fn message_claim_application_calls_state_v1_claim_with_message_signer_acco
             assert_eq!(
                 AmsStateV1Abi::deserialize_operation(call).unwrap(),
                 AmsStateV1Operation::ClaimApplication {
-                    owner: TestSuite::same_owner_different_chain_account(),
+                    origin: TestSuite::same_owner_different_chain_account(),
                     application_id,
                 }
             );
@@ -561,7 +561,7 @@ async fn message_update_application_calls_state_v1_update() {
             assert_eq!(
                 AmsStateV1Abi::deserialize_operation(call).unwrap(),
                 AmsStateV1Operation::UpdateApplication {
-                    owner: TestSuite::other_account(),
+                    origin: TestSuite::other_account(),
                     application_id,
                     metadata: expected_metadata.clone(),
                 }
@@ -572,7 +572,7 @@ async fn message_update_application_calls_state_v1_update() {
 
     suite
         .execute_message(AmsMessage::Update {
-            owner: TestSuite::other_account(),
+            origin: TestSuite::other_account(),
             application_id,
             metadata: updated.clone(),
         })
@@ -586,7 +586,7 @@ async fn message_add_application_type_rejects_missing_state_v1_append() {
 
     suite
         .execute_message(AmsMessage::AddApplicationType {
-            owner: TestSuite::creator_account(),
+            origin: TestSuite::creator_account(),
             application_type: "Analytics".to_string(),
         })
         .await;
@@ -617,7 +617,7 @@ async fn message_update_application_rejects_missing_state_v1_append() {
 
     suite
         .execute_message(AmsMessage::Update {
-            owner: TestSuite::other_account(),
+            origin: TestSuite::other_account(),
             application_id,
             metadata,
         })

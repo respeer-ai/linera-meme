@@ -8,7 +8,7 @@ pub trait StateInterface {
 
     async fn add_application_type(
         &mut self,
-        owner: Account,
+        origin: Account,
         application_type: String,
     ) -> Result<(), Self::Error>;
 
@@ -16,13 +16,13 @@ pub trait StateInterface {
 
     async fn claim_application(
         &mut self,
-        owner: Account,
+        origin: Account,
         application_id: ApplicationId,
     ) -> Result<(), Self::Error>;
 
     async fn update_application(
         &mut self,
-        owner: Account,
+        origin: Account,
         application_id: ApplicationId,
         metadata: Metadata,
     ) -> Result<(), Self::Error>;

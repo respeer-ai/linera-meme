@@ -13,7 +13,7 @@ use crate::interfaces::state::StateInterface;
 pub struct UpdateApplicationHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
     runtime: Rc<RefCell<R>>,
     state: S,
-    owner: Account,
+    origin: Account,
     application_id: ApplicationId,
     metadata: Metadata,
 }
@@ -21,7 +21,7 @@ pub struct UpdateApplicationHandler<R: ContractRuntimeContext + AccessControl, S
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdateApplicationHandler<R, S> {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, operation: &AmsStateOperation) -> Self {
         let AmsStateOperation::UpdateApplication {
-            owner,
+            origin,
             application_id,
             metadata,
         } = operation
@@ -31,7 +31,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdateApplica
         Self {
             runtime,
             state,
-            owner: *owner,
+            origin: *origin,
             application_id: *application_id,
             metadata: metadata.clone(),
         }
@@ -73,7 +73,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<(), A
             .map_err(|error| HandlerError::ProcessError(error.into()))?
             .ok_or(HandlerError::NotAllowed)?;
 
-        if application.creator.owner != self.owner.owner {
+        if application.creator.owner != self.origin.owner {
             return Err(HandlerError::NotAllowed);
         }
 

@@ -9,7 +9,9 @@ use abi::{
 };
 use async_graphql::Request;
 use linera_sdk::{
-    linera_base_types::{Account, AccountOwner, ApplicationId, CryptoHash, TestString, Timestamp},
+    linera_base_types::{
+        Account, AccountOwner, ApplicationId, CryptoHash, ModuleId, TestString, Timestamp,
+    },
     test::{ActiveChain, TestValidator},
 };
 use std::str::FromStr;
@@ -20,6 +22,8 @@ struct TestSuite {
     same_owner_chain: ActiveChain,
     other_owner_chain: ActiveChain,
     ams_application_id: ApplicationId<AmsAbi>,
+    state_application_id: ApplicationId<AmsStateAbi>,
+    ams_bytecode_id: ModuleId<AmsAbi, (), InstantiationArgument>,
 }
 
 impl TestSuite {
@@ -33,7 +37,7 @@ impl TestSuite {
             .await;
         let ams_application_id = ams_creator_chain
             .create_application::<AmsAbi, (), InstantiationArgument>(
-                ams_bytecode_id,
+                ams_bytecode_id.clone(),
                 (),
                 InstantiationArgument {},
                 vec![],
@@ -74,7 +78,48 @@ impl TestSuite {
             same_owner_chain,
             other_owner_chain,
             ams_application_id,
+            state_application_id,
+            ams_bytecode_id,
         }
+    }
+
+    async fn deploy_upgrade_application(&mut self) -> ApplicationId<AmsAbi> {
+        self.ams_creator_chain
+            .create_application::<AmsAbi, (), InstantiationArgument>(
+                self.ams_bytecode_id.clone(),
+                (),
+                InstantiationArgument {},
+                vec![],
+            )
+            .await
+    }
+
+    async fn append_state_to(&self, application_id: ApplicationId<AmsAbi>) {
+        self.ams_creator_chain
+            .add_block(|block| {
+                block.with_operation(
+                    application_id,
+                    AmsOperation::AppendState {
+                        state_application_id: self.state_application_id.forget_abi(),
+                    },
+                );
+            })
+            .await;
+        self.ams_creator_chain.handle_received_messages().await;
+    }
+
+    async fn handoff(&self, new_application_id: ApplicationId<AmsAbi>) {
+        self.ams_creator_chain
+            .add_block(|block| {
+                block.with_operation(
+                    self.ams_application_id,
+                    AmsOperation::Handoff {
+                        new_business_application_id: new_application_id.forget_abi(),
+                    },
+                );
+            })
+            .await;
+        self.ams_creator_chain.handle_received_messages().await;
     }
 
     async fn add_application_type(&self, application_type: &str) {
@@ -118,10 +163,21 @@ impl TestSuite {
         application_id: ApplicationId,
         metadata: Metadata,
     ) {
+        self.update_application_on(self.ams_application_id, chain, application_id, metadata)
+            .await;
+    }
+
+    async fn update_application_on(
+        &self,
+        app_id: ApplicationId<AmsAbi>,
+        chain: &ActiveChain,
+        application_id: ApplicationId,
+        metadata: Metadata,
+    ) {
         chain
             .add_block(|block| {
                 block.with_operation(
-                    self.ams_application_id,
+                    app_id,
                     AmsOperation::Update {
                         application_id,
                         metadata,
@@ -133,10 +189,19 @@ impl TestSuite {
     }
 
     async fn application(&self, application_id: ApplicationId) -> Option<Metadata> {
+        self.application_on(self.ams_application_id, application_id)
+            .await
+    }
+
+    async fn application_on(
+        &self,
+        app_id: ApplicationId<AmsAbi>,
+        application_id: ApplicationId,
+    ) -> Option<Metadata> {
         let response = self
             .ams_creator_chain
             .graphql_query(
-                self.ams_application_id,
+                app_id,
                 Request::new(format!(
                     "{{ application(applicationId: \"{}\") }}",
                     application_id
@@ -148,12 +213,13 @@ impl TestSuite {
     }
 
     async fn applications(&self) -> Vec<Metadata> {
+        self.applications_on(self.ams_application_id).await
+    }
+
+    async fn applications_on(&self, app_id: ApplicationId<AmsAbi>) -> Vec<Metadata> {
         let response = self
             .ams_creator_chain
-            .graphql_query(
-                self.ams_application_id,
-                Request::new("{ applications(limit: 20) }"),
-            )
+            .graphql_query(app_id, Request::new("{ applications(limit: 20) }"))
             .await;
         let data = response.response;
         serde_json::from_value(data.get("applications").unwrap().clone()).unwrap()
@@ -326,4 +392,60 @@ async fn no_pending_messages_before_add_application_type() {
         "no messages should be pending before any operation"
     );
     suite.add_application_type("Custom").await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upgrade_without_new_state_allows_v2_to_read_and_write_old_records() {
+    let mut suite = TestSuite::new().await;
+    let application_id = TestSuite::application_id(
+        "f10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+    );
+
+    suite.add_application_type("Custom").await;
+    suite
+        .register_application(suite.metadata(application_id, "Custom"))
+        .await;
+
+    let v2_app_id = suite.deploy_upgrade_application().await;
+    suite.append_state_to(v2_app_id).await;
+    suite.handoff(v2_app_id).await;
+
+    let mut updated = suite
+        .application_on(v2_app_id, application_id)
+        .await
+        .unwrap();
+    assert_eq!(updated.application_type, "Custom");
+
+    updated.application_name = "Updated by V2".to_string();
+    suite
+        .update_application_on(v2_app_id, &suite.same_owner_chain, application_id, updated)
+        .await;
+
+    let stored = suite.application_on(v2_app_id, application_id).await.unwrap();
+    assert_eq!(stored.application_name, "Updated by V2");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Failed to execute block")]
+async fn upgrade_without_new_state_rejects_v1_writes_after_handoff() {
+    let mut suite = TestSuite::new().await;
+    let application_id = TestSuite::application_id(
+        "a20ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+    );
+
+    suite.add_application_type("Custom").await;
+    suite
+        .register_application(suite.metadata(application_id, "Custom"))
+        .await;
+
+    let v2_app_id = suite.deploy_upgrade_application().await;
+    suite.append_state_to(v2_app_id).await;
+    suite.handoff(v2_app_id).await;
+
+    let stored = suite.application_on(v2_app_id, application_id).await.unwrap();
+    let mut updated = stored.clone();
+    updated.application_name = "Updated by V1".to_string();
+    suite
+        .update_application(&suite.same_owner_chain, application_id, updated)
+        .await;
 }

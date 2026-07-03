@@ -10,14 +10,14 @@ use crate::interfaces::state::StateInterface;
 pub struct ClaimApplicationHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
     runtime: Rc<RefCell<R>>,
     state: S,
-    owner: Account,
+    origin: Account,
     application_id: ApplicationId,
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> ClaimApplicationHandler<R, S> {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, operation: &AmsStateOperation) -> Self {
         let AmsStateOperation::ClaimApplication {
-            owner,
+            origin,
             application_id,
         } = operation
         else {
@@ -26,7 +26,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> ClaimApplicat
         Self {
             runtime,
             state,
-            owner: *owner,
+            origin: *origin,
             application_id: *application_id,
         }
     }
@@ -67,12 +67,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<(), A
             .map_err(|error| HandlerError::ProcessError(error.into()))?
             .ok_or(HandlerError::NotAllowed)?;
 
-        if application.creator.owner != self.owner.owner {
+        if application.creator.owner != self.origin.owner {
             return Err(HandlerError::NotAllowed);
         }
 
         self.state
-            .claim_application(self.application_id, self.owner)
+            .claim_application(self.application_id, self.origin)
             .await
             .map_err(|error| HandlerError::ProcessError(error.into()))?;
 

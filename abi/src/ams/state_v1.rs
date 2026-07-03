@@ -27,18 +27,18 @@ pub enum AmsStateOperation {
         new_operator: Account,
     },
     AddApplicationType {
-        owner: Account,
+        origin: Account,
         application_type: String,
     },
     RegisterApplication {
         metadata: Metadata,
     },
     ClaimApplication {
-        owner: Account,
+        origin: Account,
         application_id: ApplicationId,
     },
     UpdateApplication {
-        owner: Account,
+        origin: Account,
         application_id: ApplicationId,
         metadata: Metadata,
     },

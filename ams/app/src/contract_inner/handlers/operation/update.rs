@@ -10,7 +10,7 @@ pub struct UpdateHandler<R: ContractRuntimeContext + AccessControl, S: StateInte
     runtime: Rc<RefCell<R>>,
     _state: S,
 
-    owner: Account,
+    origin: Account,
     application_id: ApplicationId,
     metadata: Metadata,
 }
@@ -24,13 +24,13 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdateHandler
         else {
             panic!("Invalid operation");
         };
-        let owner = runtime.borrow_mut().authenticated_account();
+        let origin = runtime.borrow_mut().authenticated_account();
 
         Self {
             _state: state,
             runtime,
 
-            owner,
+            origin,
             application_id: *application_id,
             metadata: metadata.clone(),
         }
@@ -50,7 +50,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMe
         outcome.with_message(
             destination,
             AmsMessage::Update {
-                owner: self.owner,
+                origin: self.origin,
                 application_id: self.application_id,
                 metadata: self.metadata.clone(),
             },

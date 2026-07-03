@@ -10,7 +10,7 @@ pub struct UpdateHandler<R: ContractRuntimeContext + AccessControl, S: StateInte
     _runtime: Rc<RefCell<R>>,
     state: S,
 
-    owner: Account,
+    origin: Account,
     application_id: ApplicationId,
     metadata: Metadata,
 }
@@ -18,7 +18,7 @@ pub struct UpdateHandler<R: ContractRuntimeContext + AccessControl, S: StateInte
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdateHandler<R, S> {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &AmsMessage) -> Self {
         let AmsMessage::Update {
-            owner,
+            origin,
             application_id,
             metadata,
         } = msg
@@ -30,7 +30,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdateHandler
             state,
             _runtime: runtime,
 
-            owner: *owner,
+            origin: *origin,
             application_id: *application_id,
             metadata: metadata.clone(),
         }
@@ -45,7 +45,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMe
         &mut self,
     ) -> Result<Option<HandlerOutcome<AmsMessage, AmsResponse>>, HandlerError> {
         self.state
-            .update_application(self.owner, self.application_id, self.metadata.clone())
+            .update_application(self.origin, self.application_id, self.metadata.clone())
             .await
             .map_err(|err| HandlerError::ProcessError(Box::new(err)))?;
 

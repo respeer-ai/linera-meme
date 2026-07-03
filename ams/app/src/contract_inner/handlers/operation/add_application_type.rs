@@ -37,12 +37,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMe
         let destination = self.runtime.borrow_mut().application_creator_chain_id();
         let mut outcome = HandlerOutcome::new();
 
-        let owner = self.runtime.borrow_mut().authenticated_account();
+        let origin = self.runtime.borrow_mut().authenticated_account();
 
         outcome.with_message(
             destination,
             AmsMessage::AddApplicationType {
-                owner,
+                origin,
                 application_type: self.application_type.clone(),
             },
             false,

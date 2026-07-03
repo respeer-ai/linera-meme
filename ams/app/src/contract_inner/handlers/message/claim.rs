@@ -35,9 +35,9 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMe
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<AmsMessage, AmsResponse>>, HandlerError> {
-        let owner = self.runtime.borrow_mut().message_signer_account();
+        let origin = self.runtime.borrow_mut().message_signer_account();
         self.state
-            .claim_application(owner, self.application_id)
+            .claim_application(origin, self.application_id)
             .await
             .map_err(|err| HandlerError::ProcessError(Box::new(err)))?;
 
