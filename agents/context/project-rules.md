@@ -40,6 +40,7 @@ Authority: High
 - For newly created or actively refactored Python modules, define only one top-level object per file
 - Organize new Python code in an object-oriented way; do not keep expanding helper-function clusters in large legacy modules
 - Do not patch frontend display for problems that originate upstream in contracts or data services
+- Do not apply code or configuration changes before presenting the diff for review and receiving explicit user approval; only apply patches after the diff is approved
 - Do not convert silent handling into hard errors without first auditing all call sites
 - Before changing a silent `Ok(())` or no-op path, classify it as one of:
   - required idempotency for duplicate or replayable internal messages
@@ -61,6 +62,8 @@ Authority: High
 - Keep `board.yaml` machine-safe YAML; for long notes use block scalars, not long plain scalars
 - Keep completed tasks for history, but move stable conclusions into `context/` or `primitives/`
 - Do not keep completed tasks in default prompt routing once their durable conclusions are promoted
+- After completing a work package or umbrella task, scan the task board for subsequent tasks in the same theme and verify their status before declaring the theme complete
+- Do not assume that finishing the current in-progress task finishes the broader feature or project
 - Do not use full `board.yaml` as the default assistant prompt payload when `prompt-state.yaml` is sufficient
 - Prefer targeted tests first
 - When running `cargo test`, always apply explicit memory limits to avoid host lockups

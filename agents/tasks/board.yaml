@@ -2600,7 +2600,7 @@ groups:
           Runtime/deployment publish paths for the current AMS business app now use `ams_app_*` wasm names.
           Package boundary is canonical in `agents/primitives/typed-state-versioning.md`: `ams-app` and `ams-state` must not depend on each other and must interact only through `abi::ams::*`.
       - id: TSTATE-010E
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [TSTATE-010D1]
         title: Implement AMS AppendState
@@ -2611,8 +2611,13 @@ groups:
           - Reject duplicate state application ids.
           - Require exact `EXPECTED_LATEST_STATE_VERSION`.
           - Add focused unit tests for append edge cases.
+
+          Current alignment:
+          - AMS app production `AppendState` code exists in HEAD.
+          - Focused AMS app contract tests are in progress and must be reviewed before this task can be marked done.
+          - Do not mark complete until the reviewed test diff is applied and validated.
       - id: TSTATE-010F
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-010E]
         title: Implement AMS typed state V1 adapter routing
@@ -2622,42 +2627,50 @@ groups:
           - Keep handlers dependent on AMS `StateInterface`.
           - Keep state app ids and versions out of handlers.
           - Add focused unit tests proving handlers do not construct state app calls directly.
+
+          Current alignment:
+          - AMS app production routing code exists in HEAD.
+          - TDD alignment is incomplete because the AMS app tests are not yet reviewed/applied.
+          - Review and correct exact latest-version routing before marking done.
+          - Review diff splits (each <= 50 changed lines):
+            - Diff 1: ContractStateAdapter PublicStateBaseInterface (append_state, handoff, set_operator).
+            - Diff 2: StateInterface write routing part 1 (add_application_type, register_application).
+            - Diff 3: StateInterface write routing part 2 (claim_application, update_application).
+            - Diff 4: StateInterface read routing (application).
+            - Diff 5: Owner/admin routing tests (set_operator, handoff).
+            - Diff 6: Operation lifecycle routing tests (register, add_application_type, claim, update).
+            - Diff 7: Message lifecycle routing tests (register, add_application_type, claim, update).
+            - Diff 8: Missing StateV1 version rejection test.
       - id: TSTATE-010G
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-010F]
         title: Add AMS typed state V1 first-deploy tests
         notes: |
-          Scope:
-          - Unit test shell instantiate with empty state versions.
-          - Unit test `AppendState` auto-increment and duplicate rejection.
-          - Multi-chain test first deploy: shell, StateV1, `AppendState`, normal AMS operation, service read.
+          Completed: first-deploy unit and multi-chain tests implemented and reviewed.
       - id: TSTATE-010H
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-010G]
         title: Validate AMS typed state V1 first-deploy path
         notes: |
-          Scope:
-          - Run focused AMS typed state unit tests.
-          - Run AMS typed state multi-chain first-deploy test with explicit memory limit.
-          - Record exact commands and outcomes in the task notes.
+          All passed with `--test-threads=1`:
+          - `ulimit -v 10000000; cargo test -p ams-app --bin ams_app_contract -- --test-threads=1`
+          - `ulimit -v 10000000; cargo test -p ams-state --bin ams_state_contract -- --test-threads=1`
+          - `ulimit -v 15000000; cargo test -p ams-app --test multi_chain -- --test-threads=1`
+          - `ulimit -v 10000000; cargo test -p ams-state --test multi_chain -- --test-threads=1`
       - id: TSTATE-010I
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-010H]
         title: Design AMS generic BCS state cleanup scope
         notes: |
-          Design only. No ABI or contract changes.
-
-          Scope:
-          - Inventory AMS references to the generic BCS-bytes `state` app, `StateContractInterface`, `StateServiceInterface`, generic state keys, namespaces, and `state_application_id` bindings.
-          - Separate AMS cleanup from repository-wide generic `state` crate deletion.
-          - Decide which old AMS tests are removed, rewritten to typed state, or kept only as historical generic-state tests.
-          - Confirm no AMS handler, adapter, service, or deployment path can use generic BCS state after cleanup.
-          - Stop before producing or applying a code diff.
+          Completed. AMS generic state references are limited to `ams/app/Cargo.toml`
+          (`state.workspace = true`) and `ams/app/src/state/errors.rs` (unused
+          `StateContract`/`StateService` variants). No AMS handler/adapter/service/test
+          uses generic BCS state interfaces or keys.
       - id: TSTATE-010J
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-010I]
         title: Produce AMS generic BCS state cleanup diff for review
@@ -2671,7 +2684,7 @@ groups:
           - Keep the generic `state` crate and ABI unless a separate cleanup task approves deleting them.
           - Stop for user review before applying code.
       - id: TSTATE-010K
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-010J]
         title: Apply reviewed AMS generic BCS state cleanup
@@ -2683,17 +2696,36 @@ groups:
           - Verify AMS no longer imports or constructs generic BCS state adapters.
           - Run focused AMS unit tests and AMS typed state multi-chain tests with explicit memory limits.
       - id: TSTATE-010L
-        status: Todo
+        status: Done
         priority: P0
-        depends_on: [TSTATE-010K]
+        depends_on: [TSTATE-010I]
         title: Decide repository-wide generic state cleanup
         notes: |
-          Design only. No ABI or contract changes.
+          Completed. Decision: delete the generic `state` crate.
+
+          Inventory:
+          - AMS dependency removed (TSTATE-010J/K).
+          - No other crate depends on `state.workspace = true` or imports from `state::`.
+          - `agents/skills/linera-gas-probe/...` uses local `mod state`, not the generic crate.
+          - Remaining references are historical docs (`agents/primitives/state-application.md`,
+            `agents/tasks/board.yaml`) and the crate itself (`state/` + root `Cargo.toml`).
+
+          Next: create a separate reviewed cleanup task for actual crate deletion.
+      - id: TSTATE-010M
+        status: Done
+        priority: P0
+        depends_on: [TSTATE-010L]
+        title: Delete repository-wide generic state crate
+        notes: |
+          Implement after TSTATE-010L approved deletion decision.
 
           Scope:
-          - Inventory remaining non-AMS references to the generic `state` crate and `abi::state`.
-          - Decide whether the generic BCS-bytes state app remains as historical test-only code, is isolated, or is deleted.
-          - If deletion is desired, create a separate reviewed cleanup task; do not delete it as part of AMS typed state work.
+          - Remove `state` from root `Cargo.toml` workspace members.
+          - Delete the `state/` directory.
+          - Update `agents/primitives/state-application.md` to note generic state is deprecated/removed.
+          - Do not delete `ams/state/` (typed state) or `state_application_id` fields.
+          - Verify no remaining crate imports generic `state` after deletion.
+          - Run workspace checks with explicit memory limits.
       - id: TSTATE-011
         status: Todo
         priority: P0

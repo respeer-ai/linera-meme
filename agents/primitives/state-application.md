@@ -6,7 +6,8 @@ Authority: Medium
 
 ## Supersession Notice
 
-This generic BCS-bytes state application is historical and experimental for business-state design. The default upgradeable business-state architecture is now [`typed-state-versioning.md`](typed-state-versioning.md). Do not extend this generic state app into AMS, meme, pool, swap, or proxy business state unless a future task explicitly reopens it.
+This generic BCS-bytes state application has been removed from the repository (TSTATE-010M).
+It is retained here only as historical documentation. The default upgradeable business-state architecture is now [`typed-state-versioning.md`](typed-state-versioning.md).
 
 ## Purpose
 

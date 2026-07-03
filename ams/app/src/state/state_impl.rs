@@ -11,6 +11,15 @@ impl LocalStateInterface for AmsState {
         &mut self,
         state_application_id: ApplicationId,
     ) -> Result<(), StateError> {
+        if self
+            .state_applications
+            .index_values()
+            .await?
+            .iter()
+            .any(|(_, app_id)| app_id == &state_application_id)
+        {
+            return Err(StateError::AlreadyExists);
+        }
         let next_version = self.latest_state_version.get() + 1;
         if next_version > EXPECTED_LATEST_STATE_VERSION {
             return Err(StateError::InvalidStateVersion);

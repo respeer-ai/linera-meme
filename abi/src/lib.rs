@@ -9,7 +9,6 @@ pub mod meme_token;
 pub mod namespace;
 pub mod policy;
 pub mod proxy;
-pub mod state;
 pub mod store_type;
 pub mod swap;
 

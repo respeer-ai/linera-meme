@@ -41,4 +41,6 @@ pub trait StateInterface {
         &mut self,
         application_id: ApplicationId,
     ) -> Result<Option<Metadata>, Self::Error>;
+
+    async fn applications(&mut self) -> Result<Vec<Metadata>, Self::Error>;
 }

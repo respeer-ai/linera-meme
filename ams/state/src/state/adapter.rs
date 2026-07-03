@@ -89,4 +89,8 @@ impl StateInterface for StateAdapter {
     ) -> Result<Option<Metadata>, Self::Error> {
         self.state.borrow_mut().application(application_id).await
     }
+
+    async fn applications(&mut self) -> Result<Vec<Metadata>, Self::Error> {
+        self.state.borrow_mut().applications().await
+    }
 }

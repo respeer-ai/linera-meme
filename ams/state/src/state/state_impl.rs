@@ -108,4 +108,14 @@ impl StateInterface for AmsState {
     ) -> Result<Option<Metadata>, Self::Error> {
         Ok(self.applications.get(&application_id).await?)
     }
+
+    async fn applications(&mut self) -> Result<Vec<Metadata>, Self::Error> {
+        Ok(self
+            .applications
+            .index_values()
+            .await?
+            .into_iter()
+            .map(|(_, metadata)| metadata)
+            .collect())
+    }
 }

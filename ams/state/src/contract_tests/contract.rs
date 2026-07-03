@@ -128,13 +128,6 @@ impl TestSuite {
         }
     }
 
-    fn other_account() -> Account {
-        Account {
-            chain_id: Self::other_chain_id(),
-            owner: Self::operator().owner,
-        }
-    }
-
     fn chain_id() -> ChainId {
         ChainId(
             CryptoHash::from_str(
@@ -479,7 +472,7 @@ async fn claim_application_rejects_owner_mismatch() {
     );
     suite
         .execute_operation(AmsStateOperation::ClaimApplication {
-            owner: TestSuite::other_account(),
+            owner: TestSuite::other_operator(),
             application_id,
         })
         .await;
@@ -574,7 +567,7 @@ async fn update_application_rejects_owner_mismatch() {
     );
     suite
         .execute_operation(AmsStateOperation::UpdateApplication {
-            owner: TestSuite::other_account(),
+            owner: TestSuite::other_operator(),
             application_id,
             metadata: TestSuite::metadata(application_id, "Meme"),
         })

@@ -49,7 +49,11 @@ impl<R: ContractRuntimeContext> PublicStateBaseInterface for ContractStateAdapte
         &mut self,
         new_business_application_id: ApplicationId,
     ) -> Result<(), Self::Error> {
-        for (version, state_application_id) in self.state.borrow()._state_applications().await? {
+        let state_applications = self.state.borrow()._state_applications().await?;
+        if state_applications.is_empty() {
+            return Err(StateError::InvalidStateVersion);
+        }
+        for (version, state_application_id) in state_applications {
             let response = match version {
                 1 => self.runtime_context.borrow_mut().call_application(
                     state_application_id.with_abi::<AmsStateV1Abi>(),

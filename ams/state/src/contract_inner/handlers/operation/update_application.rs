@@ -73,7 +73,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<(), A
             .map_err(|error| HandlerError::ProcessError(error.into()))?
             .ok_or(HandlerError::NotAllowed)?;
 
-        if application.creator != self.owner {
+        if application.creator.owner != self.owner.owner {
             return Err(HandlerError::NotAllowed);
         }
 

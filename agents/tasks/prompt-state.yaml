@@ -24,12 +24,6 @@ defaults:
     - unresolved_caveat_still_relevant
     - canonical_doc_promotion_incomplete
 active_focus:
-  - id: TSTATE-010E
-    why: current typed-state task; implement AMS AppendState after StateV1 app shell and handlers
-    summary: AMS StateV1 app shell and operation handlers are complete; next diffs implement AMS business-app AppendState and exact latest-version enforcement without Bootstrap.
-    canonical_refs:
-      - agents/tasks/board.yaml
-      - agents/primitives/typed-state-versioning.md
   - id: WEBUI-004
     why: current WebUI queue; improve Add Liquidity and Remove Liquidity pages
     summary: Review and implement liquidity page layout, hierarchy, interaction states, and usability after WEBUI-003.

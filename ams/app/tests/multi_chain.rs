@@ -1,8 +1,10 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    ams::{AmsAbi, AmsOperation, InstantiationArgument, Metadata},
-    state::StateAbi,
+    ams::{
+        abi::{AmsAbi, AmsOperation, InstantiationArgument, Metadata},
+        state_v1::{AmsStateAbi, StateInstantiationArgument},
+    },
     store_type::StoreType,
 };
 use async_graphql::Request;
@@ -16,6 +18,7 @@ struct TestSuite {
     ams_creator_chain: ActiveChain,
     user_chain: ActiveChain,
     same_owner_chain: ActiveChain,
+    other_owner_chain: ActiveChain,
     ams_application_id: ApplicationId<AmsAbi>,
 }
 
@@ -23,33 +26,53 @@ impl TestSuite {
     async fn new() -> Self {
         let (validator, ams_bytecode_id) =
             TestValidator::with_current_module::<AmsAbi, (), InstantiationArgument>().await;
-        let mut state_creator_chain = validator.new_chain().await;
         let mut ams_creator_chain = validator.new_chain().await;
         let user_chain = validator.new_chain().await;
         let same_owner_chain = validator
             .new_chain_with_keypair(user_chain.key_pair().copy())
             .await;
-        let state_bytecode_id = state_creator_chain
-            .publish_bytecode_files_in("../../state")
-            .await;
-        let state_application_id = state_creator_chain
-            .create_application::<StateAbi, (), ()>(state_bytecode_id, (), (), vec![])
-            .await;
         let ams_application_id = ams_creator_chain
             .create_application::<AmsAbi, (), InstantiationArgument>(
                 ams_bytecode_id,
                 (),
-                InstantiationArgument {
-                    state_app_id: state_application_id.forget_abi(),
-                },
-                vec![state_application_id.forget_abi()],
+                InstantiationArgument {},
+                vec![],
             )
             .await;
+        let state_bytecode_id = ams_creator_chain
+            .publish_bytecode_files_in("../state")
+            .await;
+        let operator = Self::chain_owner_account(&ams_creator_chain);
+        let state_application_id = ams_creator_chain
+            .create_application::<AmsStateAbi, (), StateInstantiationArgument>(
+                state_bytecode_id,
+                (),
+                StateInstantiationArgument {
+                    business_application_id: ams_application_id.forget_abi(),
+                    operator: Some(operator),
+                },
+                vec![],
+            )
+            .await;
+
+        ams_creator_chain
+            .add_block(|block| {
+                block.with_operation(
+                    ams_application_id,
+                    AmsOperation::AppendState {
+                        state_application_id: state_application_id.forget_abi(),
+                    },
+                );
+            })
+            .await;
+        ams_creator_chain.handle_received_messages().await;
+        let other_owner_chain = validator.new_chain().await;
 
         Self {
             ams_creator_chain,
             user_chain,
             same_owner_chain,
+            other_owner_chain,
             ams_application_id,
         }
     }
@@ -180,6 +203,42 @@ impl TestSuite {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Failed to execute block")]
+async fn register_application_rejects_unknown_application_type() {
+    let suite = TestSuite::new().await;
+    suite.add_application_type("Custom").await;
+    suite
+        .register_application(suite.metadata(
+            TestSuite::application_id(
+                "d10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+            ),
+            "Unknown",
+        ))
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Failed to execute block")]
+async fn claim_application_rejects_other_owner() {
+    let suite = TestSuite::new().await;
+    let application_id = TestSuite::application_id(
+        "e10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+    );
+    suite.add_application_type("Custom").await;
+    suite
+        .register_application(suite.metadata(application_id, "Custom"))
+        .await;
+    suite.claim_application(&suite.other_owner_chain, application_id).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Failed to execute block")]
+async fn add_application_type_rejects_duplicate_preseeded_type() {
+    let suite = TestSuite::new().await;
+    suite.add_application_type("Meme").await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn multi_chain_register_add_type_claim_and_update_use_state_application() {
     let suite = TestSuite::new().await;
     let first_application_id = TestSuite::application_id(
@@ -223,4 +282,48 @@ async fn multi_chain_register_add_type_claim_and_update_use_state_application() 
     assert_eq!(stored.application_type, "Game");
     assert_eq!(stored.key_words, vec!["updated".to_string()]);
     assert_eq!(stored.creator, suite.same_owner_account());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn add_application_type_does_not_create_messages_for_unrelated_chain() {
+    let suite = TestSuite::new().await;
+    suite.add_application_type("Custom").await;
+    assert!(
+        suite.other_owner_chain.handle_received_messages().await.is_none(),
+        "unrelated chain should have no messages to handle"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn add_application_type_succeeds_and_produces_state_message_for_creator_chain() {
+    let suite = TestSuite::new().await;
+    suite
+        .ams_creator_chain
+        .add_block(|block| {
+            block.with_operation(
+                suite.ams_application_id,
+                AmsOperation::AddApplicationType {
+                    application_type: "Custom".to_string(),
+                },
+            );
+        })
+        .await;
+    assert!(
+        suite.other_owner_chain.handle_received_messages().await.is_none(),
+        "unrelated chain should have no messages to handle"
+    );
+    assert!(
+        suite.ams_creator_chain.handle_received_messages().await.is_some(),
+        "creator chain should have a state-app message to handle"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn no_pending_messages_before_add_application_type() {
+    let suite = TestSuite::new().await;
+    assert!(
+        suite.ams_creator_chain.handle_received_messages().await.is_none(),
+        "no messages should be pending before any operation"
+    );
+    suite.add_application_type("Custom").await;
 }

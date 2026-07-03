@@ -134,9 +134,8 @@ impl QueryRoot {
 #[cfg(test)]
 mod service_tests {
     use super::*;
-    use abi::{ams::AmsAbi, store_type::StoreType};
+    use abi::store_type::StoreType;
     use async_graphql::Value;
-    use linera_sdk::bcs;
     use linera_sdk::{
         linera_base_types::{
             Account, AccountOwner, ApplicationId, ChainId, CryptoHash, TestString,
@@ -154,10 +153,10 @@ mod service_tests {
         );
         let metadata_for_query = metadata.clone();
         let runtime = runtime_with_state_query(move |query| {
-            assert_eq!(query, "read");
+            assert_eq!(query, "application");
             Response::new(
                 Value::from_json(json!({
-                    "read": bcs::to_bytes(&metadata_for_query).unwrap(),
+                    "application": metadata_for_query.clone(),
                 }))
                 .unwrap(),
             )
@@ -187,19 +186,10 @@ mod service_tests {
             read_count += 1;
             match read_count {
                 1 => {
-                    assert_eq!(query, "read");
+                    assert_eq!(query, "applications");
                     Response::new(
                         Value::from_json(json!({
-                            "read": bcs::to_bytes(&vec![metadata_for_query.application_id]).unwrap(),
-                        }))
-                        .unwrap(),
-                    )
-                }
-                2 => {
-                    assert_eq!(query, "batchRead");
-                    Response::new(
-                        Value::from_json(json!({
-                            "batchRead": vec![bcs::to_bytes(&metadata_for_query).unwrap()],
+                            "applications": vec![metadata_for_query.clone()],
                         }))
                         .unwrap(),
                     )
@@ -226,10 +216,10 @@ mod service_tests {
             .with_query_application_handler(move |application_id, query| {
                 assert_eq!(application_id, state_application_id());
                 let request: Request = serde_json::from_slice(&query).unwrap();
-                let query_name = if request.query.contains("batchRead") {
-                    "batchRead"
+                let query_name = if request.query.contains("applications") {
+                    "applications"
                 } else {
-                    "read"
+                    "application"
                 };
                 serde_json::to_vec(&response_for_query(query_name)).unwrap()
             });
@@ -240,7 +230,11 @@ mod service_tests {
         let mut state = AmsState::load(runtime.root_view_storage_context())
             .blocking_wait()
             .expect("Failed to read from mock key value store");
-        state.state_app_id.set(Some(state_application_id()));
+        state
+            .state_applications
+            .insert(&1, state_application_id())
+            .expect("Failed to set state application");
+        state.latest_state_version.set(1);
         AmsService {
             runtime,
             state: Arc::new(state),

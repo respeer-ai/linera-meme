@@ -10,11 +10,6 @@ pub enum StateError {
     ApplicationStateResponse(#[from] abi::application_state_base::ApplicationStateResponseError),
 
     #[error(transparent)]
-    StateContract(#[from] state::adapters::contract::StateContractError),
-
-    #[error(transparent)]
-    StateService(#[from] state::adapters::service::StateServiceError),
-    #[error(transparent)]
     Bcs(#[from] linera_sdk::bcs::Error),
     #[error("Already exists")]
     AlreadyExists,

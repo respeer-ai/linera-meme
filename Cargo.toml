@@ -7,7 +7,6 @@ members = [
     "blob-gateway",
     "ams/app",
     "ams/state",
-    "state",
     "abi",
     "base",
     "runtime",
@@ -63,7 +62,6 @@ ams-state = { path = "./ams/state" }
 deposit = { path = "./deposit" }
 base = { path = "./base" }
 runtime = { path = "./runtime" }
-state = { path = "./state" }
 
 [profile.release]
 debug = true
