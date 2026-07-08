@@ -147,7 +147,8 @@ cargo build --release --target wasm32-unknown-unknown -j 1 \
     -p swap \
     -p pool \
     -p blob-gateway \
-    -p ams
+    -p ams-app \
+    -p ams-state
 
 # Make sure to clean up child processes on exit.
 trap 'jobs -p | xargs -r kill' EXIT
