@@ -42,6 +42,12 @@ on_demand_done:
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/typed-state-versioning.md
+  - id: TSTATE-011
+    why: completed AMS same-state upgrade validation; active semantic dependency for TSTATE-012
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - ams/app/tests/multi_chain.rs
+      - agents/primitives/typed-state-versioning.md
   - id: TSTATE-010D1
     why: completed AMS app/state package split and bin rename foundation before StateV1 app internals
     canonical_refs:

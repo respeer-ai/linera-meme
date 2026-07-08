@@ -1,8 +1,8 @@
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use abi::ams::abi::{AmsAbi, Metadata};
+use abi::ams::abi::{AmsAbi, AmsOperation, Metadata};
 use ams_app::state::{adapter::ServiceStateAdapter, AmsState};
-use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
+use async_graphql::{EmptySubscription, Object, Request, Response, Schema, SimpleObject};
 use linera_sdk::{
     linera_base_types::WithServiceAbi,
     linera_base_types::{ApplicationId, Timestamp},
@@ -40,7 +40,9 @@ impl Service for AmsService {
                 runtime: self.runtime.clone(),
                 state: self.state.clone(),
             },
-            EmptyMutation,
+            MutationRoot {
+                runtime: self.runtime.clone(),
+            },
             EmptySubscription,
         )
         .finish();
@@ -120,6 +122,53 @@ impl QueryRoot {
             .application(application_id)
             .await
             .expect("Failed to read AMS application from state")
+    }
+
+    async fn latest_state_version(&self) -> u16 {
+        *self.state.latest_state_version.get()
+    }
+
+    async fn state_applications(&self) -> Vec<StateApplicationEntry> {
+        self.state
+            .state_applications
+            .index_values()
+            .await
+            .expect("Failed to read state applications from state")
+            .into_iter()
+            .map(|(version, application_id)| StateApplicationEntry {
+                version,
+                application_id,
+            })
+            .collect()
+    }
+}
+
+#[derive(SimpleObject)]
+struct StateApplicationEntry {
+    version: u16,
+    application_id: ApplicationId,
+}
+
+struct MutationRoot {
+    runtime: Arc<ServiceRuntime<AmsService>>,
+}
+
+#[Object]
+impl MutationRoot {
+    async fn append_state(&self, state_application_id: ApplicationId) -> bool {
+        self.runtime
+            .schedule_operation(&AmsOperation::AppendState {
+                state_application_id,
+            });
+        true
+    }
+
+    async fn handoff(&self, new_business_application_id: ApplicationId) -> bool {
+        self.runtime
+            .schedule_operation(&AmsOperation::Handoff {
+                new_business_application_id,
+            });
+        true
     }
 }
 
@@ -206,6 +255,108 @@ mod service_tests {
         let expected =
             Response::new(Value::from_json(json!({ "applications": vec![metadata] })).unwrap());
         assert_eq!(response, expected);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn latest_state_version_query_reads_state_register() {
+        let runtime = runtime();
+        let service = service_with_runtime(runtime);
+
+        let response = service
+            .handle_query(Request::new("{ latestStateVersion }"))
+            .await;
+
+        let expected =
+            Response::new(Value::from_json(json!({ "latestStateVersion": 1 })).unwrap());
+        assert_eq!(response, expected);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn state_applications_query_reads_state_index() {
+        let runtime = runtime();
+        let service = service_with_runtime(runtime);
+
+        let response = service
+            .handle_query(Request::new("{ stateApplications { version applicationId } }"))
+            .await;
+
+        let expected = Response::new(
+            Value::from_json(json!({
+                "stateApplications": [{
+                    "version": 1,
+                    "applicationId": state_application_id(),
+                }],
+            }))
+            .unwrap(),
+        );
+        assert_eq!(response, expected);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn append_state_mutation_schedules_operation() {
+        let new_state_id = application_id("c30ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae");
+        let runtime = runtime();
+        let service = service_with_runtime(runtime.clone());
+
+        let response = service
+            .handle_query(Request::new(format!(
+                "mutation {{ appendState(stateApplicationId: \"{}\") }}",
+                new_state_id
+            )))
+            .await;
+
+        let expected =
+            Response::new(Value::from_json(json!({ "appendState": true })).unwrap());
+        assert_eq!(response, expected);
+
+        let operations: Vec<AmsOperation> = runtime.scheduled_operations();
+        assert_eq!(operations.len(), 1);
+        assert!(
+            matches!(
+                &operations[0],
+                AmsOperation::AppendState {
+                    state_application_id,
+                } if *state_application_id == new_state_id
+            ),
+            "unexpected scheduled operation: {:?}",
+            operations[0]
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn handoff_mutation_schedules_operation() {
+        let new_business_id = application_id("c40ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae");
+        let runtime = runtime();
+        let service = service_with_runtime(runtime.clone());
+
+        let response = service
+            .handle_query(Request::new(format!(
+                "mutation {{ handoff(newBusinessApplicationId: \"{}\") }}",
+                new_business_id
+            )))
+            .await;
+
+        let expected = Response::new(Value::from_json(json!({ "handoff": true })).unwrap());
+        assert_eq!(response, expected);
+
+        let operations: Vec<AmsOperation> = runtime.scheduled_operations();
+        assert_eq!(operations.len(), 1);
+        assert!(
+            matches!(
+                &operations[0],
+                AmsOperation::Handoff {
+                    new_business_application_id,
+                } if *new_business_application_id == new_business_id
+            ),
+            "unexpected scheduled operation: {:?}",
+            operations[0]
+        );
+    }
+
+    fn runtime() -> Arc<ServiceRuntime<AmsService>> {
+        Arc::new(ServiceRuntime::<AmsService>::new().with_application_id(
+            ams_application_id().with_abi::<AmsAbi>(),
+        ))
     }
 
     fn runtime_with_state_query(

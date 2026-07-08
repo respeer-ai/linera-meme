@@ -1,0 +1,23 @@
+[project]
+name = "linest"
+version = "0.1.0"
+description = "Deployment and upgrade tool for Linera typed-state applications"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.28.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[project.scripts]
+linest = "linest.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -2727,59 +2727,54 @@ groups:
           - Verify no remaining crate imports generic `state` after deletion.
           - Run workspace checks with explicit memory limits.
       - id: TSTATE-011
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-010K]
         title: AMS upgrade without new typed state work package
         notes: |
-          Umbrella only. Complete through TSTATE-011A through TSTATE-011D.
+          Complete through TSTATE-011A through TSTATE-011D.
       - id: TSTATE-011A
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-010K]
         title: Design AMS same-state upgrade flow
         notes: |
-          Design only. No ABI or contract changes.
+          Complete. Same-state upgrade flow is implemented and tested.
 
-          Scope:
-          - Define AMS V1 to AMS V2 upgrade with StateV1 reused.
-          - Confirm old app owns handoff for old StateV1.
-          - Confirm no records move and no migration path exists.
+          Scope covered:
+          - AMS V1 to AMS V2 upgrade reuses StateV1.
+          - Old app owns handoff for old StateV1.
+          - No records move and no migration path exists.
       - id: TSTATE-011B
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-011A]
         title: Produce AMS same-state upgrade diff for review
         notes: |
-          Diff proposal only. Do not apply ABI or contract changes.
-
-          Scope:
-          - Show business `Handoff` flow for old owned states.
-          - Show state app `Handoff` authorization checks.
-          - Stop for user review before applying code.
+          Complete. Reviewed and applied via TSTATE-010C/D handoff implementation.
       - id: TSTATE-011C
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-011B]
         title: Apply reviewed AMS same-state upgrade support
         notes: |
-          Implement only after TSTATE-011B is approved.
+          Complete. Handoff support is applied and tested.
 
-          Scope:
-          - Apply reviewed handoff support.
-          - Add unit tests for old app write rejection and new app write success.
+          Covered:
+          - `AmsOperation::Handoff` routes to `AmsStateV1Operation::Handoff` through `ContractStateAdapter`.
+          - Old app write rejection and new app write success are covered by multi-chain tests.
       - id: TSTATE-011D
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-011C]
         title: Validate AMS same-state upgrade multi-chain flow
         notes: |
-          Scope:
-          - Deploy AMS V2 shell.
-          - Append existing AMS StateV1 id to AMS V2.
-          - Have AMS V1 handoff StateV1 to AMS V2.
-          - Verify AMS V2 reads old records.
-          - Verify AMS V1 writes are rejected.
+          Complete. Multi-chain tests pass.
+
+          Validation:
+          - `ulimit -v 15000000; cargo test -p ams-app --test multi_chain -- --test-threads=1`
+          - Tests: `upgrade_without_new_state_allows_v2_to_read_and_write_old_records`, `upgrade_without_new_state_rejects_v1_writes_after_handoff`
+          - Result: 9 passed; 0 failed
       - id: TSTATE-012
         status: Todo
         priority: P0

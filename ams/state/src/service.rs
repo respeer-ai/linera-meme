@@ -74,4 +74,46 @@ impl QueryRoot {
             .map(|(_, metadata)| metadata)
             .collect()
     }
+
+    async fn business_application_id(&self) -> Option<ApplicationId> {
+        *self.state.business_application_id.get()
+    }
+}
+
+#[cfg(test)]
+mod service_tests {
+    use super::*;
+    use async_graphql::Value;
+    use linera_sdk::{util::BlockingWait, views::View};
+    use serde_json::json;
+    use std::str::FromStr;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn business_application_id_query_reads_state_register() {
+        let business_id = application_id(
+            "a10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+        );
+        let runtime = ServiceRuntime::<AmsStateService>::new();
+        let mut state = AmsState::load(runtime.root_view_storage_context())
+            .blocking_wait()
+            .expect("Failed to read AMS StateV1 state");
+        state.business_application_id.set(Some(business_id));
+
+        let service = AmsStateService {
+            state: Arc::new(state),
+        };
+
+        let response = service
+            .handle_query(Request::new("{ businessApplicationId }"))
+            .await;
+
+        let expected = Response::new(
+            Value::from_json(json!({ "businessApplicationId": business_id })).unwrap(),
+        );
+        assert_eq!(response, expected);
+    }
+
+    fn application_id(value: &str) -> ApplicationId {
+        ApplicationId::from_str(value).unwrap()
+    }
 }
