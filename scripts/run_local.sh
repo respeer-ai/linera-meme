@@ -82,6 +82,24 @@ if [ ! -x "$LINEST_BIN" ]; then
     "$LINEST_VENV_DIR/bin/pip" install -e "$ROOT_DIR/tools/deploy"
 fi
 
+function external_proxy_env_args() {
+    local all_proxy_val="${ALL_PROXY:-${all_proxy:-}}"
+    local http_proxy_val="${HTTP_PROXY:-${http_proxy:-}}"
+    local https_proxy_val="${HTTPS_PROXY:-${https_proxy:-}}"
+
+    [ -n "$all_proxy_val" ] && printf 'all_proxy=%s\nALL_PROXY=%s\n' "$all_proxy_val" "$all_proxy_val"
+    [ -n "$http_proxy_val" ] && printf 'http_proxy=%s\nHTTP_PROXY=%s\n' "$http_proxy_val" "$http_proxy_val"
+    [ -n "$https_proxy_val" ] && printf 'https_proxy=%s\nHTTPS_PROXY=%s\n' "$https_proxy_val" "$https_proxy_val"
+}
+
+function no_external_proxy_env_args() {
+    printf 'all_proxy=\nhttp_proxy=\nhttps_proxy=\nALL_PROXY=\nHTTP_PROXY=\nHTTPS_PROXY=\n'
+}
+
+function linera_env_args() {
+    external_proxy_env_args
+}
+
 if [ "x$COMPILE" = "x1" ]; then
     # Install official linera for genesis cluster
     mkdir -p "$SOURCE_DIR"
@@ -161,24 +179,6 @@ function log_step() {
     local message="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
     echo "$message" >> "$RUN_LOCAL_DEBUG_LOG"
     echo "$message" >&2
-}
-
-function external_proxy_env_args() {
-    local all_proxy_val="${ALL_PROXY:-${all_proxy:-}}"
-    local http_proxy_val="${HTTP_PROXY:-${http_proxy:-}}"
-    local https_proxy_val="${HTTPS_PROXY:-${https_proxy:-}}"
-
-    [ -n "$all_proxy_val" ] && printf 'all_proxy=%s\nALL_PROXY=%s\n' "$all_proxy_val" "$all_proxy_val"
-    [ -n "$http_proxy_val" ] && printf 'http_proxy=%s\nHTTP_PROXY=%s\n' "$http_proxy_val" "$http_proxy_val"
-    [ -n "$https_proxy_val" ] && printf 'https_proxy=%s\nHTTPS_PROXY=%s\n' "$https_proxy_val" "$https_proxy_val"
-}
-
-function no_external_proxy_env_args() {
-    printf 'all_proxy=\nhttp_proxy=\nhttps_proxy=\nALL_PROXY=\nHTTP_PROXY=\nHTTPS_PROXY=\n'
-}
-
-function linera_env_args() {
-    external_proxy_env_args
 }
 
 function run_linera() {
