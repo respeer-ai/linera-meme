@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from linest.client.query_client import QueryClient
+from linest.client.wallet_service import WalletService
 from linest.errors import ConfigError, LineraCliError
 from linest.retry import RetryPolicy
 
@@ -26,6 +27,7 @@ class LineraClient:
         self.app_name = app_name
         self.wallet_services = wallet_services or {}
         self.retry_policy = retry_policy or RetryPolicy()
+        self._managed_service: WalletService | None = None
 
         # Publisher wallet used for publish-module.
         self.publisher_wallet_path = (
@@ -68,10 +70,32 @@ class LineraClient:
         raise LineraCliError("Wallet has no DEFAULT chain")
 
     def wallet_url_for(self, app_name: str) -> str:
-        """Return the wallet service URL for the given app family."""
-        if app_name not in self.wallet_services:
+        """Return the wallet service URL for the given app family.
+
+        If no external service is configured for the current app family, start
+        a temporary local service on the creator wallet.
+        """
+        if app_name in self.wallet_services:
+            return self.wallet_services[app_name]
+
+        if app_name != self.app_name:
             raise ConfigError(f"No wallet service URL configured for {app_name}")
-        return self.wallet_services[app_name]
+
+        if self._managed_service is None:
+            self._managed_service = WalletService(
+                wallet_path=self.creator_wallet_path,
+                keystore_path=self.creator_keystore_path,
+                storage_path=self.creator_storage_path,
+            )
+            self._managed_service.start()
+
+        return self._managed_service.url
+
+    def stop_wallet_service(self) -> None:
+        """Stop any temporary wallet service started by this client."""
+        if self._managed_service is not None:
+            self._managed_service.stop()
+            self._managed_service = None
 
     def publish_module(self, contract_path: str, service_path: str) -> str:
         """Publish a module and return the module ID."""

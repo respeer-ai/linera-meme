@@ -74,6 +74,14 @@ if echo "$LINERA_SERVICE_HELP" | grep -q -- '--with-application-logs'; then
     LINERA_SERVICE_EXTRA_ARGS+=(--with-application-logs)
 fi
 
+# Install the linest deployment tool into a local venv.
+LINEST_VENV_DIR="$OUTPUT_DIR/linest-venv"
+LINEST_BIN="$LINEST_VENV_DIR/bin/linest"
+if [ ! -x "$LINEST_BIN" ]; then
+    python3 -m venv "$LINEST_VENV_DIR"
+    "$LINEST_VENV_DIR/bin/pip" install -e "$ROOT_DIR/tools/deploy"
+fi
+
 if [ "x$COMPILE" = "x1" ]; then
     # Install official linera for genesis cluster
     mkdir -p "$SOURCE_DIR"
@@ -248,6 +256,19 @@ function run_linera_capture_retry() {
     done
 }
 
+function run_linest() {
+    local step_name=$1
+    shift
+
+    log_step "START $step_name"
+    if ! env $(linera_env_args) "$@" >> "$RUN_LOCAL_DEBUG_LOG" 2>&1; then
+        log_step "FAIL $step_name"
+        tail -n 80 "$RUN_LOCAL_DEBUG_LOG" >&2
+        return 1
+    fi
+    log_step "OK $step_name"
+}
+
 function sudo_run() {
     if [ -n "$SUDO_PASSWORD" ]; then
         printf '%s\n' "$SUDO_PASSWORD" | sudo -S "$@"
@@ -363,7 +384,6 @@ function publish_bytecode() {
 # Publish bytecode then create applications
 # Create blob gateway
 BLOB_GATEWAY_MODULE_ID=$(publish_bytecode blob-gateway)
-AMS_MODULE_ID=$(publish_bytecode_on_chain ams ams-app)
 SWAP_MODULE_ID=$(publish_bytecode swap)
 POOL_MODULE_ID=$(publish_bytecode_on_chain swap pool)
 PROXY_MODULE_ID=$(publish_bytecode proxy)
@@ -523,11 +543,100 @@ function process_inboxes() {
     done
 }
 
+function run_named_service() {
+    service_name=$1
+    wallet_name=$2
+    wallet_index=$3
+    port=$4
+    shift 4
+
+    env $(linera_env_args) "$@" \
+        linera "${LINERA_SERVICE_EXTRA_ARGS[@]}" \
+               --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+               --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
+               service --port $port > "${service_name}_${port}.log" 2>&1 &
+}
+
+function wait_query_service_ready() {
+    payload='{"query":"query Chains { chains { list } }"}'
+
+    for attempt in $(seq 1 120); do
+        resp=$(curl --noproxy '*' -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$payload" 2>&1 || true)
+        if echo "$resp" | grep -q '"data"'; then
+            return 0
+        fi
+        sleep 2
+    done
+
+    echo "query-service GraphQL readiness check failed"
+    echo "$resp"
+    exit 1
+}
+
+function import_query_chain() {
+    owner=$1
+    chain_id=$2
+    label=$3
+
+    payload=$(jq -cn \
+        --arg owner "$owner" \
+        --arg chainId "$chain_id" \
+        '{query:"mutation ImportChain($owner: AccountOwner!, $chainId: ChainId!) { importChain(owner: $owner, chainId: $chainId) }", variables:{owner:$owner, chainId:$chainId}}')
+
+    verify_payload='{"query":"query Chains { chains { list } }"}'
+
+    for _ in $(seq 1 20); do
+        resp=$(curl --noproxy '*' -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$payload" 2>&1 || true)
+        verify=$(curl --noproxy '*' -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$verify_payload" 2>&1 || true)
+        if echo "$verify" | grep -q "$chain_id"; then
+            echo "Imported $label chain $chain_id to query-service"
+            return 0
+        fi
+        sleep 2
+    done
+
+    echo "Failed import $label chain $chain_id to query-service"
+    echo "$resp"
+    echo "$verify"
+    exit 1
+}
+
 # Exhaust chain messages
 process_inboxes blob-gateway
 process_inboxes ams
 process_inboxes proxy
 process_inboxes swap
+
+# Start the query service early so that linest can perform idempotency checks.
+wallet_init_clean query 0
+run_linera_retry "wallet_request_chain query/0" 3 \
+       --wallet $WALLET_DIR/query/0/wallet.json \
+       --keystore $WALLET_DIR/query/0/keystore.json \
+       --storage rocksdb://$WALLET_DIR/query/0/client.db \
+       wallet request-chain \
+       --faucet $FAUCET_URL
+
+run_named_service query-service query 0 24080 \
+    LINERA_LISTENER_AUTO_IMPORT_OWNED_CHILD_CHAINS_WITHOUT_KEY=true
+
+wait_query_service_ready
+import_query_chain "$BLOB_GATEWAY_QUERY_OWNER" "$BLOB_GATEWAY_CHAIN_ID" blob-gateway
+import_query_chain "$AMS_QUERY_OWNER" "$AMS_CHAIN_ID" ams
+import_query_chain "$PROXY_QUERY_OWNER" "$PROXY_CHAIN_ID" proxy
+import_query_chain "$SWAP_QUERY_OWNER" "$SWAP_CHAIN_ID" swap
+
+# Configure linest for AMS deployment. Wallet service is managed by linest itself.
+LINEST_BASE_DIR="$OUTPUT_DIR/linest-registry"
+mkdir -p "$LINEST_BASE_DIR/networks/local"
+cat > "$LINEST_BASE_DIR/networks/local/config.json" <<EOF
+{
+  "operator": "$AMS_QUERY_OWNER",
+  "query_service_url": "http://localhost:24080",
+  "wallet_dir": "$WALLET_DIR",
+  "wallet_services": {}
+}
+EOF
 
 function create_application() {
     wallet_name=$1
@@ -569,9 +678,26 @@ function create_application() {
 
 # Create applications
 BLOB_GATEWAY_APPLICATION_ID=$(create_application blob-gateway $BLOB_GATEWAY_MODULE_ID '' '' $BLOB_GATEWAY_CHAIN_ID)
-AMS_APPLICATION_ID=$(create_application ams $AMS_MODULE_ID '{}' '' $AMS_CHAIN_ID)
 SWAP_APPLICATION_ID=$(create_application swap $SWAP_MODULE_ID "{\"pool_bytecode_id\": \"$POOL_MODULE_ID\"}" '{}' $SWAP_CHAIN_ID)
 PROXY_APPLICATION_ID=$(create_application proxy $PROXY_MODULE_ID "{\"meme_bytecode_id\": \"$MEME_MODULE_ID\", \"operators\": [], \"swap_application_id\": \"$SWAP_APPLICATION_ID\"}" '' $PROXY_CHAIN_ID)
+
+# Deploy AMS business app and typed state app via linest.
+run_linest "linest_deploy_ams" \
+    "$LINEST_BIN" \
+    --base-dir "$LINEST_BASE_DIR" \
+    --env local \
+    app deploy \
+    --name ams \
+    --version 1 \
+    --creator-chain-id "$AMS_CHAIN_ID" \
+    --contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_app_contract.wasm" \
+    --service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_app_service.wasm" \
+    --state-contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_state_contract.wasm" \
+    --state-service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_state_service.wasm"
+
+AMS_DEPLOYMENT_RECORD="$LINEST_BASE_DIR/deployments/local/ams-v1.json"
+AMS_APPLICATION_ID=$(jq -r '.application_id' "$AMS_DEPLOYMENT_RECORD")
+AMS_CHAIN_ID=$(jq -r '.creator_chain_id' "$AMS_DEPLOYMENT_RECORD")
 
 # Exhaust chain messages
 process_inboxes blob-gateway
@@ -699,21 +825,6 @@ function run_service() {
                service --port $port > ${wallet_name}_${port}.log 2>&1 &
 }
 
-function run_named_service() {
-    service_name=$1
-    wallet_name=$2
-    wallet_index=$3
-    port=$4
-    shift 4
-
-    env $(linera_env_args) "$@" \
-        linera "${LINERA_SERVICE_EXTRA_ARGS[@]}" \
-               --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
-               --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
-               --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
-               service --port $port > "${service_name}_${port}.log" 2>&1 &
-}
-
 function ensure_background_process() {
     local pid=$1
     local name=$2
@@ -755,72 +866,11 @@ function run_services() {
     done
 }
 
-# Run services
+# Run wallet services for runtime access.
 run_services blob-gateway 20080
 run_services ams 21080
 run_services swap 22080
 run_services proxy 23080
-
-wallet_init_clean query 0
-run_linera_retry "wallet_request_chain query/0" 3 \
-       --wallet $WALLET_DIR/query/0/wallet.json \
-       --keystore $WALLET_DIR/query/0/keystore.json \
-       --storage rocksdb://$WALLET_DIR/query/0/client.db \
-       wallet request-chain \
-       --faucet $FAUCET_URL
-
-run_named_service query-service query 0 24080 \
-    LINERA_LISTENER_AUTO_IMPORT_OWNED_CHILD_CHAINS_WITHOUT_KEY=true
-
-function wait_query_service_ready() {
-    payload='{"query":"query Chains { chains { list } }"}'
-
-    for attempt in $(seq 1 120); do
-        resp=$(curl --noproxy '*' -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$payload" 2>&1 || true)
-        if echo "$resp" | grep -q '"data"'; then
-            return 0
-        fi
-        sleep 2
-    done
-
-    echo "query-service GraphQL readiness check failed"
-    echo "$resp"
-    exit 1
-}
-
-function import_query_chain() {
-    owner=$1
-    chain_id=$2
-    label=$3
-
-    payload=$(jq -cn \
-        --arg owner "$owner" \
-        --arg chainId "$chain_id" \
-        '{query:"mutation ImportChain($owner: AccountOwner!, $chainId: ChainId!) { importChain(owner: $owner, chainId: $chainId) }", variables:{owner:$owner, chainId:$chainId}}')
-
-    verify_payload='{"query":"query Chains { chains { list } }"}'
-
-    for _ in $(seq 1 20); do
-        resp=$(curl --noproxy '*' -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$payload" 2>&1 || true)
-        verify=$(curl --noproxy '*' -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$verify_payload" 2>&1 || true)
-        if echo "$verify" | grep -q "$chain_id"; then
-            echo "Imported $label chain $chain_id to query-service"
-            return 0
-        fi
-        sleep 2
-    done
-
-    echo "Failed import $label chain $chain_id to query-service"
-    echo "$resp"
-    echo "$verify"
-    exit 1
-}
-
-wait_query_service_ready
-import_query_chain "$BLOB_GATEWAY_QUERY_OWNER" "$BLOB_GATEWAY_CHAIN_ID" blob-gateway
-import_query_chain "$AMS_QUERY_OWNER" "$AMS_CHAIN_ID" ams
-import_query_chain "$PROXY_QUERY_OWNER" "$PROXY_CHAIN_ID" proxy
-import_query_chain "$SWAP_QUERY_OWNER" "$SWAP_CHAIN_ID" swap
 
 DATABASE_NAME=linera_swap_kline
 DATABASE_USER=linera-swap

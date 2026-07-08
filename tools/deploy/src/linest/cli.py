@@ -37,6 +37,11 @@ def _build_parser() -> argparse.ArgumentParser:
     deploy_parser.add_argument("--name", required=True, help="Application family name")
     deploy_parser.add_argument("--version", type=int, required=True, help="Target version")
     deploy_parser.add_argument(
+        "--creator-chain-id",
+        dest="creator_chain_id",
+        help="Chain ID on which applications are created (defaults to wallet default)",
+    )
+    deploy_parser.add_argument(
         "--contract-bytecode",
         help="Path to business app contract bytecode",
     )
@@ -97,15 +102,19 @@ def _handle_deploy(args: argparse.Namespace) -> int:
         query_client=query_client,
     )
 
-    command.deploy(
-        name=args.name,
-        version=args.version,
-        contract_bytecode=args.contract_bytecode,
-        service_bytecode=args.service_bytecode,
-        state_contract_bytecode=args.state_contract_bytecode,
-        state_service_bytecode=args.state_service_bytecode,
-        dry_run=args.dry_run,
-    )
+    try:
+        command.deploy(
+            name=args.name,
+            version=args.version,
+            contract_bytecode=args.contract_bytecode,
+            service_bytecode=args.service_bytecode,
+            state_contract_bytecode=args.state_contract_bytecode,
+            state_service_bytecode=args.state_service_bytecode,
+            creator_chain_id=args.creator_chain_id,
+            dry_run=args.dry_run,
+        )
+    finally:
+        linera_client.stop_wallet_service()
     return 0
 
 

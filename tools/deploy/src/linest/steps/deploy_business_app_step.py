@@ -24,12 +24,14 @@ class DeployBusinessAppStep(Step):
         contract_bytecode_path: str,
         service_bytecode_path: str,
         instantiation_argument: dict[str, Any],
+        creator_chain_id: str | None = None,
     ) -> None:
         self.family = family
         self.version = version
         self.contract_bytecode_path = contract_bytecode_path
         self.service_bytecode_path = service_bytecode_path
         self.instantiation_argument = instantiation_argument
+        self.creator_chain_id = creator_chain_id
         self.deployment_name = f"{family.name}-v{version}"
 
     @property
@@ -60,7 +62,7 @@ class DeployBusinessAppStep(Step):
             self.service_bytecode_path,
         )
 
-        creator_chain_id = linera_client.default_chain_id()
+        creator_chain_id = self.creator_chain_id or linera_client.default_chain_id()
         application_id = linera_client.create_application(
             module_id=module_id,
             chain_id=creator_chain_id,

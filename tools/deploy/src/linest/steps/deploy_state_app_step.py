@@ -25,6 +25,7 @@ class DeployStateAppStep(Step):
         service_bytecode_path: str,
         business_app_version: int,
         operator: str,
+        creator_chain_id: str | None = None,
     ) -> None:
         self.family = family
         self.version = version
@@ -32,6 +33,7 @@ class DeployStateAppStep(Step):
         self.service_bytecode_path = service_bytecode_path
         self.business_app_version = business_app_version
         self.operator = operator
+        self.creator_chain_id = creator_chain_id
         self.deployment_name = f"{family.name}-state-v{version}"
 
     @property
@@ -65,7 +67,7 @@ class DeployStateAppStep(Step):
             self.service_bytecode_path,
         )
 
-        creator_chain_id = linera_client.default_chain_id()
+        creator_chain_id = self.creator_chain_id or linera_client.default_chain_id()
         instantiation_argument = {
             "business_application_id": business_app.application_id,
             "operator": self.operator,
