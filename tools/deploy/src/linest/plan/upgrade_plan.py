@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
+from linest.bytecode import compute_hash
 from linest.errors import UpgradeError
 from linest.models.app_family import AppFamily
 from linest.steps.append_state_step import AppendStateStep
@@ -26,7 +28,7 @@ class UpgradePlan:
         state_service_bytecode_path: str | None,
         operator: str,
         creator_chain_id: str | None = None,
-        state_abi_source_hash: str | None = None,
+        repo_dir: Path | None = None,
     ) -> None:
         self.family = family
         self.target_version = target_version
@@ -36,7 +38,7 @@ class UpgradePlan:
         self.state_service_bytecode_path = state_service_bytecode_path
         self.operator = operator
         self.creator_chain_id = creator_chain_id
-        self.state_abi_source_hash = state_abi_source_hash
+        self.repo_dir = repo_dir
         self.steps: list[Step] = []
 
         self._build()
@@ -78,7 +80,7 @@ class UpgradePlan:
                     business_app_version=self.target_version,
                     operator=self.operator,
                     creator_chain_id=self.creator_chain_id,
-                    abi_source_hash=self.state_abi_source_hash,
+                    abi_source_hash=self._resolve_abi_source_hash(new_state_version),
                 )
             )
             self.steps.append(
@@ -117,7 +119,7 @@ class UpgradePlan:
                 business_app_version=1,
                 operator=self.operator,
                 creator_chain_id=self.creator_chain_id,
-                abi_source_hash=self.state_abi_source_hash,
+                abi_source_hash=self._resolve_abi_source_hash(1),
             )
         )
         self.steps.append(
@@ -170,3 +172,16 @@ class UpgradePlan:
             if "-v" in name
         )
         return latest + 1
+
+    def _resolve_abi_source_hash(self, version: int) -> str:
+        """Resolve the ABI source hash for a state app version by convention."""
+        if self.repo_dir is None:
+            raise UpgradeError(
+                "Deploying a state app requires --repo-dir to locate the ABI source file"
+            )
+        abi_path = (
+            self.repo_dir / "abi" / "src" / self.family.name / f"state_v{version}.rs"
+        )
+        if not abi_path.exists():
+            raise UpgradeError(f"ABI source file not found: {abi_path}")
+        return compute_hash(str(abi_path))

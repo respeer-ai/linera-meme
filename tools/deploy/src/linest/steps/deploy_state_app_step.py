@@ -106,7 +106,7 @@ class DeployStateAppStep(Step):
     def _bytecode_matches(self, deployment: StateAppDeployment) -> bool:
         if self.abi_source_hash is None:
             raise DeploymentError(
-                "State app deploy requires --state-abi-hash-file"
+                "State app deploy requires an ABI source hash"
             )
         if deployment.abi_source_hash is None:
             return False

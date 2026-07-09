@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from linest.client.linera_client import LineraClient
@@ -38,7 +39,7 @@ class DeployCommand:
         state_service_bytecode: str | None,
         dry_run: bool,
         creator_chain_id: str | None = None,
-        state_abi_source_hash: str | None = None,
+        repo_dir: Path | None = None,
     ) -> None:
         """Deploy or upgrade the named application to the target version."""
         family = self.registry.load_family(name)
@@ -52,7 +53,7 @@ class DeployCommand:
             state_service_bytecode_path=state_service_bytecode,
             operator=self.config.operator,
             creator_chain_id=creator_chain_id,
-            state_abi_source_hash=state_abi_source_hash,
+            repo_dir=repo_dir,
         )
 
         if dry_run:

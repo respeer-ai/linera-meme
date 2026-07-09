@@ -1,5 +1,7 @@
 """Tests for upgrade plan generation."""
 
+from pathlib import Path
+
 import pytest
 
 from linest.errors import UpgradeError
@@ -9,6 +11,16 @@ from linest.steps.append_state_step import AppendStateStep
 from linest.steps.deploy_business_app_step import DeployBusinessAppStep
 from linest.steps.deploy_state_app_step import DeployStateAppStep
 from linest.steps.handoff_step import HandoffStep
+
+
+@pytest.fixture
+def repo_dir(tmp_path: Path) -> Path:
+    """Create a temporary repository root with ABI source files."""
+    abi_dir = tmp_path / "abi" / "src" / "ams"
+    abi_dir.mkdir(parents=True)
+    (abi_dir / "state_v1.rs").write_text("state v1 abi")
+    (abi_dir / "state_v2.rs").write_text("state v2 abi")
+    return tmp_path
 
 
 def test_first_deploy_plan_requires_business_and_state_bytecode() -> None:
@@ -25,7 +37,7 @@ def test_first_deploy_plan_requires_business_and_state_bytecode() -> None:
         )
 
 
-def test_first_deploy_plan_has_three_steps() -> None:
+def test_first_deploy_plan_has_three_steps(repo_dir: Path) -> None:
     family = AppFamily.create("ams", "local")
     plan = UpgradePlan(
         family=family,
@@ -35,6 +47,7 @@ def test_first_deploy_plan_has_three_steps() -> None:
         state_contract_bytecode_path="/tmp/ams_state_contract.wasm",
         state_service_bytecode_path="/tmp/ams_state_service.wasm",
         operator="operator1",
+        repo_dir=repo_dir,
     )
 
     assert len(plan.steps) == 3
@@ -43,7 +56,7 @@ def test_first_deploy_plan_has_three_steps() -> None:
     assert isinstance(plan.steps[2], AppendStateStep)
 
 
-def test_upgrade_allows_non_sequential_version() -> None:
+def test_upgrade_allows_non_sequential_version(repo_dir: Path) -> None:
     family = AppFamily.create("ams", "local")
     family.add_version(1, "ams-v1", ["ams-state-v1"], status="active")
     family.current_version = 1
@@ -56,6 +69,7 @@ def test_upgrade_allows_non_sequential_version() -> None:
         state_contract_bytecode_path=None,
         state_service_bytecode_path=None,
         operator="operator1",
+        repo_dir=repo_dir,
     )
 
     assert len(plan.steps) == 3
@@ -64,7 +78,7 @@ def test_upgrade_allows_non_sequential_version() -> None:
     assert isinstance(plan.steps[2], HandoffStep)
 
 
-def test_same_state_upgrade_plan_has_three_steps() -> None:
+def test_same_state_upgrade_plan_has_three_steps(repo_dir: Path) -> None:
     family = AppFamily.create("ams", "local")
     family.add_version(1, "ams-v1", ["ams-state-v1"], status="active")
     family.current_version = 1
@@ -77,6 +91,7 @@ def test_same_state_upgrade_plan_has_three_steps() -> None:
         state_contract_bytecode_path=None,
         state_service_bytecode_path=None,
         operator="operator1",
+        repo_dir=repo_dir,
     )
 
     assert len(plan.steps) == 3
@@ -85,7 +100,7 @@ def test_same_state_upgrade_plan_has_three_steps() -> None:
     assert isinstance(plan.steps[2], HandoffStep)
 
 
-def test_appended_state_upgrade_plan_has_new_state_step() -> None:
+def test_appended_state_upgrade_plan_has_new_state_step(repo_dir: Path) -> None:
     family = AppFamily.create("ams", "local")
     family.add_version(1, "ams-v1", ["ams-state-v1"], status="active")
     family.current_version = 1
@@ -98,6 +113,7 @@ def test_appended_state_upgrade_plan_has_new_state_step() -> None:
         state_contract_bytecode_path="/tmp/ams_state_v2_contract.wasm",
         state_service_bytecode_path="/tmp/ams_state_v2_service.wasm",
         operator="operator1",
+        repo_dir=repo_dir,
     )
 
     assert len(plan.steps) == 5

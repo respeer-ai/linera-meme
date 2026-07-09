@@ -49,12 +49,22 @@ def _write_file(path: Path, content: bytes = b"wasm") -> str:
     return str(path)
 
 
+@pytest.fixture
+def repo_dir(tmp_path: Path) -> Path:
+    """Create a temporary repository root with ABI source files."""
+    abi_dir = tmp_path / "abi" / "src" / "ams"
+    abi_dir.mkdir(parents=True)
+    (abi_dir / "state_v1.rs").write_text("state v1 abi")
+    return tmp_path
+
+
 def test_deploy_command_first_deploy(
     registry: DeploymentRegistry,
     config: NetworkConfig,
     linera_client: MagicMock,
     query_client: MagicMock,
     tmp_path: Path,
+    repo_dir: Path,
 ) -> None:
     command = DeployCommand(config, registry, linera_client, query_client)
     contract = _write_file(tmp_path / "contract.wasm")
@@ -72,6 +82,7 @@ def test_deploy_command_first_deploy(
         state_contract_bytecode=state_contract,
         state_service_bytecode=state_service,
         dry_run=False,
+        repo_dir=repo_dir,
     )
 
     family = registry.load_family("ams")
@@ -93,6 +104,7 @@ def test_deploy_command_dry_run_does_not_execute(
     linera_client: MagicMock,
     query_client: MagicMock,
     tmp_path: Path,
+    repo_dir: Path,
 ) -> None:
     command = DeployCommand(config, registry, linera_client, query_client)
     contract = _write_file(tmp_path / "contract.wasm")
@@ -108,6 +120,7 @@ def test_deploy_command_dry_run_does_not_execute(
         state_contract_bytecode=state_contract,
         state_service_bytecode=state_service,
         dry_run=True,
+        repo_dir=repo_dir,
     )
 
     linera_client.publish_module.assert_not_called()
