@@ -721,9 +721,10 @@ run_linest "linest_deploy_ams" \
     --state-contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_state_contract.wasm" \
     --state-service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_state_service.wasm"
 
-AMS_DEPLOYMENT_RECORD="$LINEST_BASE_DIR/deployments/local/ams-v1.json"
-AMS_APPLICATION_ID=$(jq -r '.application_id' "$AMS_DEPLOYMENT_RECORD")
-AMS_CHAIN_ID=$(jq -r '.creator_chain_id' "$AMS_DEPLOYMENT_RECORD")
+AMS_STATUS_JSON=$("$LINEST_BIN" --base-dir "$LINEST_BASE_DIR" --env local app status --name ams --format json)
+AMS_APPLICATION_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.business_app.application_id')
+AMS_CHAIN_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.business_app.creator_chain_id')
+AMS_STATE_APPLICATION_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.state_apps[0].application_id // empty')
 
 # Exhaust chain messages
 process_inboxes blob-gateway
@@ -1067,6 +1068,9 @@ function print_deployment_summary() {
     echo -e "  BLOB_GATEWAY_APPLICATION_ID=$BLOB_GATEWAY_APPLICATION_ID"
     echo -e "  AMS_CHAIN_ID=$AMS_CHAIN_ID"
     echo -e "  AMS_APPLICATION_ID=$AMS_APPLICATION_ID"
+    if [ -n "${AMS_STATE_APPLICATION_ID:-}" ]; then
+        echo -e "  AMS_STATE_APPLICATION_ID=$AMS_STATE_APPLICATION_ID"
+    fi
     echo -e "  PROXY_CHAIN_ID=$PROXY_CHAIN_ID"
     echo -e "  PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID"
     echo -e "  SWAP_CHAIN_ID=$SWAP_CHAIN_ID"

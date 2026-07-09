@@ -1,6 +1,7 @@
 """Command-line interface for linest."""
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -65,6 +66,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
     status_parser = app_subparsers.add_parser("status", help="Show app deployment status")
     status_parser.add_argument("--name", required=True, help="Application family name")
+    status_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
 
     return parser
 
@@ -73,6 +80,37 @@ def _handle_status(args: argparse.Namespace) -> int:
     config = NetworkConfig.load(args.env, base_dir=args.base_dir)
     registry = DeploymentRegistry(config.deployments_dir(args.base_dir))
     family = registry.load_family(args.name)
+
+    if args.format == "json":
+        current_version = family.current_version
+        record = family.versions.get(current_version)
+        output: dict = {
+            "name": family.name,
+            "env": family.env,
+            "current_version": current_version,
+        }
+        if record is not None:
+            business_app = registry.load_business_app(record.business_app)
+            output["business_app"] = {
+                "name": business_app.name,
+                "application_id": business_app.application_id,
+                "creator_chain_id": business_app.creator_chain_id,
+            }
+            output["state_apps"] = []
+            for state_app_name in record.state_apps:
+                state_app = registry.load_state_app(state_app_name)
+                output["state_apps"].append(
+                    {
+                        "name": state_app.name,
+                        "application_id": state_app.application_id,
+                        "creator_chain_id": state_app.creator_chain_id,
+                    }
+                )
+            output["status"] = record.status
+            output["handed_off_to"] = record.handed_off_to
+            output["handed_off_from"] = record.handed_off_from
+        print(json.dumps(output, indent=2))
+        return 0
 
     print(f"{family.name} ({family.env})")
     print(f"  current version: {family.current_version}")
