@@ -526,8 +526,11 @@ function open_multi_owner_chain() {
 # Create multi owner chains
 # Create blob gateway multi owner chains
 BLOB_GATEWAY_CHAIN_ID=$(open_multi_owner_chain blob-gateway $BLOB_GATEWAY_OWNERS)
-# Create ams multi owner chains
-AMS_CHAIN_ID=$(open_multi_owner_chain ams $AMS_OWNERS)
+# Create ams multi owner chains (operator wallet is also an owner).
+AMS_CHAIN_ID=$(open_multi_owner_chain ams $AMS_OWNERS $OPERATOR_OWNER)
+# Assign the ams chain to the operator wallet and process its inbox.
+assign_chain_to_owner operator 0 $AMS_CHAIN_ID $OPERATOR_OWNER
+process_inbox operator 0
 # Create proxy multi owner chains
 PROXY_CHAIN_ID=$(open_multi_owner_chain proxy $PROXY_OWNERS)
 # Create swap multi owner chains
@@ -641,15 +644,20 @@ import_query_chain "$AMS_QUERY_OWNER" "$AMS_CHAIN_ID" ams
 import_query_chain "$PROXY_QUERY_OWNER" "$PROXY_CHAIN_ID" proxy
 import_query_chain "$SWAP_QUERY_OWNER" "$SWAP_CHAIN_ID" swap
 
-# Configure linest for AMS deployment. Wallet service is managed by linest itself.
+# Start the operator wallet service; linest will use it for AMS mutations.
+run_named_service operator-wallet operator 0 21180
+
+# Configure linest for AMS deployment.
 LINEST_BASE_DIR="$OUTPUT_DIR/linest-registry"
 mkdir -p "$LINEST_BASE_DIR/networks/local"
 cat > "$LINEST_BASE_DIR/networks/local/config.json" <<EOF
 {
-  "operator": "$OPERATOR_OWNER",
+  "operator": {"chain_id": "$AMS_CHAIN_ID", "owner": "$OPERATOR_OWNER"},
   "query_service_url": "http://localhost:24080",
   "wallet_dir": "$WALLET_DIR",
-  "wallet_services": {}
+  "wallet_services": {
+    "ams": "http://localhost:21180"
+  }
 }
 EOF
 

@@ -14,7 +14,7 @@ class NetworkConfig:
     """Configuration for deploying to a specific environment."""
 
     env: str
-    operator: str
+    operator: Any
     query_service_url: str
     wallet_dir: str
     wallet_services: dict[str, str]
