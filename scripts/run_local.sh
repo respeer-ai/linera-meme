@@ -648,8 +648,10 @@ import_query_chain "$SWAP_QUERY_OWNER" "$SWAP_CHAIN_ID" swap
 # Start the operator wallet service; linest will use it for AMS mutations.
 run_named_service operator-wallet operator 0 21180
 
-# Configure linest for AMS deployment.
+# Configure linest for AMS deployment. Remove any stale registry from a
+# previous run so that AMS is deployed on the freshly created chain.
 LINEST_BASE_DIR="$OUTPUT_DIR/linest-registry"
+rm -rf "$LINEST_BASE_DIR"
 mkdir -p "$LINEST_BASE_DIR/networks/local"
 cat > "$LINEST_BASE_DIR/networks/local/config.json" <<EOF
 {
