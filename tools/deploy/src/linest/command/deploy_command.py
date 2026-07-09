@@ -7,8 +7,10 @@ from typing import Any
 
 from linest.client.linera_client import LineraClient
 from linest.client.query_client import QueryClient
+from linest.client.wallet_manager import WalletManager
 from linest.command.dry_run_reporter import DryRunReporter
 from linest.config import NetworkConfig
+from linest.errors import LinestError
 from linest.plan.upgrade_plan import UpgradePlan
 from linest.registry import DeploymentRegistry
 from linest.steps.step import StepResult
@@ -40,8 +42,20 @@ class DeployCommand:
         dry_run: bool,
         creator_chain_id: str | None = None,
         repo_dir: Path | None = None,
+        ensure_wallet: bool = False,
+        faucet_url: str | None = None,
     ) -> None:
         """Deploy or upgrade the named application to the target version."""
+        if ensure_wallet:
+            if faucet_url is None:
+                raise LinestError("--ensure-wallet requires --faucet-url")
+            WalletManager(
+                wallet_dir=self.config.wallet_dir,
+                app_name=name,
+                faucet_url=faucet_url,
+                linera_client=self.linera_client,
+            ).ensure_wallets()
+
         family = self.registry.load_family(name)
 
         plan = UpgradePlan(

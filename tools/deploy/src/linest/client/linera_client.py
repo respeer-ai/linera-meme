@@ -97,6 +97,42 @@ class LineraClient:
             self._managed_service.stop()
             self._managed_service = None
 
+    def init_wallet(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+        faucet_url: str,
+    ) -> None:
+        """Initialize a new wallet from a faucet."""
+        self._run_with_wallet(
+            wallet_path,
+            keystore_path,
+            storage_path,
+            "wallet",
+            "init",
+            "--faucet",
+            faucet_url,
+        )
+
+    def request_chain(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+        faucet_url: str,
+    ) -> None:
+        """Request a default chain for a wallet from a faucet."""
+        self._run_with_wallet(
+            wallet_path,
+            keystore_path,
+            storage_path,
+            "wallet",
+            "request-chain",
+            "--faucet",
+            faucet_url,
+        )
+
     def publish_module(self, contract_path: str, service_path: str) -> str:
         """Publish a module and return the module ID."""
         result = self._run_publisher(

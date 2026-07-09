@@ -731,7 +731,9 @@ run_linest "linest_deploy_ams" \
     --contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_app_contract.wasm" \
     --service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_app_service.wasm" \
     --state-contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_state_contract.wasm" \
-    --state-service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_state_service.wasm"
+    --state-service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_state_service.wasm" \
+    --ensure-wallet \
+    --faucet-url "$FAUCET_URL"
 
 AMS_STATUS_JSON=$("$LINEST_BIN" --base-dir "$LINEST_BASE_DIR" --env local app status --name ams --format json)
 AMS_APPLICATION_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.business_app.application_id')

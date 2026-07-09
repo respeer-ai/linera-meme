@@ -66,6 +66,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Code repository root used to locate ABI source files by convention (default: current directory)",
     )
     deploy_parser.add_argument(
+        "--ensure-wallet",
+        dest="ensure_wallet",
+        action="store_true",
+        help="Create the app family wallets if they do not exist",
+    )
+    deploy_parser.add_argument(
+        "--faucet-url",
+        dest="faucet_url",
+        help="Faucet URL used when --ensure-wallet creates wallets",
+    )
+    deploy_parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show planned actions without executing",
@@ -158,6 +169,8 @@ def _handle_deploy(args: argparse.Namespace) -> int:
             repo_dir=args.repo_dir,
             creator_chain_id=args.creator_chain_id,
             dry_run=args.dry_run,
+            ensure_wallet=args.ensure_wallet,
+            faucet_url=args.faucet_url,
         )
     finally:
         linera_client.stop_wallet_service()
