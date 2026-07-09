@@ -20,6 +20,7 @@ class FundCommand:
     _TRANSFER_FEE_BUFFER: float = 0.001
     _FUNDING_COOLDOWN_SECONDS: float = 60.0
     _FUNDING_COOLDOWN_INTERVAL: float = 2.0
+    _MAX_OWNER_INDEX: int = 10
 
     def __init__(
         self,
@@ -34,6 +35,7 @@ class FundCommand:
         self.linera_client = linera_client
         self.base_dir = base_dir
         self.domain_registry = domain_registry
+        self._owner_paths_cache: dict[str, WalletPaths] = {}
 
     def fund_chains(
         self,
@@ -318,32 +320,48 @@ class FundCommand:
         return False
 
     def _target_wallet_paths(self, chain_id: str) -> "WalletPaths":
-        """Return wallet paths capable of querying the target chain.
+        """Return wallet paths that own the target chain.
 
-        Chains were created from app-specific creator wallets, so we probe the
-        wallets for every known app family and every domain-registered app.
+        Ownership is required to process the inbox, so we probe candidate
+        wallets by calling ``process-inbox <chain_id>`` and fall back to
+        ``query-balance`` for compatibility.
         """
+        if chain_id in self._owner_paths_cache:
+            return self._owner_paths_cache[chain_id]
+
         candidate_dirs = self._candidate_wallet_dirs()
         for wallet_dir in candidate_dirs:
             paths = WalletPaths.from_wallet_dir(wallet_dir)
             try:
+                self.linera_client.process_inbox(
+                    paths.wallet,
+                    paths.keystore,
+                    paths.storage,
+                    chain_id,
+                )
                 self.linera_client.query_balance(
                     paths.wallet,
                     paths.keystore,
                     paths.storage,
                     chain_id,
                 )
+                self._owner_paths_cache[chain_id] = paths
                 return paths
             except Exception:
                 continue
-        raise DeploymentError(f"No wallet found for target chain {chain_id}")
+        raise DeploymentError(
+            f"No owner wallet found for target chain {chain_id}"
+        )
 
     def _candidate_wallet_dirs(self) -> list[Path]:
         """Return all wallet directories that may own a target chain."""
         base = Path(self.config.wallet_dir)
-        names: set[str] = set()
+        dirs: list[Path] = []
         for family in self.registry.list_families():
-            names.add(family.name)
+            dirs.append(base / family.name / "creator")
+            for index in range(self._MAX_OWNER_INDEX + 1):
+                dirs.append(base / family.name / str(index))
         if self.domain_registry is not None:
-            names.update(self.domain_registry.load().keys())
-        return [base / name / "0" for name in sorted(names)]
+            for name in self.domain_registry.load().keys():
+                dirs.append(base / name / "0")
+        return dirs
