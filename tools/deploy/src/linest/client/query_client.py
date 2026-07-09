@@ -85,3 +85,26 @@ class QueryClient:
         )
         data = self.query(chain_id, application_id, query)
         return bool(data.get("handoff"))
+
+    def import_chain(
+        self,
+        owner: str,
+        chain_id: str,
+    ) -> bool:
+        """Import a chain into the query service wallet."""
+        query = (
+            "mutation ImportChain($owner: AccountOwner!, $chainId: ChainId!) "
+            "{ importChain(owner: $owner, chainId: $chainId) }"
+        )
+        payload = {
+            "query": query,
+            "variables": {"owner": owner, "chainId": chain_id},
+        }
+        response = requests.post(self.base_url, json=payload, timeout=30)
+        response.raise_for_status()
+
+        data = response.json()
+        if "errors" in data:
+            raise DeploymentError(f"GraphQL error: {data['errors']}")
+
+        return bool(data.get("data", {}).get("importChain"))

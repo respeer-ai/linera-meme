@@ -10,6 +10,7 @@ from linest.client.linera_client import LineraClient
 from linest.client.query_client import QueryClient
 from linest.client.wallet_manager import WalletManager
 from linest.command.dry_run_reporter import DryRunReporter
+from linest.command.post_deploy_sync import PostDeploySync
 from linest.config import NetworkConfig
 from linest.errors import DeploymentError, LinestError
 from linest.plan.upgrade_plan import UpgradePlan
@@ -109,6 +110,16 @@ class DeployCommand:
 
         family.current_version = version
         self.registry.save_family(family)
+
+        PostDeploySync(
+            config=self.config,
+            linera_client=self.linera_client,
+            query_client=self.query_client,
+        ).sync(
+            family=family,
+            wallet_dir=Path(self.config.wallet_dir),
+            owner_count=wallet_owner_count if ensure_wallet else len(family.owners),
+        )
 
     def _operator_owner(self) -> str:
         """Return the operator owner string from the network config."""

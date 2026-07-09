@@ -728,17 +728,6 @@ AMS_APPLICATION_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.business_app.application_
 AMS_CHAIN_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.business_app.creator_chain_id')
 AMS_STATE_APPLICATION_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.state_apps[0].application_id // empty')
 
-# Assign the ams chain to the operator wallet and process its inbox.
-assign_chain_to_owner operator 0 $AMS_CHAIN_ID $OPERATOR_OWNER
-process_inbox operator 0
-
-# Exhaust chain messages for the ams wallets.
-process_inboxes ams
-
-# Import the ams chain into the query service.
-AMS_QUERY_OWNER=$(wallet_chain_owner ams 0 $AMS_CHAIN_ID)
-import_query_chain "$AMS_QUERY_OWNER" "$AMS_CHAIN_ID" ams
-
 # Exhaust chain messages for the remaining apps.
 process_inboxes blob-gateway
 process_inboxes proxy
@@ -764,7 +753,6 @@ function change_multi_owner_chain_single_leader() {
 }
 
 change_multi_owner_chain_single_leader blob-gateway $BLOB_GATEWAY_CHAIN_ID $BLOB_GATEWAY_OWNERS
-change_multi_owner_chain_single_leader ams $AMS_CHAIN_ID $(wallet_chain_owners ams $AMS_CHAIN_ID)
 change_multi_owner_chain_single_leader proxy $PROXY_CHAIN_ID $PROXY_OWNERS
 change_multi_owner_chain_single_leader swap $SWAP_CHAIN_ID $SWAP_OWNERS
 

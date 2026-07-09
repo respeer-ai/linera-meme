@@ -250,6 +250,43 @@ class LineraClient:
         )
         return self._extract_id(result.stdout)
 
+    def process_inbox(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+    ) -> None:
+        """Process the inbox for a wallet."""
+        self._run_with_wallet(
+            wallet_path,
+            keystore_path,
+            storage_path,
+            "process-inbox",
+        )
+
+    def change_ownership(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+        chain_id: str,
+        owners: dict[str, int],
+        multi_leader_rounds: int = 0,
+    ) -> None:
+        """Change the ownership of a chain to a set of owners."""
+        self._run_with_wallet(
+            wallet_path,
+            keystore_path,
+            storage_path,
+            "change-ownership",
+            "--chain-id",
+            chain_id,
+            "--owners",
+            json.dumps(owners),
+            "--multi-leader-rounds",
+            str(multi_leader_rounds),
+        )
+
     def create_application(
         self,
         module_id: str,
