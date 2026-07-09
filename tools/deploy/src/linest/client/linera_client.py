@@ -97,6 +97,25 @@ class LineraClient:
             self._managed_service.stop()
             self._managed_service = None
 
+    def wallet_show(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+    ) -> str:
+        """Run `linera wallet show` and return stdout.
+
+        Raises LineraCliError if the wallet is missing or corrupt.
+        """
+        result = self._run_with_wallet(
+            wallet_path,
+            keystore_path,
+            storage_path,
+            "wallet",
+            "show",
+        )
+        return result.stdout
+
     def init_wallet(
         self,
         wallet_path: Path,

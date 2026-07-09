@@ -5,10 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from linest.client.linera_client import LineraClient
+from linest.errors import LineraCliError
 
 
 class WalletManager:
-    """Ensure the wallets required by an app family exist."""
+    """Ensure the wallets required by an app family exist and are valid."""
 
     def __init__(
         self,
@@ -16,63 +17,54 @@ class WalletManager:
         app_name: str,
         faucet_url: str,
         linera_client: LineraClient,
+        owner_count: int = 1,
     ) -> None:
         self.wallet_dir = Path(wallet_dir)
         self.app_name = app_name
         self.faucet_url = faucet_url
         self.linera_client = linera_client
-
-        self.publisher_wallet_path = (
-            self.wallet_dir / app_name / "creator" / "wallet.json"
-        )
-        self.publisher_keystore_path = (
-            self.wallet_dir / app_name / "creator" / "keystore.json"
-        )
-        self.publisher_storage_path = (
-            f"rocksdb://{self.wallet_dir / app_name / 'creator' / 'client.db'}"
-        )
-
-        self.creator_wallet_path = self.wallet_dir / app_name / "0" / "wallet.json"
-        self.creator_keystore_path = (
-            self.wallet_dir / app_name / "0" / "keystore.json"
-        )
-        self.creator_storage_path = (
-            f"rocksdb://{self.wallet_dir / app_name / '0' / 'client.db'}"
-        )
+        self.owner_count = owner_count
 
     def ensure_wallets(self) -> None:
-        """Create publisher and creator wallets when they are missing."""
+        """Create or validate publisher and creator wallets."""
         self._ensure_publisher_wallet()
-        self._ensure_creator_wallet()
+        for index in range(self.owner_count):
+            self._ensure_owner_wallet(index)
 
     def _ensure_publisher_wallet(self) -> None:
-        if self._wallet_exists(
-            self.publisher_wallet_path, self.publisher_keystore_path
-        ):
+        paths = self._wallet_paths("creator")
+        if self._wallet_is_valid(*paths):
             return
-        self.linera_client.init_wallet(
-            self.publisher_wallet_path,
-            self.publisher_keystore_path,
-            self.publisher_storage_path,
-            self.faucet_url,
-        )
+        self.linera_client.init_wallet(*paths, self.faucet_url)
+        self.linera_client.request_chain(*paths, self.faucet_url)
 
-    def _ensure_creator_wallet(self) -> None:
-        if self._wallet_exists(self.creator_wallet_path, self.creator_keystore_path):
+    def _ensure_owner_wallet(self, index: int) -> None:
+        paths = self._wallet_paths(str(index))
+        if self._wallet_is_valid(*paths):
             return
-        self.linera_client.init_wallet(
-            self.creator_wallet_path,
-            self.creator_keystore_path,
-            self.creator_storage_path,
-            self.faucet_url,
-        )
-        self.linera_client.request_chain(
-            self.creator_wallet_path,
-            self.creator_keystore_path,
-            self.creator_storage_path,
-            self.faucet_url,
-        )
+        self.linera_client.init_wallet(*paths, self.faucet_url)
+        # Owner wallets receive their chain from the external multi-owner chain
+        # flow; requesting a default chain here would create an unneeded chain.
 
-    @staticmethod
-    def _wallet_exists(wallet_path: Path, keystore_path: Path) -> bool:
-        return wallet_path.exists() and keystore_path.exists()
+    def _wallet_is_valid(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+    ) -> bool:
+        if not wallet_path.exists() or not keystore_path.exists():
+            return False
+        try:
+            self.linera_client.wallet_show(wallet_path, keystore_path, storage_path)
+        except LineraCliError:
+            return False
+        return True
+
+    def _wallet_paths(
+        self,
+        index: str,
+    ) -> tuple[Path, Path, str]:
+        wallet_path = self.wallet_dir / self.app_name / index / "wallet.json"
+        keystore_path = self.wallet_dir / self.app_name / index / "keystore.json"
+        storage_path = f"rocksdb://{self.wallet_dir / self.app_name / index / 'client.db'}"
+        return wallet_path, keystore_path, storage_path

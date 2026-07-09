@@ -75,4 +75,22 @@ def test_ensure_wallets_creates_only_missing_wallet(
     manager.ensure_wallets()
 
     assert linera_client.init_wallet.call_count == 1
-    assert linera_client.request_chain.call_count == 1
+    assert linera_client.request_chain.call_count == 0
+
+
+def test_ensure_wallets_respects_owner_count(
+    linera_client: MagicMock,
+    tmp_path: Path,
+) -> None:
+    manager = WalletManager(
+        wallet_dir=tmp_path,
+        app_name="ams",
+        faucet_url="https://faucet.example.com",
+        linera_client=linera_client,
+        owner_count=3,
+    )
+
+    manager.ensure_wallets()
+
+    assert linera_client.init_wallet.call_count == 4  # creator + 3 owners
+    assert linera_client.request_chain.call_count == 1  # only creator

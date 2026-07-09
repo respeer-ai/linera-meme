@@ -44,6 +44,7 @@ class DeployCommand:
         repo_dir: Path | None = None,
         ensure_wallet: bool = False,
         faucet_url: str | None = None,
+        wallet_owner_count: int = 1,
     ) -> None:
         """Deploy or upgrade the named application to the target version."""
         if ensure_wallet:
@@ -54,6 +55,7 @@ class DeployCommand:
                 app_name=name,
                 faucet_url=faucet_url,
                 linera_client=self.linera_client,
+                owner_count=wallet_owner_count,
             ).ensure_wallets()
 
         family = self.registry.load_family(name)

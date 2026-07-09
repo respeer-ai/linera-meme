@@ -77,6 +77,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Faucet URL used when --ensure-wallet creates wallets",
     )
     deploy_parser.add_argument(
+        "--wallet-owner-count",
+        dest="wallet_owner_count",
+        type=int,
+        default=1,
+        help="Number of owner wallets to create besides the creator wallet (default: 1)",
+    )
+    deploy_parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show planned actions without executing",
@@ -171,6 +178,7 @@ def _handle_deploy(args: argparse.Namespace) -> int:
             dry_run=args.dry_run,
             ensure_wallet=args.ensure_wallet,
             faucet_url=args.faucet_url,
+            wallet_owner_count=args.wallet_owner_count,
         )
     finally:
         linera_client.stop_wallet_service()
