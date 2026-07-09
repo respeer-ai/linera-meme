@@ -40,13 +40,15 @@ class BootstrapCommand:
         query_paths = self._wallet_paths(query_wallet_dir)
 
         operator_owner = self._ensure_wallet(operator_paths, faucet_url)
-        query_owner = self._ensure_wallet(query_paths, faucet_url)
+        self._ensure_wallet(query_paths, faucet_url)
 
+        log_dir = self.base_dir / "logs"
         operator_service = WalletService(
             wallet_path=operator_paths.wallet,
             keystore_path=operator_paths.keystore,
             storage_path=operator_paths.storage,
             port=operator_service_port,
+            log_file=log_dir / "operator_wallet_service.log",
         )
         operator_service_url = operator_service.start()
 
@@ -58,6 +60,7 @@ class BootstrapCommand:
             extra_env={
                 "LINERA_LISTENER_AUTO_IMPORT_OWNED_CHILD_CHAINS_WITHOUT_KEY": "true",
             },
+            log_file=log_dir / "query_service.log",
         )
         query_service_url = query_service.start()
 

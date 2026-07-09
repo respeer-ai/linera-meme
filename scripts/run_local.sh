@@ -451,9 +451,6 @@ function wallet_chain_id() {
            | awk '/^Chain ID:/ {chain=$3} /^Default owner:/ {if ($3 != "No") print chain}'
 }
 
-# Create a dedicated operator wallet used by typed-state apps.
-OPERATOR_OWNER=$(create_operator_wallet)
-
 function assign_chain_to_owner() {
     wallet_name=$1
     wallet_index=$2
@@ -616,41 +613,27 @@ process_inboxes blob-gateway
 process_inboxes proxy
 process_inboxes swap
 
-# Start the query service early so that linest can perform idempotency checks.
-wallet_init_clean query 0
-run_linera_retry "wallet_request_chain query/0" 3 \
-       --wallet $WALLET_DIR/query/0/wallet.json \
-       --keystore $WALLET_DIR/query/0/keystore.json \
-       --storage rocksdb://$WALLET_DIR/query/0/client.db \
-       wallet request-chain \
-       --faucet $FAUCET_URL
+# Bootstrap shared wallets and services for linest.
+LINEST_BASE_DIR="$OUTPUT_DIR/linest-registry"
+rm -rf "$LINEST_BASE_DIR"
+mkdir -p "$LINEST_BASE_DIR"
 
-run_named_service query-service query 0 24080 \
-    LINERA_LISTENER_AUTO_IMPORT_OWNED_CHILD_CHAINS_WITHOUT_KEY=true
+run_linest "linest_bootstrap" \
+    "$LINEST_BIN" \
+    --base-dir "$LINEST_BASE_DIR" \
+    --env local \
+    bootstrap \
+    --faucet-url "$FAUCET_URL" \
+    --wallet-dir "$WALLET_DIR" \
+    --operator-wallet-dir "$WALLET_DIR/operator/0" \
+    --query-wallet-dir "$WALLET_DIR/query/0" \
+    --operator-service-port 21180 \
+    --query-service-port 24080
 
 wait_query_service_ready
 import_query_chain "$BLOB_GATEWAY_QUERY_OWNER" "$BLOB_GATEWAY_CHAIN_ID" blob-gateway
 import_query_chain "$PROXY_QUERY_OWNER" "$PROXY_CHAIN_ID" proxy
 import_query_chain "$SWAP_QUERY_OWNER" "$SWAP_CHAIN_ID" swap
-
-# Start the operator wallet service; linest will use it for AMS mutations.
-run_named_service operator-wallet operator 0 21180
-
-# Configure linest for AMS deployment. Remove any stale registry from a
-# previous run so that AMS is deployed on the freshly created chain.
-LINEST_BASE_DIR="$OUTPUT_DIR/linest-registry"
-rm -rf "$LINEST_BASE_DIR"
-mkdir -p "$LINEST_BASE_DIR/networks/local"
-cat > "$LINEST_BASE_DIR/networks/local/config.json" <<EOF
-{
-  "operator": "$OPERATOR_OWNER",
-  "query_service_url": "http://localhost:24080",
-  "wallet_dir": "$WALLET_DIR",
-  "wallet_services": {
-    "ams": "http://localhost:21180"
-  }
-}
-EOF
 
 function create_application() {
     wallet_name=$1
@@ -694,6 +677,34 @@ function create_application() {
 BLOB_GATEWAY_APPLICATION_ID=$(create_application blob-gateway $BLOB_GATEWAY_MODULE_ID '' '' $BLOB_GATEWAY_CHAIN_ID)
 SWAP_APPLICATION_ID=$(create_application swap $SWAP_MODULE_ID "{\"pool_bytecode_id\": \"$POOL_MODULE_ID\"}" '{}' $SWAP_CHAIN_ID)
 PROXY_APPLICATION_ID=$(create_application proxy $PROXY_MODULE_ID "{\"meme_bytecode_id\": \"$MEME_MODULE_ID\", \"operators\": [], \"swap_application_id\": \"$SWAP_APPLICATION_ID\"}" '' $PROXY_CHAIN_ID)
+
+# Register non-linest apps so domain.ts can be generated from one place.
+run_linest "linest_domain_register_blob_gateway" \
+    "$LINEST_BIN" \
+    --base-dir "$LINEST_BASE_DIR" \
+    --env local \
+    domain register \
+    --name blob-gateway \
+    --chain-id "$BLOB_GATEWAY_CHAIN_ID" \
+    --application-id "$BLOB_GATEWAY_APPLICATION_ID"
+
+run_linest "linest_domain_register_swap" \
+    "$LINEST_BIN" \
+    --base-dir "$LINEST_BASE_DIR" \
+    --env local \
+    domain register \
+    --name swap \
+    --chain-id "$SWAP_CHAIN_ID" \
+    --application-id "$SWAP_APPLICATION_ID"
+
+run_linest "linest_domain_register_proxy" \
+    "$LINEST_BIN" \
+    --base-dir "$LINEST_BASE_DIR" \
+    --env local \
+    domain register \
+    --name proxy \
+    --chain-id "$PROXY_CHAIN_ID" \
+    --application-id "$PROXY_APPLICATION_ID"
 
 function crate_version_number() {
     local crate_dir=$1
@@ -827,17 +838,14 @@ echo -e "   http://${SUB_DOMAIN}ams.respeer.ai/api/ams/query/chains/$AMS_CHAIN_I
 echo -e "   http://${SUB_DOMAIN}linerameme.fun/api/proxy/query/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID"
 echo -e "   http://${SUB_DOMAIN}lineraswap.fun/api/swap/query/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID\n\n"
 
-cat <<EOF > $DOMAIN_FILE
-export const SUB_DOMAIN = '$CLUSTER.'
-export const BLOB_GATEWAY_CHAIN_ID = '$BLOB_GATEWAY_CHAIN_ID'
-export const BLOB_GATEWAY_APPLICATION_ID = '$BLOB_GATEWAY_APPLICATION_ID'
-export const AMS_CHAIN_ID = '$AMS_CHAIN_ID'
-export const AMS_APPLICATION_ID = '$AMS_APPLICATION_ID'
-export const PROXY_CHAIN_ID = '$PROXY_CHAIN_ID'
-export const PROXY_APPLICATION_ID = '$PROXY_APPLICATION_ID'
-export const SWAP_CHAIN_ID = '$SWAP_CHAIN_ID'
-export const SWAP_APPLICATION_ID = '$SWAP_APPLICATION_ID'
-EOF
+# Generate domain.ts from the unified registry.
+run_linest "linest_domain_generate" \
+    "$LINEST_BIN" \
+    --base-dir "$LINEST_BASE_DIR" \
+    --env local \
+    domain generate \
+    --cluster "$CLUSTER" \
+    --output "$DOMAIN_FILE"
 
 function run_service() {
     wallet_name=$1

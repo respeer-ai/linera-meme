@@ -9,7 +9,9 @@ from linest.client.linera_client import LineraClient
 from linest.client.query_client import QueryClient
 from linest.command.bootstrap_command import BootstrapCommand
 from linest.command.deploy_command import DeployCommand
+from linest.command.domain_command import DomainCommand
 from linest.config import NetworkConfig
+from linest.domain_registry import DomainRegistry
 from linest.errors import LinestError
 from linest.registry import DeploymentRegistry
 
@@ -141,6 +143,30 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Output format (default: text)",
     )
 
+    domain_parser = subparsers.add_parser("domain", help="Manage domain entries")
+    domain_subparsers = domain_parser.add_subparsers(
+        dest="domain_command", required=True
+    )
+
+    register_parser = domain_subparsers.add_parser(
+        "register", help="Register an app chain/application id"
+    )
+    register_parser.add_argument("--name", required=True, help="Application name")
+    register_parser.add_argument("--chain-id", required=True, help="Chain ID")
+    register_parser.add_argument(
+        "--application-id", required=True, help="Application ID"
+    )
+
+    generate_parser = domain_subparsers.add_parser(
+        "generate", help="Generate domain.ts"
+    )
+    generate_parser.add_argument(
+        "--cluster", required=True, help="Cluster name used for SUB_DOMAIN"
+    )
+    generate_parser.add_argument(
+        "--output", type=Path, required=True, help="Output path for domain.ts"
+    )
+
     return parser
 
 
@@ -170,6 +196,35 @@ def _handle_bootstrap(args: argparse.Namespace) -> int:
         query_wallet_dir=Path(args.query_wallet_dir),
         operator_service_port=args.operator_service_port,
         query_service_port=args.query_service_port,
+    )
+    return 0
+
+
+def _handle_domain_register(args: argparse.Namespace) -> int:
+    base_dir = args.base_dir or NetworkConfig.default_base_dir()
+    domain_registry = DomainRegistry(base_dir / "domain.json")
+    command = DomainCommand(
+        domain_registry=domain_registry,
+        deployment_registry=DeploymentRegistry(base_dir / "deployments" / args.env),
+    )
+    command.register(
+        name=args.name,
+        chain_id=args.chain_id,
+        application_id=args.application_id,
+    )
+    return 0
+
+
+def _handle_domain_generate(args: argparse.Namespace) -> int:
+    base_dir = args.base_dir or NetworkConfig.default_base_dir()
+    domain_registry = DomainRegistry(base_dir / "domain.json")
+    command = DomainCommand(
+        domain_registry=domain_registry,
+        deployment_registry=DeploymentRegistry(base_dir / "deployments" / args.env),
+    )
+    command.generate(
+        cluster=args.cluster,
+        output_path=args.output,
     )
     return 0
 
@@ -271,6 +326,11 @@ def main(argv: list[str] | None = None) -> int:
                 return _handle_deploy(args)
             if args.app_command == "status":
                 return _handle_status(args)
+        if args.command == "domain":
+            if args.domain_command == "register":
+                return _handle_domain_register(args)
+            if args.domain_command == "generate":
+                return _handle_domain_generate(args)
     except LinestError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

@@ -23,12 +23,14 @@ class WalletService:
         storage_path: str,
         port: int = 41080,
         extra_env: dict[str, str] | None = None,
+        log_file: Path | None = None,
     ) -> None:
         self.wallet_path = wallet_path
         self.keystore_path = keystore_path
         self.storage_path = storage_path
         self.port = port
         self.extra_env = extra_env or {}
+        self.log_file = log_file
         self._process: subprocess.Popen[str] | None = None
 
     @property
@@ -60,10 +62,19 @@ class WalletService:
         env = os.environ.copy()
         env.update(self.extra_env)
 
+        if self.log_file is not None:
+            self.log_file.parent.mkdir(parents=True, exist_ok=True)
+            log_handle = self.log_file.open("w", encoding="utf-8")
+            stdout = log_handle
+            stderr = subprocess.STDOUT
+        else:
+            stdout = subprocess.PIPE
+            stderr = subprocess.PIPE
+
         self._process = subprocess.Popen(
             command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=stdout,
+            stderr=stderr,
             text=True,
             env=env,
         )
