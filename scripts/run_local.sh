@@ -528,9 +528,6 @@ function open_multi_owner_chain() {
 BLOB_GATEWAY_CHAIN_ID=$(open_multi_owner_chain blob-gateway $BLOB_GATEWAY_OWNERS)
 # Create ams multi owner chains (operator wallet is also an owner).
 AMS_CHAIN_ID=$(open_multi_owner_chain ams $AMS_OWNERS $OPERATOR_OWNER)
-# Assign the ams chain to the operator wallet and process its inbox.
-assign_chain_to_owner operator 0 $AMS_CHAIN_ID $OPERATOR_OWNER
-process_inbox operator 0
 # Create proxy multi owner chains
 PROXY_CHAIN_ID=$(open_multi_owner_chain proxy $PROXY_OWNERS)
 # Create swap multi owner chains
@@ -560,6 +557,10 @@ function process_inboxes() {
         process_inbox $wallet_name $i
     done
 }
+
+# Assign the ams chain to the operator wallet and process its inbox.
+assign_chain_to_owner operator 0 $AMS_CHAIN_ID $OPERATOR_OWNER
+process_inbox operator 0
 
 function run_named_service() {
     service_name=$1
