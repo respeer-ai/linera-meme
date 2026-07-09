@@ -71,6 +71,9 @@ def test_serialize_and_deserialize() -> None:
     family = AppFamily.create("ams", "local")
     family.add_version(1, "ams-v1", ["ams-state-v1"], status="active")
     family.current_version = 1
+    family.creator_owner = "owner0"
+    family.creator_chain_id = "chain1"
+    family.owners = ["owner0", "owner1"]
 
     data = family.to_dict()
     loaded = AppFamily.from_dict(data)
@@ -78,3 +81,6 @@ def test_serialize_and_deserialize() -> None:
     assert loaded.name == "ams"
     assert loaded.current_version == 1
     assert loaded.versions[1].business_app == "ams-v1"
+    assert loaded.creator_owner == "owner0"
+    assert loaded.creator_chain_id == "chain1"
+    assert loaded.owners == ["owner0", "owner1"]

@@ -51,7 +51,26 @@ class LineraClient:
 
     def default_chain_id(self) -> str:
         """Return the chain tagged as DEFAULT from the creator wallet."""
-        result = self._run_creator("wallet", "show")
+        return self.default_chain_id_for(
+            self.creator_wallet_path,
+            self.creator_keystore_path,
+            self.creator_storage_path,
+        )
+
+    def default_chain_id_for(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+    ) -> str:
+        """Return the chain tagged as DEFAULT from the given wallet."""
+        result = self._run_with_wallet(
+            wallet_path,
+            keystore_path,
+            storage_path,
+            "wallet",
+            "show",
+        )
         return self._extract_default_chain_id(result.stdout)
 
     @staticmethod
@@ -115,6 +134,76 @@ class LineraClient:
             "show",
         )
         return result.stdout
+
+    def default_owner(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+    ) -> str:
+        """Return the default owner of a wallet."""
+        output = self.wallet_show(wallet_path, keystore_path, storage_path)
+        return self._extract_default_owner(output)
+
+    @staticmethod
+    def _extract_default_owner(output: str) -> str:
+        """Parse `linera wallet show` output and return the DEFAULT owner."""
+        lines = output.strip().splitlines()
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("Default owner:"):
+                owner = stripped.split(":", 1)[1].strip()
+                if owner and owner.lower() != "no":
+                    return owner
+        raise LineraCliError("Wallet has no default owner")
+
+    def open_multi_owner_chain(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+        from_chain_id: str,
+        owners: list[str],
+        multi_leader_rounds: int = 100,
+        initial_balance: str = "20.",
+    ) -> str:
+        """Open a multi-owner chain and return the new chain ID."""
+        owner_weights = {owner: 100 for owner in owners}
+        result = self._run_with_wallet(
+            wallet_path,
+            keystore_path,
+            storage_path,
+            "open-multi-owner-chain",
+            "--from",
+            from_chain_id,
+            "--owners",
+            json.dumps(owner_weights),
+            "--multi-leader-rounds",
+            str(multi_leader_rounds),
+            "--initial-balance",
+            initial_balance,
+        )
+        return self._extract_id(result.stdout)
+
+    def assign_chain(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+        owner: str,
+        chain_id: str,
+    ) -> None:
+        """Assign a chain to an owner in a wallet."""
+        self._run_with_wallet(
+            wallet_path,
+            keystore_path,
+            storage_path,
+            "assign",
+            "--owner",
+            owner,
+            "--chain-id",
+            chain_id,
+        )
 
     def init_wallet(
         self,

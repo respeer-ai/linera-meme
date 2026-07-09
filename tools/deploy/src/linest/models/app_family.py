@@ -51,10 +51,13 @@ class AppFamily:
     env: str
     current_version: int
     versions: dict[int, VersionRecord] = field(default_factory=dict)
+    creator_owner: str | None = None
+    creator_chain_id: str | None = None
+    owners: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the app family to a dictionary."""
-        return {
+        data: dict[str, Any] = {
             "name": self.name,
             "env": self.env,
             "current_version": self.current_version,
@@ -63,6 +66,13 @@ class AppFamily:
                 for version, record in sorted(self.versions.items())
             },
         }
+        if self.creator_owner is not None:
+            data["creator_owner"] = self.creator_owner
+        if self.creator_chain_id is not None:
+            data["creator_chain_id"] = self.creator_chain_id
+        if self.owners:
+            data["owners"] = list(self.owners)
+        return data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AppFamily":
@@ -76,12 +86,21 @@ class AppFamily:
             env=data["env"],
             current_version=data["current_version"],
             versions=versions,
+            creator_owner=data.get("creator_owner"),
+            creator_chain_id=data.get("creator_chain_id"),
+            owners=list(data.get("owners", [])),
         )
 
     @classmethod
     def create(cls, name: str, env: str) -> "AppFamily":
         """Create a new empty app family."""
-        return cls(name=name, env=env, current_version=0, versions={})
+        return cls(
+            name=name,
+            env=env,
+            current_version=0,
+            versions={},
+            owners=[],
+        )
 
     def add_version(
         self,

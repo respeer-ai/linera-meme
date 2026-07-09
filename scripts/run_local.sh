@@ -370,9 +370,6 @@ function create_operator_wallet() {
 # Create wallet for blob gateway
 BLOB_GATEWAY_OWNERS=$(create_wallets blob-gateway)
 
-# Create wallet for ams
-AMS_OWNERS=$(create_wallets ams)
-
 # Create wallet for swap
 SWAP_OWNERS=$(create_wallets swap)
 
@@ -526,15 +523,12 @@ function open_multi_owner_chain() {
 # Create multi owner chains
 # Create blob gateway multi owner chains
 BLOB_GATEWAY_CHAIN_ID=$(open_multi_owner_chain blob-gateway $BLOB_GATEWAY_OWNERS)
-# Create ams multi owner chains (operator wallet is also an owner).
-AMS_CHAIN_ID=$(open_multi_owner_chain ams $AMS_OWNERS $OPERATOR_OWNER)
 # Create proxy multi owner chains
 PROXY_CHAIN_ID=$(open_multi_owner_chain proxy $PROXY_OWNERS)
 # Create swap multi owner chains
 SWAP_CHAIN_ID=$(open_multi_owner_chain swap $SWAP_OWNERS)
 
 BLOB_GATEWAY_QUERY_OWNER=$(wallet_chain_owner blob-gateway 0 $BLOB_GATEWAY_CHAIN_ID)
-AMS_QUERY_OWNER=$(wallet_chain_owner ams 0 $AMS_CHAIN_ID)
 PROXY_QUERY_OWNER=$(wallet_chain_owner proxy 0 $PROXY_CHAIN_ID)
 SWAP_QUERY_OWNER=$(wallet_chain_owner swap 0 $SWAP_CHAIN_ID)
 
@@ -557,10 +551,6 @@ function process_inboxes() {
         process_inbox $wallet_name $i
     done
 }
-
-# Assign the ams chain to the operator wallet and process its inbox.
-assign_chain_to_owner operator 0 $AMS_CHAIN_ID $OPERATOR_OWNER
-process_inbox operator 0
 
 function run_named_service() {
     service_name=$1
@@ -623,7 +613,6 @@ function import_query_chain() {
 
 # Exhaust chain messages
 process_inboxes blob-gateway
-process_inboxes ams
 process_inboxes proxy
 process_inboxes swap
 
@@ -641,7 +630,6 @@ run_named_service query-service query 0 24080 \
 
 wait_query_service_ready
 import_query_chain "$BLOB_GATEWAY_QUERY_OWNER" "$BLOB_GATEWAY_CHAIN_ID" blob-gateway
-import_query_chain "$AMS_QUERY_OWNER" "$AMS_CHAIN_ID" ams
 import_query_chain "$PROXY_QUERY_OWNER" "$PROXY_CHAIN_ID" proxy
 import_query_chain "$SWAP_QUERY_OWNER" "$SWAP_CHAIN_ID" swap
 
@@ -655,7 +643,7 @@ rm -rf "$LINEST_BASE_DIR"
 mkdir -p "$LINEST_BASE_DIR/networks/local"
 cat > "$LINEST_BASE_DIR/networks/local/config.json" <<EOF
 {
-  "operator": {"chain_id": "$AMS_CHAIN_ID", "owner": "$OPERATOR_OWNER"},
+  "operator": "$OPERATOR_OWNER",
   "query_service_url": "http://localhost:24080",
   "wallet_dir": "$WALLET_DIR",
   "wallet_services": {
@@ -727,7 +715,6 @@ run_linest "linest_deploy_ams" \
     app deploy \
     --name ams \
     --version "$AMS_APP_VERSION" \
-    --creator-chain-id "$AMS_CHAIN_ID" \
     --contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_app_contract.wasm" \
     --service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_app_service.wasm" \
     --state-contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_state_contract.wasm" \
@@ -741,9 +728,19 @@ AMS_APPLICATION_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.business_app.application_
 AMS_CHAIN_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.business_app.creator_chain_id')
 AMS_STATE_APPLICATION_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.state_apps[0].application_id // empty')
 
-# Exhaust chain messages
-process_inboxes blob-gateway
+# Assign the ams chain to the operator wallet and process its inbox.
+assign_chain_to_owner operator 0 $AMS_CHAIN_ID $OPERATOR_OWNER
+process_inbox operator 0
+
+# Exhaust chain messages for the ams wallets.
 process_inboxes ams
+
+# Import the ams chain into the query service.
+AMS_QUERY_OWNER=$(wallet_chain_owner ams 0 $AMS_CHAIN_ID)
+import_query_chain "$AMS_QUERY_OWNER" "$AMS_CHAIN_ID" ams
+
+# Exhaust chain messages for the remaining apps.
+process_inboxes blob-gateway
 process_inboxes proxy
 process_inboxes swap
 
@@ -767,7 +764,7 @@ function change_multi_owner_chain_single_leader() {
 }
 
 change_multi_owner_chain_single_leader blob-gateway $BLOB_GATEWAY_CHAIN_ID $BLOB_GATEWAY_OWNERS
-change_multi_owner_chain_single_leader ams $AMS_CHAIN_ID $AMS_OWNERS
+change_multi_owner_chain_single_leader ams $AMS_CHAIN_ID $(wallet_chain_owners ams $AMS_CHAIN_ID)
 change_multi_owner_chain_single_leader proxy $PROXY_CHAIN_ID $PROXY_OWNERS
 change_multi_owner_chain_single_leader swap $SWAP_CHAIN_ID $SWAP_OWNERS
 

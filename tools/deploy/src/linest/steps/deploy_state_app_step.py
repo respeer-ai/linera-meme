@@ -72,7 +72,10 @@ class DeployStateAppStep(Step):
         creator_chain_id = self.creator_chain_id or linera_client.default_chain_id()
         instantiation_argument = {
             "business_application_id": business_app.application_id,
-            "operator": self.operator,
+            "operator": {
+                "chain_id": creator_chain_id,
+                "owner": self.operator,
+            },
         }
         application_id = linera_client.create_application(
             module_id=module_id,

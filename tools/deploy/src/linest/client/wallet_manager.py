@@ -25,26 +25,28 @@ class WalletManager:
         self.linera_client = linera_client
         self.owner_count = owner_count
 
-    def ensure_wallets(self) -> None:
-        """Create or validate publisher and creator wallets."""
-        self._ensure_publisher_wallet()
+    def ensure_wallets(self) -> tuple[str, list[str]]:
+        """Create or validate wallets and return (creator_owner, owner_addresses)."""
+        creator_owner = self._ensure_publisher_wallet()
+        owners: list[str] = []
         for index in range(self.owner_count):
-            self._ensure_owner_wallet(index)
+            owners.append(self._ensure_owner_wallet(index))
+        return creator_owner, owners
 
-    def _ensure_publisher_wallet(self) -> None:
+    def _ensure_publisher_wallet(self) -> str:
         paths = self._wallet_paths("creator")
-        if self._wallet_is_valid(*paths):
-            return
-        self.linera_client.init_wallet(*paths, self.faucet_url)
-        self.linera_client.request_chain(*paths, self.faucet_url)
+        if not self._wallet_is_valid(*paths):
+            self.linera_client.init_wallet(*paths, self.faucet_url)
+            self.linera_client.request_chain(*paths, self.faucet_url)
+        return self.linera_client.default_owner(*paths)
 
-    def _ensure_owner_wallet(self, index: int) -> None:
+    def _ensure_owner_wallet(self, index: int) -> str:
         paths = self._wallet_paths(str(index))
-        if self._wallet_is_valid(*paths):
-            return
-        self.linera_client.init_wallet(*paths, self.faucet_url)
-        # Owner wallets receive their chain from the external multi-owner chain
-        # flow; requesting a default chain here would create an unneeded chain.
+        if not self._wallet_is_valid(*paths):
+            self.linera_client.init_wallet(*paths, self.faucet_url)
+            # Owner wallets receive their chain from the external multi-owner chain
+            # flow; requesting a default chain here would create an unneeded chain.
+        return self.linera_client.default_owner(*paths)
 
     def _wallet_is_valid(
         self,

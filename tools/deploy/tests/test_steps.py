@@ -136,7 +136,10 @@ def test_deploy_state_app_step_creates_deployment(
     assert result.success
     loaded = registry.load_state_app("ams-state-v1")
     assert loaded.business_application_id == "app-biz"
-    assert loaded.instantiation_argument["operator"] == "operator1"
+    assert loaded.instantiation_argument["operator"] == {
+        "chain_id": "chain1",
+        "owner": "operator1",
+    }
     assert loaded.abi_source_hash == "sha256:abi"
 
 
