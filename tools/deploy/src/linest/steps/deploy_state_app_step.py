@@ -26,6 +26,7 @@ class DeployStateAppStep(Step):
         business_app_version: int,
         operator: str,
         creator_chain_id: str | None = None,
+        abi_source_hash: str | None = None,
     ) -> None:
         self.family = family
         self.version = version
@@ -34,6 +35,7 @@ class DeployStateAppStep(Step):
         self.business_app_version = business_app_version
         self.operator = operator
         self.creator_chain_id = creator_chain_id
+        self.abi_source_hash = abi_source_hash
         self.deployment_name = f"{family.name}-state-v{version}"
 
     @property
@@ -54,7 +56,7 @@ class DeployStateAppStep(Step):
                     message=f"State app {self.deployment_name} already deployed",
                 )
             raise DeploymentError(
-                f"State app {self.deployment_name} exists with different bytecode"
+                f"State app {self.deployment_name} exists with different identity"
             )
         except RegistryError:
             pass
@@ -91,6 +93,7 @@ class DeployStateAppStep(Step):
             service_bytecode_hash=compute_hash(self.service_bytecode_path),
             business_application_id=business_app.application_id,
             instantiation_argument=instantiation_argument,
+            abi_source_hash=self.abi_source_hash,
         )
 
         registry.save_deployment(deployment)
@@ -101,6 +104,11 @@ class DeployStateAppStep(Step):
         )
 
     def _bytecode_matches(self, deployment: StateAppDeployment) -> bool:
+        if self.abi_source_hash is not None:
+            if deployment.abi_source_hash is None:
+                return False
+            return deployment.abi_source_hash == self.abi_source_hash
+
         return (
             deployment.contract_bytecode_hash
             == compute_hash(self.contract_bytecode_path)

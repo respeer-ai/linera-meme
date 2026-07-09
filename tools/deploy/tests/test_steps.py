@@ -129,6 +129,7 @@ def test_deploy_state_app_step_creates_deployment(
         service_bytecode_path=service,
         business_app_version=1,
         operator="operator1",
+        abi_source_hash="sha256:abi",
     )
     result = step.execute(registry, linera_client, query_client)
 
@@ -136,6 +137,120 @@ def test_deploy_state_app_step_creates_deployment(
     loaded = registry.load_state_app("ams-state-v1")
     assert loaded.business_application_id == "app-biz"
     assert loaded.instantiation_argument["operator"] == "operator1"
+    assert loaded.abi_source_hash == "sha256:abi"
+
+
+def test_deploy_state_app_step_is_idempotent_by_abi_hash(
+    registry: DeploymentRegistry,
+    linera_client: MagicMock,
+    query_client: MagicMock,
+    tmp_path: Path,
+) -> None:
+    family = AppFamily.create("ams", "local")
+    business = BusinessAppDeployment.create(
+        name="ams-v1",
+        version=1,
+        network="local",
+        module_id="module-biz",
+        application_id="app-biz",
+        creator_chain_id="chain1",
+        contract_bytecode_path="/tmp/c.wasm",
+        service_bytecode_path="/tmp/s.wasm",
+        contract_bytecode_hash="sha256:a",
+        service_bytecode_hash="sha256:b",
+    )
+    state = StateAppDeployment.create(
+        name="ams-state-v1",
+        version=1,
+        network="local",
+        module_id="module-state",
+        application_id="app-state",
+        creator_chain_id="chain1",
+        contract_bytecode_path="/tmp/sc.wasm",
+        service_bytecode_path="/tmp/ss.wasm",
+        contract_bytecode_hash="sha256:c",
+        service_bytecode_hash="sha256:d",
+        business_application_id="app-biz",
+        abi_source_hash="sha256:abi",
+    )
+    family.add_version(1, "ams-v1", ["ams-state-v1"], status="active")
+    registry.save_deployment(business)
+    registry.save_deployment(state)
+    registry.save_family(family)
+
+    contract = _write_file(tmp_path / "state_contract.wasm")
+    service = _write_file(tmp_path / "state_service.wasm")
+
+    step = DeployStateAppStep(
+        family=family,
+        version=1,
+        contract_bytecode_path=contract,
+        service_bytecode_path=service,
+        business_app_version=1,
+        operator="operator1",
+        abi_source_hash="sha256:abi",
+    )
+    result = step.execute(registry, linera_client, query_client)
+
+    assert result.success
+    assert "already deployed" in result.message
+    linera_client.publish_module.assert_not_called()
+
+
+def test_deploy_state_app_step_rejects_different_abi_hash(
+    registry: DeploymentRegistry,
+    linera_client: MagicMock,
+    query_client: MagicMock,
+    tmp_path: Path,
+) -> None:
+    family = AppFamily.create("ams", "local")
+    business = BusinessAppDeployment.create(
+        name="ams-v1",
+        version=1,
+        network="local",
+        module_id="module-biz",
+        application_id="app-biz",
+        creator_chain_id="chain1",
+        contract_bytecode_path="/tmp/c.wasm",
+        service_bytecode_path="/tmp/s.wasm",
+        contract_bytecode_hash="sha256:a",
+        service_bytecode_hash="sha256:b",
+    )
+    state = StateAppDeployment.create(
+        name="ams-state-v1",
+        version=1,
+        network="local",
+        module_id="module-state",
+        application_id="app-state",
+        creator_chain_id="chain1",
+        contract_bytecode_path="/tmp/sc.wasm",
+        service_bytecode_path="/tmp/ss.wasm",
+        contract_bytecode_hash="sha256:c",
+        service_bytecode_hash="sha256:d",
+        business_application_id="app-biz",
+        abi_source_hash="sha256:abi-old",
+    )
+    family.add_version(1, "ams-v1", ["ams-state-v1"], status="active")
+    registry.save_deployment(business)
+    registry.save_deployment(state)
+    registry.save_family(family)
+
+    contract = _write_file(tmp_path / "state_contract.wasm")
+    service = _write_file(tmp_path / "state_service.wasm")
+
+    from linest.errors import DeploymentError
+
+    step = DeployStateAppStep(
+        family=family,
+        version=1,
+        contract_bytecode_path=contract,
+        service_bytecode_path=service,
+        business_app_version=1,
+        operator="operator1",
+        abi_source_hash="sha256:abi-new",
+    )
+    with pytest.raises(DeploymentError, match="different identity"):
+        step.execute(registry, linera_client, query_client)
 
 
 def test_append_state_step_executes_mutation(

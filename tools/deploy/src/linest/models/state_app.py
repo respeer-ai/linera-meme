@@ -13,6 +13,7 @@ class StateAppDeployment(Deployment):
     """A deployed typed state application."""
 
     business_application_id: str
+    abi_source_hash: str | None = None
 
     def __post_init__(self) -> None:
         if self.app_type != "state":
@@ -24,6 +25,8 @@ class StateAppDeployment(Deployment):
         """Serialize the state app deployment to a dictionary."""
         data = super().to_dict()
         data["business_application_id"] = self.business_application_id
+        if self.abi_source_hash is not None:
+            data["abi_source_hash"] = self.abi_source_hash
         return data
 
     @classmethod
@@ -44,6 +47,7 @@ class StateAppDeployment(Deployment):
             service_bytecode_hash=base.service_bytecode_hash,
             instantiation_argument=base.instantiation_argument,
             business_application_id=data["business_application_id"],
+            abi_source_hash=data.get("abi_source_hash"),
         )
 
     @classmethod
@@ -61,6 +65,7 @@ class StateAppDeployment(Deployment):
         service_bytecode_hash: str,
         business_application_id: str,
         instantiation_argument: dict[str, Any] | None = None,
+        abi_source_hash: str | None = None,
     ) -> "StateAppDeployment":
         """Create a new state app deployment record."""
         return cls(
@@ -77,4 +82,5 @@ class StateAppDeployment(Deployment):
             service_bytecode_hash=service_bytecode_hash,
             instantiation_argument=instantiation_argument or {},
             business_application_id=business_application_id,
+            abi_source_hash=abi_source_hash,
         )

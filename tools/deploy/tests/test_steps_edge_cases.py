@@ -171,7 +171,7 @@ def test_deploy_state_app_step_raises_on_different_bytecode(
         operator="operator1",
     )
 
-    with pytest.raises(DeploymentError, match="different bytecode"):
+    with pytest.raises(DeploymentError, match="different identity"):
         step.execute(registry, linera_client, query_client)
 
 

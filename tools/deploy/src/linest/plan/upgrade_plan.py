@@ -26,6 +26,7 @@ class UpgradePlan:
         state_service_bytecode_path: str | None,
         operator: str,
         creator_chain_id: str | None = None,
+        state_abi_source_hash: str | None = None,
     ) -> None:
         self.family = family
         self.target_version = target_version
@@ -35,6 +36,7 @@ class UpgradePlan:
         self.state_service_bytecode_path = state_service_bytecode_path
         self.operator = operator
         self.creator_chain_id = creator_chain_id
+        self.state_abi_source_hash = state_abi_source_hash
         self.steps: list[Step] = []
 
         self._build()
@@ -76,6 +78,7 @@ class UpgradePlan:
                     business_app_version=self.target_version,
                     operator=self.operator,
                     creator_chain_id=self.creator_chain_id,
+                    abi_source_hash=self.state_abi_source_hash,
                 )
             )
             self.steps.append(
@@ -114,6 +117,7 @@ class UpgradePlan:
                 business_app_version=1,
                 operator=self.operator,
                 creator_chain_id=self.creator_chain_id,
+                abi_source_hash=self.state_abi_source_hash,
             )
         )
         self.steps.append(

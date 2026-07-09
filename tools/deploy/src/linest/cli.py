@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from linest.bytecode import compute_hash
 from linest.client.linera_client import LineraClient
 from linest.client.query_client import QueryClient
 from linest.command.deploy_command import DeployCommand
@@ -57,6 +58,11 @@ def _build_parser() -> argparse.ArgumentParser:
     deploy_parser.add_argument(
         "--state-service-bytecode",
         help="Path to state app service bytecode",
+    )
+    deploy_parser.add_argument(
+        "--state-abi-hash-file",
+        dest="state_abi_hash_file",
+        help="Path to state app ABI source file used as stable identity",
     )
     deploy_parser.add_argument(
         "--dry-run",
@@ -140,6 +146,10 @@ def _handle_deploy(args: argparse.Namespace) -> int:
         query_client=query_client,
     )
 
+    state_abi_source_hash = None
+    if args.state_abi_hash_file:
+        state_abi_source_hash = compute_hash(args.state_abi_hash_file)
+
     try:
         command.deploy(
             name=args.name,
@@ -148,6 +158,7 @@ def _handle_deploy(args: argparse.Namespace) -> int:
             service_bytecode=args.service_bytecode,
             state_contract_bytecode=args.state_contract_bytecode,
             state_service_bytecode=args.state_service_bytecode,
+            state_abi_source_hash=state_abi_source_hash,
             creator_chain_id=args.creator_chain_id,
             dry_run=args.dry_run,
         )
