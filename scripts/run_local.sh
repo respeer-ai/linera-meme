@@ -972,6 +972,10 @@ function run_maker() {
     owner=$(wallet_owner maker 0)
     chain=$(wallet_chain_id maker 0)
 
+    MAKER_WALLET_OWNER=$owner
+    MAKER_WALLET_CHAIN_ID=$chain
+    export MAKER_WALLET_OWNER MAKER_WALLET_CHAIN_ID
+
     export PATH=$MAKER_BIN_DIR:$PATH
     run_named_service maker-wallet maker 0 40082
 
@@ -1053,6 +1057,37 @@ function run_funder() {
     cd $ROOT_DIR
 }
 
+function print_deployment_summary() {
+    echo -e "\n\n========================================"
+    echo -e "  DEPLOYMENT READY"
+    echo -e "  All services are up; you can now send requests via the web UI."
+    echo -e "========================================"
+    echo -e "Chain and Application IDs:"
+    echo -e "  BLOB_GATEWAY_CHAIN_ID=$BLOB_GATEWAY_CHAIN_ID"
+    echo -e "  BLOB_GATEWAY_APPLICATION_ID=$BLOB_GATEWAY_APPLICATION_ID"
+    echo -e "  AMS_CHAIN_ID=$AMS_CHAIN_ID"
+    echo -e "  AMS_APPLICATION_ID=$AMS_APPLICATION_ID"
+    echo -e "  PROXY_CHAIN_ID=$PROXY_CHAIN_ID"
+    echo -e "  PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID"
+    echo -e "  SWAP_CHAIN_ID=$SWAP_CHAIN_ID"
+    echo -e "  SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID"
+    if [ -n "${MAKER_WALLET_CHAIN_ID:-}" ]; then
+        echo -e "  MAKER_WALLET_CHAIN_ID=$MAKER_WALLET_CHAIN_ID"
+        echo -e "  MAKER_WALLET_OWNER=$MAKER_WALLET_OWNER"
+    fi
+    if [ -n "${USER_WALLET_CHAIN_ID:-}" ]; then
+        echo -e "  USER_WALLET_CHAIN_ID=$USER_WALLET_CHAIN_ID"
+        echo -e "  USER_WALLET_OWNER=$USER_WALLET_OWNER"
+    fi
+    echo -e "----------------------------------------"
+    echo -e "Service URLs:"
+    echo -e "  http://${SUB_DOMAIN}blobgateway.com/api/blobs/query/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID"
+    echo -e "  http://${SUB_DOMAIN}ams.respeer.ai/api/ams/query/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID"
+    echo -e "  http://${SUB_DOMAIN}linerameme.fun/api/proxy/query/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID"
+    echo -e "  http://${SUB_DOMAIN}lineraswap.fun/api/swap/query/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID"
+    echo -e "========================================\n"
+}
+
 run_kline
 run_user_wallet
 
@@ -1060,6 +1095,8 @@ if [ "x$RUN_MAKER" = "x1" ]; then
     run_maker
     run_funder
 fi
+
+print_deployment_summary
 
 if [ -t 0 ]; then
     read
