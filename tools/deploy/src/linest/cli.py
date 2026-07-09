@@ -7,6 +7,7 @@ from pathlib import Path
 
 from linest.client.linera_client import LineraClient
 from linest.client.query_client import QueryClient
+from linest.command.bootstrap_command import BootstrapCommand
 from linest.command.deploy_command import DeployCommand
 from linest.config import NetworkConfig
 from linest.errors import LinestError
@@ -31,6 +32,48 @@ def _build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    bootstrap_parser = subparsers.add_parser(
+        "bootstrap", help="Create shared wallets and start services"
+    )
+    bootstrap_parser.add_argument(
+        "--faucet-url",
+        dest="faucet_url",
+        required=True,
+        help="Faucet URL for wallet creation",
+    )
+    bootstrap_parser.add_argument(
+        "--wallet-dir",
+        dest="wallet_dir",
+        required=True,
+        help="Root directory for all wallets",
+    )
+    bootstrap_parser.add_argument(
+        "--operator-wallet-dir",
+        dest="operator_wallet_dir",
+        required=True,
+        help="Directory for the operator wallet",
+    )
+    bootstrap_parser.add_argument(
+        "--query-wallet-dir",
+        dest="query_wallet_dir",
+        required=True,
+        help="Directory for the query service wallet",
+    )
+    bootstrap_parser.add_argument(
+        "--operator-service-port",
+        dest="operator_service_port",
+        type=int,
+        default=21180,
+        help="Port for the operator wallet service (default: 21180)",
+    )
+    bootstrap_parser.add_argument(
+        "--query-service-port",
+        dest="query_service_port",
+        type=int,
+        default=24080,
+        help="Port for the query service (default: 24080)",
+    )
+
     app_parser = subparsers.add_parser("app", help="Manage business applications")
     app_subparsers = app_parser.add_subparsers(dest="app_command", required=True)
 
@@ -40,7 +83,7 @@ def _build_parser() -> argparse.ArgumentParser:
     deploy_parser.add_argument(
         "--creator-chain-id",
         dest="creator_chain_id",
-        help="Chain ID on which applications are created (defaults to wallet default)",
+        help="Chain ID on which applications are created (defaults to registry)",
     )
     deploy_parser.add_argument(
         "--contract-bytecode",
@@ -69,7 +112,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--ensure-wallet",
         dest="ensure_wallet",
         action="store_true",
-        help="Create the app family wallets if they do not exist",
+        help="Create the app family wallets and chain if they do not exist",
     )
     deploy_parser.add_argument(
         "--faucet-url",
@@ -99,6 +142,36 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     return parser
+
+
+def _handle_bootstrap(args: argparse.Namespace) -> int:
+    base_dir = args.base_dir or NetworkConfig.default_base_dir()
+    config = NetworkConfig(
+        env=args.env,
+        operator="",
+        query_service_url="",
+        wallet_dir=args.wallet_dir,
+        wallet_services={},
+    )
+    linera_client = LineraClient(
+        wallet_dir=args.wallet_dir,
+        app_name="bootstrap",
+    )
+
+    command = BootstrapCommand(
+        config=config,
+        linera_client=linera_client,
+        base_dir=base_dir,
+        env=args.env,
+    )
+    command.bootstrap(
+        faucet_url=args.faucet_url,
+        operator_wallet_dir=Path(args.operator_wallet_dir),
+        query_wallet_dir=Path(args.query_wallet_dir),
+        operator_service_port=args.operator_service_port,
+        query_service_port=args.query_service_port,
+    )
+    return 0
 
 
 def _handle_status(args: argparse.Namespace) -> int:
@@ -191,6 +264,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        if args.command == "bootstrap":
+            return _handle_bootstrap(args)
         if args.command == "app":
             if args.app_command == "deploy":
                 return _handle_deploy(args)

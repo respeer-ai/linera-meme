@@ -10,6 +10,27 @@ from linest.errors import ConfigError
 
 
 @dataclass(frozen=True)
+class WalletPaths:
+    """Paths to a single linera wallet."""
+
+    wallet: Path
+    keystore: Path
+    storage: str
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any], base_dir: Path) -> "WalletPaths":
+        """Build wallet paths from a config dictionary."""
+        wallet = Path(os.path.expanduser(data["wallet"]))
+        if not wallet.is_absolute():
+            wallet = base_dir / wallet
+        keystore = Path(os.path.expanduser(data["keystore"]))
+        if not keystore.is_absolute():
+            keystore = base_dir / keystore
+        storage = data["storage"]
+        return cls(wallet=wallet, keystore=keystore, storage=storage)
+
+
+@dataclass(frozen=True)
 class NetworkConfig:
     """Configuration for deploying to a specific environment."""
 
@@ -18,6 +39,9 @@ class NetworkConfig:
     query_service_url: str
     wallet_dir: str
     wallet_services: dict[str, str]
+    operator_wallet: WalletPaths | None = None
+    query_wallet: WalletPaths | None = None
+    operator_service_url: str | None = None
 
     @classmethod
     def default_base_dir(cls) -> Path:
@@ -37,10 +61,12 @@ class NetworkConfig:
         with config_path.open("r", encoding="utf-8") as f:
             data = json.load(f)
 
-        return cls._from_dict(env, data)
+        return cls._from_dict(env, data, base)
 
     @classmethod
-    def _from_dict(cls, env: str, data: dict[str, Any]) -> "NetworkConfig":
+    def _from_dict(
+        cls, env: str, data: dict[str, Any], base_dir: Path
+    ) -> "NetworkConfig":
         """Validate and create a NetworkConfig from a dictionary."""
         required = {"operator", "query_service_url", "wallet_dir", "wallet_services"}
         missing = required - set(data.keys())
@@ -52,12 +78,25 @@ class NetworkConfig:
             name: url for name, url in data.get("wallet_services", {}).items()
         }
 
+        operator_wallet = None
+        if "operator_wallet" in data:
+            operator_wallet = WalletPaths.from_dict(
+                data["operator_wallet"], base_dir
+            )
+
+        query_wallet = None
+        if "query_wallet" in data:
+            query_wallet = WalletPaths.from_dict(data["query_wallet"], base_dir)
+
         return cls(
             env=env,
             operator=data["operator"],
             query_service_url=data["query_service_url"],
             wallet_dir=wallet_dir,
             wallet_services=wallet_services,
+            operator_wallet=operator_wallet,
+            query_wallet=query_wallet,
+            operator_service_url=data.get("operator_service_url"),
         )
 
     def wallet_service_url(self, app_name: str) -> str:
