@@ -618,8 +618,7 @@ LINEST_BASE_DIR="$OUTPUT_DIR/linest-registry"
 rm -rf "$LINEST_BASE_DIR"
 mkdir -p "$LINEST_BASE_DIR"
 
-run_linest "linest_bootstrap" \
-    "$LINEST_BIN" \
+env $(linera_env_args) "$LINEST_BIN" \
     --base-dir "$LINEST_BASE_DIR" \
     --env local \
     bootstrap \
@@ -628,7 +627,7 @@ run_linest "linest_bootstrap" \
     --operator-wallet-dir "$WALLET_DIR/operator/0" \
     --query-wallet-dir "$WALLET_DIR/query/0" \
     --operator-service-port 21180 \
-    --query-service-port 24080
+    --query-service-port 24080 > "$RUN_LOCAL_LOG_DIR/linest_bootstrap.log" 2>&1 &
 
 wait_query_service_ready
 import_query_chain "$BLOB_GATEWAY_QUERY_OWNER" "$BLOB_GATEWAY_CHAIN_ID" blob-gateway

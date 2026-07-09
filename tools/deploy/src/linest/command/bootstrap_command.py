@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import signal
+import time
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +28,8 @@ class BootstrapCommand:
         self.linera_client = linera_client
         self.base_dir = base_dir
         self.env = env
+        self._operator_service: WalletService | None = None
+        self._query_service: WalletService | None = None
 
     def bootstrap(
         self,
@@ -43,16 +47,16 @@ class BootstrapCommand:
         self._ensure_wallet(query_paths, faucet_url)
 
         log_dir = self.base_dir / "logs"
-        operator_service = WalletService(
+        self._operator_service = WalletService(
             wallet_path=operator_paths.wallet,
             keystore_path=operator_paths.keystore,
             storage_path=operator_paths.storage,
             port=operator_service_port,
             log_file=log_dir / "operator_wallet_service.log",
         )
-        operator_service_url = operator_service.start()
+        operator_service_url = self._operator_service.start()
 
-        query_service = WalletService(
+        self._query_service = WalletService(
             wallet_path=query_paths.wallet,
             keystore_path=query_paths.keystore,
             storage_path=query_paths.storage,
@@ -62,7 +66,7 @@ class BootstrapCommand:
             },
             log_file=log_dir / "query_service.log",
         )
-        query_service_url = query_service.start()
+        query_service_url = self._query_service.start()
 
         self._write_config(
             operator_owner=operator_owner,
@@ -71,6 +75,26 @@ class BootstrapCommand:
             query_paths=query_paths,
             query_service_url=query_service_url,
         )
+
+    def keep_alive(self) -> None:
+        """Block until a termination signal is received."""
+
+        def _shutdown(signum: int, frame: Any) -> None:
+            self._stop_services()
+            raise SystemExit(0)
+
+        signal.signal(signal.SIGTERM, _shutdown)
+        signal.signal(signal.SIGINT, _shutdown)
+
+        while True:
+            time.sleep(1)
+
+    def _stop_services(self) -> None:
+        """Stop the services started by bootstrap."""
+        if self._operator_service is not None:
+            self._operator_service.stop()
+        if self._query_service is not None:
+            self._query_service.stop()
 
     def _ensure_wallet(
         self,

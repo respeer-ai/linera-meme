@@ -197,6 +197,7 @@ def _handle_bootstrap(args: argparse.Namespace) -> int:
         operator_service_port=args.operator_service_port,
         query_service_port=args.query_service_port,
     )
+    command.keep_alive()
     return 0
 
 
@@ -281,8 +282,11 @@ def _handle_status(args: argparse.Namespace) -> int:
 def _handle_deploy(args: argparse.Namespace) -> int:
     config = NetworkConfig.load(args.env, base_dir=args.base_dir)
     registry = DeploymentRegistry(config.deployments_dir(args.base_dir))
+    wallet_services = dict(config.wallet_services)
+    if config.operator_service_url is not None:
+        wallet_services[args.name] = config.operator_service_url
     linera_client = LineraClient(
-        config.wallet_dir, args.name, wallet_services=config.wallet_services
+        config.wallet_dir, args.name, wallet_services=wallet_services
     )
     query_client = QueryClient(config.query_service_url)
 
