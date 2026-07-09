@@ -110,40 +110,6 @@ class DeploymentRegistry:
                 continue
         return families
 
-    def chain_wallets_path(self) -> Path:
-        """Return the registry path for chain-to-wallet mappings."""
-        return self.deployments_dir / "chain_wallets.json"
-
-    def save_chain_wallet(
-        self,
-        chain_id: str,
-        wallet_dir: Path,
-    ) -> None:
-        """Record that ``chain_id`` can be controlled from ``wallet_dir``."""
-        path = self.chain_wallets_path()
-        mapping = self._load_chain_wallets(path)
-        relative = str(wallet_dir)
-        if chain_id not in mapping:
-            mapping[chain_id] = []
-        if relative not in mapping[chain_id]:
-            mapping[chain_id].append(relative)
-        self._atomic_write(path, mapping)
-
-    def load_chain_wallets(self, chain_id: str) -> list[Path]:
-        """Return all recorded wallet directories for ``chain_id``."""
-        path = self.chain_wallets_path()
-        mapping = self._load_chain_wallets(path)
-        return [Path(entry) for entry in mapping.get(chain_id, [])]
-
-    def _load_chain_wallets(self, path: Path) -> dict[str, list[str]]:
-        if not path.exists():
-            return {}
-        with path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-        if not isinstance(data, dict):
-            return {}
-        return {k: v for k, v in data.items() if isinstance(v, list)}
-
     def _atomic_write(self, path: Path, data: dict[str, Any]) -> None:
         """Write data atomically with a temporary backup."""
         backup_path = path.with_suffix(".json.bak")

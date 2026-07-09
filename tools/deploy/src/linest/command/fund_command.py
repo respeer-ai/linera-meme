@@ -20,7 +20,6 @@ class FundCommand:
     _TRANSFER_FEE_BUFFER: float = 0.001
     _FUNDING_COOLDOWN_SECONDS: float = 60.0
     _FUNDING_COOLDOWN_INTERVAL: float = 2.0
-    _MAX_OWNER_INDEX: int = 10
 
     def __init__(
         self,
@@ -35,7 +34,6 @@ class FundCommand:
         self.linera_client = linera_client
         self.base_dir = base_dir
         self.domain_registry = domain_registry
-        self._owner_paths_cache: dict[str, WalletPaths] = {}
 
     def fund_chains(
         self,
@@ -62,15 +60,15 @@ class FundCommand:
             assert faucet_url is not None
             self._ensure_funder_exists(faucet_url)
 
-        target_chains = self._collect_target_chain_ids()
-        if not target_chains:
+        targets = self._collect_targets()
+        if not targets:
             print("No target chains found in registry; nothing to fund.", flush=True)
             return
 
         if source_wallet_dir is not None:
-            self._fund_from_wallet(source_paths, target_chains, min_balance)
+            self._fund_from_wallet(source_paths, targets, min_balance)
         else:
-            self._fund_from_faucet(faucet_url, target_chains, min_balance)
+            self._fund_from_faucet(faucet_url, targets, min_balance)
 
     def _validate_source_wallet(self, source_paths: WalletPaths) -> None:
         """Raise an error if the provided source wallet does not exist."""
@@ -109,37 +107,56 @@ class FundCommand:
         )
         return pool.clean_spent()
 
-    def _collect_target_chain_ids(self) -> set[str]:
-        """Return all chain IDs that should be funded from the registries."""
-        chain_ids: set[str] = set()
+    def _collect_targets(self) -> dict[str, Path | None]:
+        """Return chain_id -> wallet_dir for all fundable chains.
+
+        The wallet dir is taken from the app family's persisted
+        ``creator_chain_wallet_dir``. Chains without a recorded wallet dir
+        cannot be funded and are skipped.
+        """
+        targets: dict[str, Path | None] = {}
         for family in self.registry.list_families():
+            wallet_dir = self._resolve_wallet_dir(
+                family.creator_chain_wallet_dir
+            )
             if family.creator_chain_id:
-                chain_ids.add(family.creator_chain_id)
+                targets[family.creator_chain_id] = wallet_dir
             for version_record in family.versions.values():
-                chain_ids.update(
-                    self._deployment_chain_ids(version_record.business_app)
+                self._add_deployment_target(
+                    targets, version_record.business_app, wallet_dir
                 )
                 for state_app_name in version_record.state_apps:
-                    chain_ids.update(self._deployment_chain_ids(state_app_name))
-        if self.domain_registry is not None:
-            for entry in self.domain_registry.load().values():
-                chain_id = entry.get("chain_id")
-                if chain_id:
-                    chain_ids.add(chain_id)
-        return chain_ids
+                    self._add_deployment_target(
+                        targets, state_app_name, wallet_dir
+                    )
+        return targets
 
-    def _deployment_chain_ids(self, deployment_name: str) -> set[str]:
-        """Return the creator chain ID for a concrete deployment, if known."""
+    def _resolve_wallet_dir(self, stored: str | None) -> Path | None:
+        """Return an absolute wallet dir from a persisted path."""
+        if stored is None:
+            return None
+        path = Path(stored)
+        if path.is_absolute():
+            return path
+        return Path(self.config.wallet_dir) / path
+
+    def _add_deployment_target(
+        self,
+        targets: dict[str, Path | None],
+        deployment_name: str,
+        wallet_dir: Path | None,
+    ) -> None:
+        """Add a concrete deployment's creator chain to the funding map."""
         try:
             deployment = self.registry.load_deployment(deployment_name)
-            return {deployment.creator_chain_id}
         except (DeploymentError, FileNotFoundError):
-            return set()
+            return
+        targets[deployment.creator_chain_id] = wallet_dir
 
     def _fund_from_wallet(
         self,
         source_paths: WalletPaths,
-        target_chains: set[str],
+        targets: dict[str, Path | None],
         min_balance: float,
     ) -> None:
         """Fund target chains from an existing source wallet."""
@@ -148,18 +165,26 @@ class FundCommand:
             source_paths.keystore,
             source_paths.storage,
         )
-        for chain_id in sorted(target_chains):
+        for chain_id in sorted(targets):
+            wallet_dir = targets[chain_id]
+            if wallet_dir is None:
+                print(
+                    f"Skipping {chain_id}: no recorded wallet dir",
+                    flush=True,
+                )
+                continue
             self._ensure_funded(
                 source_paths,
                 source_chain_id,
                 chain_id,
+                wallet_dir,
                 min_balance,
             )
 
     def _fund_from_faucet(
         self,
         faucet_url: str,
-        target_chains: set[str],
+        targets: dict[str, Path | None],
         min_balance: float,
     ) -> None:
         """Fund target chains by claiming funder chains on demand."""
@@ -169,17 +194,27 @@ class FundCommand:
             faucet_url=faucet_url,
             linera_client=self.linera_client,
         )
-        for chain_id in sorted(target_chains):
-            self._ensure_funded_from_pool(pool, chain_id, min_balance)
+        for chain_id in sorted(targets):
+            wallet_dir = targets[chain_id]
+            if wallet_dir is None:
+                print(
+                    f"Skipping {chain_id}: no recorded wallet dir",
+                    flush=True,
+                )
+                continue
+            self._ensure_funded_from_pool(
+                pool, chain_id, wallet_dir, min_balance
+            )
 
     def _ensure_funded_from_pool(
         self,
         pool: FunderPool,
         target_chain_id: str,
+        wallet_dir: Path,
         min_balance: float,
     ) -> None:
         """Top up a single target chain using on-demand funder claims."""
-        target_paths = self._target_wallet_paths(target_chain_id)
+        target_paths = WalletPaths.from_wallet_dir(wallet_dir)
         while True:
             current_balance = self.linera_client.query_balance(
                 target_paths.wallet,
@@ -236,13 +271,14 @@ class FundCommand:
         source_paths: WalletPaths,
         source_chain_id: str,
         target_chain_id: str,
+        wallet_dir: Path,
         min_balance: float,
     ) -> None:
         """Top up a single target chain from a reusable source wallet."""
         if target_chain_id == source_chain_id:
             return
 
-        target_paths = self._target_wallet_paths(target_chain_id)
+        target_paths = WalletPaths.from_wallet_dir(wallet_dir)
         current_balance = self.linera_client.query_balance(
             target_paths.wallet,
             target_paths.keystore,
@@ -319,70 +355,4 @@ class FundCommand:
         )
         return False
 
-    def _target_wallet_paths(self, chain_id: str) -> "WalletPaths":
-        """Return wallet paths that own the target chain.
 
-        Ownership is required to process the inbox. We first look up the
-        chain-to-wallet mapping recorded at creation time, then fall back to
-        probing candidate wallets.
-        """
-        if chain_id in self._owner_paths_cache:
-            return self._owner_paths_cache[chain_id]
-
-        for wallet_dir in self._registry_wallet_dirs_for(chain_id):
-            paths = WalletPaths.from_wallet_dir(wallet_dir)
-            try:
-                self.linera_client.query_balance(
-                    paths.wallet,
-                    paths.keystore,
-                    paths.storage,
-                    chain_id,
-                )
-                self._owner_paths_cache[chain_id] = paths
-                return paths
-            except Exception:
-                continue
-
-        for wallet_dir in self._candidate_wallet_dirs():
-            paths = WalletPaths.from_wallet_dir(wallet_dir)
-            try:
-                self.linera_client.process_inbox(
-                    paths.wallet,
-                    paths.keystore,
-                    paths.storage,
-                    chain_id,
-                )
-                self.linera_client.query_balance(
-                    paths.wallet,
-                    paths.keystore,
-                    paths.storage,
-                    chain_id,
-                )
-                self._owner_paths_cache[chain_id] = paths
-                return paths
-            except Exception:
-                continue
-        raise DeploymentError(
-            f"No owner wallet found for target chain {chain_id}"
-        )
-
-    def _registry_wallet_dirs_for(self, chain_id: str) -> list[Path]:
-        """Return wallet dirs recorded as owners of ``chain_id``."""
-        relative_dirs = self.registry.load_chain_wallets(chain_id)
-        return [
-            dir_path if dir_path.is_absolute() else Path(self.config.wallet_dir) / dir_path
-            for dir_path in relative_dirs
-        ]
-
-    def _candidate_wallet_dirs(self) -> list[Path]:
-        """Return all wallet directories that may own a target chain."""
-        base = Path(self.config.wallet_dir)
-        dirs: list[Path] = []
-        for family in self.registry.list_families():
-            dirs.append(base / family.name / "creator")
-            for index in range(self._MAX_OWNER_INDEX + 1):
-                dirs.append(base / family.name / str(index))
-        if self.domain_registry is not None:
-            for name in self.domain_registry.load().keys():
-                dirs.append(base / name / "0")
-        return dirs

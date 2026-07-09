@@ -53,6 +53,7 @@ class AppFamily:
     versions: dict[int, VersionRecord] = field(default_factory=dict)
     creator_owner: str | None = None
     creator_chain_id: str | None = None
+    creator_chain_wallet_dir: str | None = None
     owners: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -70,6 +71,8 @@ class AppFamily:
             data["creator_owner"] = self.creator_owner
         if self.creator_chain_id is not None:
             data["creator_chain_id"] = self.creator_chain_id
+        if self.creator_chain_wallet_dir is not None:
+            data["creator_chain_wallet_dir"] = self.creator_chain_wallet_dir
         if self.owners:
             data["owners"] = list(self.owners)
         return data
@@ -88,6 +91,7 @@ class AppFamily:
             versions=versions,
             creator_owner=data.get("creator_owner"),
             creator_chain_id=data.get("creator_chain_id"),
+            creator_chain_wallet_dir=data.get("creator_chain_wallet_dir"),
             owners=list(data.get("owners", [])),
         )
 

@@ -90,6 +90,7 @@ def test_fund_chains_transfers_for_underfunded_chain(
 ) -> None:
     family = registry.load_family("ams")
     family.creator_chain_id = "ams-creator-chain"
+    family.creator_chain_wallet_dir = str(tmp_path / "wallets" / "ams" / "creator")
     registry.save_family(family)
 
     balances = {"ams-creator-chain": 10.0}
@@ -143,6 +144,7 @@ def test_fund_chains_claims_multiple_funders_when_needed(
 ) -> None:
     family = registry.load_family("ams")
     family.creator_chain_id = "ams-creator-chain"
+    family.creator_chain_wallet_dir = str(tmp_path / "wallets" / "ams" / "creator")
     registry.save_family(family)
 
     target_balance = 10.0
@@ -225,41 +227,4 @@ def test_clean_funders_removes_spent_wallets(
     assert not spent_dir.exists()
 
 
-def test_fund_chains_includes_domain_registry_chains(
-    tmp_path: Path,
-    command: FundCommand,
-    registry: DeploymentRegistry,
-    linera_client: MagicMock,
-) -> None:
-    from linest.domain_registry import DomainRegistry
 
-    domain_registry = DomainRegistry(tmp_path / "domain.json")
-    domain_registry.register(
-        name="swap",
-        chain_id="swap-chain",
-        application_id="swap-app",
-    )
-    command.domain_registry = domain_registry
-
-    balances = {"swap-chain": 10.0}
-
-    def fake_query_balance(wallet_path, keystore_path, storage_path, chain_id):
-        return balances.get(chain_id, 0.0)
-
-    def fake_transfer(
-        wallet_path, keystore_path, storage_path, from_chain, to_chain, amount
-    ):
-        if to_chain in balances:
-            balances[to_chain] += float(amount)
-
-    linera_client.query_balance.side_effect = fake_query_balance
-    linera_client.transfer.side_effect = fake_transfer
-
-    source_dir = tmp_path / "funder"
-    _create_source_wallet(source_dir)
-    command.fund_chains(min_balance=100.0, source_wallet_dir=source_dir)
-
-    target_chains = {
-        call.args[4] for call in linera_client.transfer.call_args_list
-    }
-    assert "swap-chain" in target_chains
