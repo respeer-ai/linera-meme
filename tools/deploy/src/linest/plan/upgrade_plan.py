@@ -14,7 +14,7 @@ from linest.steps.step import Step
 
 
 class UpgradePlan:
-    """A sequence of steps to reach a target business app version."""
+    """A sequence of steps to reach a target business application version."""
 
     def __init__(
         self,
@@ -26,7 +26,6 @@ class UpgradePlan:
         state_service_bytecode_path: str | None,
         operator: str,
         creator_chain_id: str | None = None,
-        state_version: int | None = None,
     ) -> None:
         self.family = family
         self.target_version = target_version
@@ -36,7 +35,6 @@ class UpgradePlan:
         self.state_service_bytecode_path = state_service_bytecode_path
         self.operator = operator
         self.creator_chain_id = creator_chain_id
-        self.state_version = state_version
         self.steps: list[Step] = []
 
         self._build()
@@ -68,7 +66,7 @@ class UpgradePlan:
             )
 
         if self._has_new_state_app():
-            new_state_version = self._resolve_state_version(previous_record.state_apps)
+            new_state_version = self._new_state_version(previous_record.state_apps)
             self.steps.append(
                 DeployStateAppStep(
                     family=self.family,
@@ -107,11 +105,10 @@ class UpgradePlan:
             )
 
         self._add_deploy_business_app_step()
-        first_state_version = self.state_version or 1
         self.steps.append(
             DeployStateAppStep(
                 family=self.family,
-                version=first_state_version,
+                version=1,
                 contract_bytecode_path=self.state_contract_bytecode_path,
                 service_bytecode_path=self.state_service_bytecode_path,
                 business_app_version=1,
@@ -123,7 +120,7 @@ class UpgradePlan:
             AppendStateStep(
                 family=self.family,
                 business_app_version=1,
-                state_app_name=f"{self.family.name}-state-v{first_state_version}",
+                state_app_name=f"{self.family.name}-state-v1",
             )
         )
 
@@ -158,23 +155,14 @@ class UpgradePlan:
     def _has_new_state_app(self) -> bool:
         return self.target_version > 1 and self._has_state_bytecode()
 
-    def _resolve_state_version(self, existing_state_apps: list[str]) -> int:
-        """Return the version to use for a new state app deployment."""
+    @staticmethod
+    def _new_state_version(existing_state_apps: list[str]) -> int:
         if not existing_state_apps:
-            return self.state_version or 1
-
+            return 1
+        # State app names are like "ams-state-v1".
         latest = max(
             int(name.split("-v")[-1])
             for name in existing_state_apps
             if "-v" in name
         )
-
-        if self.state_version is not None:
-            if self.state_version <= latest:
-                raise UpgradeError(
-                    f"state_version {self.state_version} must be greater than "
-                    f"the latest existing state version {latest}"
-                )
-            return self.state_version
-
         return latest + 1

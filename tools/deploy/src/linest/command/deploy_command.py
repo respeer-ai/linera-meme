@@ -38,7 +38,6 @@ class DeployCommand:
         state_service_bytecode: str | None,
         dry_run: bool,
         creator_chain_id: str | None = None,
-        state_version: int | None = None,
     ) -> None:
         """Deploy or upgrade the named application to the target version."""
         family = self.registry.load_family(name)
@@ -52,7 +51,6 @@ class DeployCommand:
             state_service_bytecode_path=state_service_bytecode,
             operator=self.config.operator,
             creator_chain_id=creator_chain_id,
-            state_version=state_version,
         )
 
         if dry_run:

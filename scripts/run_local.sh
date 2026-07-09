@@ -707,7 +707,6 @@ BLOB_GATEWAY_APPLICATION_ID=$(create_application blob-gateway $BLOB_GATEWAY_MODU
 SWAP_APPLICATION_ID=$(create_application swap $SWAP_MODULE_ID "{\"pool_bytecode_id\": \"$POOL_MODULE_ID\"}" '{}' $SWAP_CHAIN_ID)
 PROXY_APPLICATION_ID=$(create_application proxy $PROXY_MODULE_ID "{\"meme_bytecode_id\": \"$MEME_MODULE_ID\", \"operators\": [], \"swap_application_id\": \"$SWAP_APPLICATION_ID\"}" '' $PROXY_CHAIN_ID)
 
-# Derive AMS deployment versions from the corresponding crate versions.
 function crate_version_number() {
     local crate_dir=$1
     local semver
@@ -718,7 +717,6 @@ function crate_version_number() {
 }
 
 AMS_APP_VERSION=$(crate_version_number ams/app)
-AMS_STATE_VERSION=$(crate_version_number ams/state)
 
 # Deploy AMS business app and typed state app via linest.
 run_linest "linest_deploy_ams" \
@@ -728,7 +726,6 @@ run_linest "linest_deploy_ams" \
     app deploy \
     --name ams \
     --version "$AMS_APP_VERSION" \
-    --state-version "$AMS_STATE_VERSION" \
     --creator-chain-id "$AMS_CHAIN_ID" \
     --contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_app_contract.wasm" \
     --service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_app_service.wasm" \
