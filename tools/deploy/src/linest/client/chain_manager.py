@@ -10,6 +10,7 @@ from linest.client.linera_client import LineraClient
 from linest.config import WalletPaths
 from linest.errors import DeploymentError
 from linest.models.app_family import AppFamily
+from linest.registry import DeploymentRegistry
 
 
 class MultiOwnerChainManager:
@@ -28,10 +29,12 @@ class MultiOwnerChainManager:
         base_dir: str | Path | None = None,
         env: str | None = None,
         faucet_url: str | None = None,
+        registry: DeploymentRegistry | None = None,
     ) -> None:
         self.wallet_dir = Path(wallet_dir)
         self.app_name = app_name
         self.linera_client = linera_client
+        self.registry = registry
         self.funder_pool: FunderPool | None = None
         if base_dir is not None and env is not None and faucet_url is not None:
             self.funder_pool = FunderPool(
@@ -94,6 +97,7 @@ class MultiOwnerChainManager:
             owners=[creator_owner, *owners],
         )
         self._assign_chain_to_owners(chain_id, [creator_owner, *owners])
+        self._record_chain_wallets(chain_id)
         return chain_id
 
     def _ensure_creator_chain_balance(
@@ -193,6 +197,20 @@ class MultiOwnerChainManager:
                 owner=owner,
                 chain_id=chain_id,
             )
+
+    def _record_chain_wallets(self, chain_id: str) -> None:
+        """Persist the wallet directories that own the new chain."""
+        if self.registry is None:
+            return
+        wallet_dirs = [
+            self.wallet_dir / self.app_name / "creator",
+        ]
+        index = 0
+        while (self.wallet_dir / self.app_name / str(index)).exists():
+            wallet_dirs.append(self.wallet_dir / self.app_name / str(index))
+            index += 1
+        for wallet_dir in wallet_dirs:
+            self.registry.save_chain_wallet(chain_id, wallet_dir)
 
     def _creator_wallet_paths(self) -> tuple[Path, Path, str]:
         return self._wallet_paths("creator")

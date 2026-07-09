@@ -322,15 +322,28 @@ class FundCommand:
     def _target_wallet_paths(self, chain_id: str) -> "WalletPaths":
         """Return wallet paths that own the target chain.
 
-        Ownership is required to process the inbox, so we probe candidate
-        wallets by calling ``process-inbox <chain_id>`` and fall back to
-        ``query-balance`` for compatibility.
+        Ownership is required to process the inbox. We first look up the
+        chain-to-wallet mapping recorded at creation time, then fall back to
+        probing candidate wallets.
         """
         if chain_id in self._owner_paths_cache:
             return self._owner_paths_cache[chain_id]
 
-        candidate_dirs = self._candidate_wallet_dirs()
-        for wallet_dir in candidate_dirs:
+        for wallet_dir in self._registry_wallet_dirs_for(chain_id):
+            paths = WalletPaths.from_wallet_dir(wallet_dir)
+            try:
+                self.linera_client.query_balance(
+                    paths.wallet,
+                    paths.keystore,
+                    paths.storage,
+                    chain_id,
+                )
+                self._owner_paths_cache[chain_id] = paths
+                return paths
+            except Exception:
+                continue
+
+        for wallet_dir in self._candidate_wallet_dirs():
             paths = WalletPaths.from_wallet_dir(wallet_dir)
             try:
                 self.linera_client.process_inbox(
@@ -352,6 +365,14 @@ class FundCommand:
         raise DeploymentError(
             f"No owner wallet found for target chain {chain_id}"
         )
+
+    def _registry_wallet_dirs_for(self, chain_id: str) -> list[Path]:
+        """Return wallet dirs recorded as owners of ``chain_id``."""
+        relative_dirs = self.registry.load_chain_wallets(chain_id)
+        return [
+            dir_path if dir_path.is_absolute() else Path(self.config.wallet_dir) / dir_path
+            for dir_path in relative_dirs
+        ]
 
     def _candidate_wallet_dirs(self) -> list[Path]:
         """Return all wallet directories that may own a target chain."""

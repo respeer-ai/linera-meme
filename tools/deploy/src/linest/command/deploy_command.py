@@ -73,6 +73,7 @@ class DeployCommand:
                 base_dir=self.base_dir,
                 env=self.config.env,
                 faucet_url=faucet_url,
+                registry=self.registry,
             ).ensure_chain(
                 family=family,
                 creator_owner=creator_owner,
