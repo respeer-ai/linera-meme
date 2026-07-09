@@ -14,6 +14,7 @@ from linest.config import NetworkConfig
 from linest.domain_registry import DomainRegistry
 from linest.errors import LinestError
 from linest.registry import DeploymentRegistry
+from linest.version import read_crate_version
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -81,7 +82,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
     deploy_parser = app_subparsers.add_parser("deploy", help="Deploy or upgrade an app")
     deploy_parser.add_argument("--name", required=True, help="Application family name")
-    deploy_parser.add_argument("--version", type=int, required=True, help="Target version")
+    deploy_parser.add_argument(
+        "--version",
+        type=int,
+        help="Target version (defaults to the app crate version from --repo-dir)",
+    )
     deploy_parser.add_argument(
         "--creator-chain-id",
         dest="creator_chain_id",
@@ -280,6 +285,10 @@ def _handle_status(args: argparse.Namespace) -> int:
 
 
 def _handle_deploy(args: argparse.Namespace) -> int:
+    version = args.version
+    if version is None:
+        version = read_crate_version(args.repo_dir, args.name)
+
     config = NetworkConfig.load(args.env, base_dir=args.base_dir)
     registry = DeploymentRegistry(config.deployments_dir(args.base_dir))
     wallet_services = dict(config.wallet_services)
@@ -300,7 +309,7 @@ def _handle_deploy(args: argparse.Namespace) -> int:
     try:
         command.deploy(
             name=args.name,
-            version=args.version,
+            version=version,
             contract_bytecode=args.contract_bytecode,
             service_bytecode=args.service_bytecode,
             state_contract_bytecode=args.state_contract_bytecode,

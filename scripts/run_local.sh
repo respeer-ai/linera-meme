@@ -705,17 +705,6 @@ run_linest "linest_domain_register_proxy" \
     --chain-id "$PROXY_CHAIN_ID" \
     --application-id "$PROXY_APPLICATION_ID"
 
-function crate_version_number() {
-    local crate_dir=$1
-    local semver
-    semver=$(grep -E '^version\s*=' "$ROOT_DIR/$crate_dir/Cargo.toml" | head -1 | sed -E 's/.*"([0-9]+)\.([0-9]+)\.([0-9]+)".*/\1.\2.\3/')
-    local major minor patch
-    IFS='.' read -r major minor patch <<< "$semver"
-    echo $((major * 1000000 + minor * 1000 + patch))
-}
-
-AMS_APP_VERSION=$(crate_version_number ams/app)
-
 # Deploy AMS business app and typed state app via linest.
 run_linest "linest_deploy_ams" \
     "$LINEST_BIN" \
@@ -724,7 +713,6 @@ run_linest "linest_deploy_ams" \
     --repo-dir "$ROOT_DIR" \
     app deploy \
     --name ams \
-    --version "$AMS_APP_VERSION" \
     --contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_app_contract.wasm" \
     --service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_app_service.wasm" \
     --state-contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_state_contract.wasm" \
