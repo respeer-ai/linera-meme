@@ -117,10 +117,10 @@ class AppFamily:
         if version <= 0:
             raise UpgradeError("Version must be positive")
 
-        if version == 1 and self.current_version == 0:
+        if self.current_version == 0:
             return
 
-        if version != self.current_version + 1:
+        if version <= self.current_version:
             raise UpgradeError(
-                f"Can only upgrade sequentially: current={self.current_version}, target={version}"
+                f"Version must be greater than current: current={self.current_version}, target={version}"
             )

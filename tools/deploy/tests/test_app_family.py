@@ -50,13 +50,13 @@ def test_validate_first_version_ok() -> None:
     family.validate_upgrade_target(1)
 
 
-def test_validate_upgrade_requires_sequential() -> None:
+def test_validate_upgrade_rejects_older_version() -> None:
     family = AppFamily.create("ams", "local")
     family.add_version(1, "ams-v1", [], status="active")
     family.current_version = 1
 
-    with pytest.raises(UpgradeError, match="sequential"):
-        family.validate_upgrade_target(3)
+    with pytest.raises(UpgradeError, match="greater than current"):
+        family.validate_upgrade_target(1)
 
 
 def test_validate_upgrade_next_version_ok() -> None:

@@ -196,7 +196,7 @@ def test_upgrade_recovers_after_handoff(
     linera_client.call_operation.assert_not_called()
 
 
-def test_upgrade_rejects_non_sequential_version(
+def test_upgrade_rejects_older_version(
     registry: DeploymentRegistry,
     config: NetworkConfig,
     linera_client: MagicMock,
@@ -213,7 +213,7 @@ def test_upgrade_rejects_non_sequential_version(
     with pytest.raises(UpgradeError):
         command.deploy(
             name="ams",
-            version=3,
+            version=1,
             contract_bytecode=contract,
             service_bytecode=service,
             state_contract_bytecode=None,

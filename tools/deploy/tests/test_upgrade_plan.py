@@ -43,21 +43,25 @@ def test_first_deploy_plan_has_three_steps() -> None:
     assert isinstance(plan.steps[2], AppendStateStep)
 
 
-def test_upgrade_requires_sequential_version() -> None:
+def test_upgrade_allows_non_sequential_version() -> None:
     family = AppFamily.create("ams", "local")
     family.add_version(1, "ams-v1", ["ams-state-v1"], status="active")
     family.current_version = 1
 
-    with pytest.raises(UpgradeError):
-        UpgradePlan(
-            family=family,
-            target_version=3,
-            contract_bytecode_path="/tmp/ams_app_contract.wasm",
-            service_bytecode_path="/tmp/ams_app_service.wasm",
-            state_contract_bytecode_path=None,
-            state_service_bytecode_path=None,
-            operator="operator1",
-        )
+    plan = UpgradePlan(
+        family=family,
+        target_version=3,
+        contract_bytecode_path="/tmp/ams_app_contract.wasm",
+        service_bytecode_path="/tmp/ams_app_service.wasm",
+        state_contract_bytecode_path=None,
+        state_service_bytecode_path=None,
+        operator="operator1",
+    )
+
+    assert len(plan.steps) == 3
+    assert isinstance(plan.steps[0], DeployBusinessAppStep)
+    assert isinstance(plan.steps[1], AppendStateStep)
+    assert isinstance(plan.steps[2], HandoffStep)
 
 
 def test_same_state_upgrade_plan_has_three_steps() -> None:
