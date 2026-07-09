@@ -614,7 +614,7 @@ process_inboxes proxy
 process_inboxes swap
 
 # Bootstrap shared wallets and services for linest.
-LINEST_BASE_DIR="$OUTPUT_DIR/linest-registry"
+LINEST_BASE_DIR="$OUTPUT_DIR/linest"
 mkdir -p "$LINEST_BASE_DIR"
 
 env $(linera_env_args) "$LINEST_BIN" \
