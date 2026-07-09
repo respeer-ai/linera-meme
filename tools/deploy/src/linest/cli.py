@@ -162,6 +162,10 @@ def _build_parser() -> argparse.ArgumentParser:
     register_parser.add_argument(
         "--application-id", required=True, help="Application ID"
     )
+    register_parser.add_argument(
+        "--wallet-dir",
+        help="Wallet directory that owns the chain (used for funding)",
+    )
 
     generate_parser = domain_subparsers.add_parser(
         "generate", help="Generate domain.ts"
@@ -259,6 +263,7 @@ def _handle_domain_register(args: argparse.Namespace) -> int:
         name=args.name,
         chain_id=args.chain_id,
         application_id=args.application_id,
+        wallet_dir=args.wallet_dir,
     )
     return 0
 

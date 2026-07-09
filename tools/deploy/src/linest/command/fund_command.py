@@ -129,6 +129,14 @@ class FundCommand:
                     self._add_deployment_target(
                         targets, state_app_name, wallet_dir
                     )
+        if self.domain_registry is not None:
+            for name, entry in self.domain_registry.load().items():
+                chain_id = entry.get("chain_id")
+                wallet_dir = self._resolve_wallet_dir(
+                    entry.get("wallet_dir")
+                )
+                if chain_id:
+                    targets[chain_id] = wallet_dir
         return targets
 
     def _resolve_wallet_dir(self, stored: str | None) -> Path | None:

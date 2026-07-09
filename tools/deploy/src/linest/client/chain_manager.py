@@ -113,6 +113,7 @@ class MultiOwnerChainManager:
         if self.funder_pool is None:
             return
 
+        self.linera_client.process_inbox(wallet_path, keystore_path, storage_path, chain_id)
         current_balance = self.linera_client.query_balance(
             wallet_path, keystore_path, storage_path, chain_id
         )

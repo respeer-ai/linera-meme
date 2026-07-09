@@ -24,9 +24,12 @@ class DomainCommand:
         name: str,
         chain_id: str,
         application_id: str,
+        wallet_dir: str | None = None,
     ) -> None:
         """Register an application entry for domain generation."""
-        self.domain_registry.register(name, chain_id, application_id)
+        self.domain_registry.register(
+            name, chain_id, application_id, wallet_dir
+        )
 
     def generate(
         self,
