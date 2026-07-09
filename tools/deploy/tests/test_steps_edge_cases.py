@@ -113,6 +113,7 @@ def test_deploy_state_app_step_is_idempotent(
         service_bytecode_path=service,
         business_app_version=1,
         operator="operator1",
+        abi_source_hash="sha256:abi",
     )
     step.execute(registry, linera_client, query_client)
     result = step.execute(registry, linera_client, query_client)
@@ -122,7 +123,7 @@ def test_deploy_state_app_step_is_idempotent(
     assert linera_client.publish_module.call_count == 1
 
 
-def test_deploy_state_app_step_raises_on_different_bytecode(
+def test_deploy_state_app_step_raises_on_different_abi_hash(
     registry: DeploymentRegistry,
     linera_client: MagicMock,
     query_client: MagicMock,
@@ -153,6 +154,7 @@ def test_deploy_state_app_step_raises_on_different_bytecode(
         contract_bytecode_hash="sha256:old",
         service_bytecode_hash="sha256:old",
         business_application_id="app-biz",
+        abi_source_hash="sha256:abi-old",
     )
     family.add_version(1, "ams-v1", [], status="active")
     registry.save_deployment(business)
@@ -169,6 +171,7 @@ def test_deploy_state_app_step_raises_on_different_bytecode(
         service_bytecode_path=service,
         business_app_version=1,
         operator="operator1",
+        abi_source_hash="sha256:abi-new",
     )
 
     with pytest.raises(DeploymentError, match="different identity"):

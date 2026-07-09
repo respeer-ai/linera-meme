@@ -104,14 +104,10 @@ class DeployStateAppStep(Step):
         )
 
     def _bytecode_matches(self, deployment: StateAppDeployment) -> bool:
-        if self.abi_source_hash is not None:
-            if deployment.abi_source_hash is None:
-                return False
-            return deployment.abi_source_hash == self.abi_source_hash
-
-        return (
-            deployment.contract_bytecode_hash
-            == compute_hash(self.contract_bytecode_path)
-            and deployment.service_bytecode_hash
-            == compute_hash(self.service_bytecode_path)
-        )
+        if self.abi_source_hash is None:
+            raise DeploymentError(
+                "State app deploy requires --state-abi-hash-file"
+            )
+        if deployment.abi_source_hash is None:
+            return False
+        return deployment.abi_source_hash == self.abi_source_hash
