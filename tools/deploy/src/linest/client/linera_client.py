@@ -215,6 +215,7 @@ class LineraClient:
         faucet_url: str,
     ) -> None:
         """Initialize a new wallet from a faucet."""
+        wallet_path.parent.mkdir(parents=True, exist_ok=True)
         self._run_with_wallet(
             wallet_path,
             keystore_path,
