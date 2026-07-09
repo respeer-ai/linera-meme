@@ -59,6 +59,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to state app service bytecode",
     )
     deploy_parser.add_argument(
+        "--state-version",
+        type=int,
+        help="Target version for the state app (defaults to next sequential version)",
+    )
+    deploy_parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show planned actions without executing",
@@ -149,6 +154,7 @@ def _handle_deploy(args: argparse.Namespace) -> int:
             state_contract_bytecode=args.state_contract_bytecode,
             state_service_bytecode=args.state_service_bytecode,
             creator_chain_id=args.creator_chain_id,
+            state_version=args.state_version,
             dry_run=args.dry_run,
         )
     finally:
