@@ -143,7 +143,7 @@ fn build_proxy_register_miner_message() -> ProxyMessage {
 
 fn build_ams_add_application_type_message() -> AmsMessage {
     AmsMessage::AddApplicationType {
-        owner: Account::new(sample_chain_id(0x11), AccountOwner::from([0x22; 32])),
+        origin: Account::new(sample_chain_id(0x11), AccountOwner::from([0x22; 32])),
         application_type: "DeFi".to_owned(),
     }
 }

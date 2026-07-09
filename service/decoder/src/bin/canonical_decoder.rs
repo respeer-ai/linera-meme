@@ -1078,28 +1078,62 @@ fn decode_ams_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resul
                 "application_type": application_type,
             },
         }),
-        AmsOperation::Register { .. } => json!({
+        AmsOperation::Register { metadata } => json!({
             "payload_type": "register",
             "decoder_version": "ams-operation-rust-v1",
             "decoded_payload_json": {
                 "operation_type": "register",
                 "application_id": application_id,
+                "registered_application_id": metadata.application_id.to_string(),
+                "application_type": metadata.application_type,
+                "application_name": metadata.application_name,
             },
         }),
-        AmsOperation::Claim { .. } => json!({
+        AmsOperation::Claim { application_id: claimed_application_id } => json!({
             "payload_type": "claim",
             "decoder_version": "ams-operation-rust-v1",
             "decoded_payload_json": {
                 "operation_type": "claim",
                 "application_id": application_id,
+                "claimed_application_id": claimed_application_id.to_string(),
             },
         }),
-        AmsOperation::Update { .. } => json!({
+        AmsOperation::Update { application_id: updated_application_id, metadata } => json!({
             "payload_type": "update",
             "decoder_version": "ams-operation-rust-v1",
             "decoded_payload_json": {
                 "operation_type": "update",
                 "application_id": application_id,
+                "updated_application_id": updated_application_id.to_string(),
+                "application_type": metadata.application_type,
+                "application_name": metadata.application_name,
+            },
+        }),
+        AmsOperation::AppendState { state_application_id } => json!({
+            "payload_type": "append_state",
+            "decoder_version": "ams-operation-rust-v1",
+            "decoded_payload_json": {
+                "operation_type": "append_state",
+                "application_id": application_id,
+                "state_application_id": state_application_id.to_string(),
+            },
+        }),
+        AmsOperation::Handoff { new_business_application_id } => json!({
+            "payload_type": "handoff",
+            "decoder_version": "ams-operation-rust-v1",
+            "decoded_payload_json": {
+                "operation_type": "handoff",
+                "application_id": application_id,
+                "new_business_application_id": new_business_application_id.to_string(),
+            },
+        }),
+        AmsOperation::SetOperator { new_operator } => json!({
+            "payload_type": "set_operator",
+            "decoder_version": "ams-operation-rust-v1",
+            "decoded_payload_json": {
+                "operation_type": "set_operator",
+                "application_id": application_id,
+                "new_operator": encode_account(new_operator),
             },
         }),
     };
@@ -1132,7 +1166,7 @@ fn decode_ams_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result<
             },
         }),
         AmsMessage::AddApplicationType {
-            owner,
+            origin,
             application_type,
         } => json!({
             "payload_type": "add_application_type",
@@ -1140,12 +1174,12 @@ fn decode_ams_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result<
             "decoded_payload_json": {
                 "message_type": "add_application_type",
                 "application_id": application_id,
-                "owner": encode_account(owner),
+                "origin": encode_account(origin),
                 "application_type": application_type,
             },
         }),
         AmsMessage::Update {
-            owner,
+            origin,
             application_id: updated_application_id,
             metadata,
         } => json!({
@@ -1154,7 +1188,7 @@ fn decode_ams_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result<
             "decoded_payload_json": {
                 "message_type": "update",
                 "application_id": application_id,
-                "owner": encode_account(owner),
+                "origin": encode_account(origin),
                 "updated_application_id": updated_application_id.to_string(),
                 "application_type": metadata.application_type,
                 "application_name": metadata.application_name,
