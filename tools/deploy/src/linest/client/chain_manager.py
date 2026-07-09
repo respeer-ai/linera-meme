@@ -149,7 +149,7 @@ class MultiOwnerChainManager:
         deadline = monotonic() + self._FUNDING_COOLDOWN_SECONDS
         while monotonic() < deadline:
             self.linera_client.process_inbox(
-                wallet_path, keystore_path, storage_path
+                wallet_path, keystore_path, storage_path, chain_id
             )
             balance = self.linera_client.query_balance(
                 wallet_path, keystore_path, storage_path, chain_id

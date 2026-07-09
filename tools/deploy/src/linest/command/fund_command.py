@@ -285,7 +285,7 @@ class FundCommand:
         deadline = monotonic() + self._FUNDING_COOLDOWN_SECONDS
         while monotonic() < deadline:
             self.linera_client.process_inbox(
-                paths.wallet, paths.keystore, paths.storage
+                paths.wallet, paths.keystore, paths.storage, chain_id
             )
             balance = self.linera_client.query_balance(
                 paths.wallet,
