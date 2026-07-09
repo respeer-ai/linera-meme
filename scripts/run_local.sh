@@ -356,6 +356,17 @@ function create_wallets() {
     echo ${owners[@]}
 }
 
+function create_operator_wallet() {
+    wallet_init_clean operator 0 || return 1
+    run_linera_retry "wallet_request_chain operator/0" 3 \
+           --wallet $WALLET_DIR/operator/0/wallet.json \
+           --keystore $WALLET_DIR/operator/0/keystore.json \
+           --storage rocksdb://$WALLET_DIR/operator/0/client.db \
+           wallet request-chain \
+           --faucet $FAUCET_URL || return 1
+    wallet_owner operator 0
+}
+
 # Create wallet for blob gateway
 BLOB_GATEWAY_OWNERS=$(create_wallets blob-gateway)
 
@@ -442,6 +453,9 @@ function wallet_chain_id() {
            wallet show \
            | awk '/^Chain ID:/ {chain=$3} /^Default owner:/ {if ($3 != "No") print chain}'
 }
+
+# Create a dedicated operator wallet used by typed-state apps.
+OPERATOR_OWNER=$(create_operator_wallet)
 
 function assign_chain_to_owner() {
     wallet_name=$1
@@ -632,7 +646,7 @@ LINEST_BASE_DIR="$OUTPUT_DIR/linest-registry"
 mkdir -p "$LINEST_BASE_DIR/networks/local"
 cat > "$LINEST_BASE_DIR/networks/local/config.json" <<EOF
 {
-  "operator": "$AMS_QUERY_OWNER",
+  "operator": "$OPERATOR_OWNER",
   "query_service_url": "http://localhost:24080",
   "wallet_dir": "$WALLET_DIR",
   "wallet_services": {}
