@@ -90,6 +90,26 @@ class DeploymentRegistry:
             if path.stem != ""
         ]
 
+    def list_families(self) -> list[AppFamily]:
+        """Return all app families stored in the registry.
+
+        Registry files that can be parsed as AppFamily are treated as family
+        records; other JSON files (concrete deployments) are skipped.
+        """
+        if not self.deployments_dir.exists():
+            return []
+        families: list[AppFamily] = []
+        for path in sorted(self.deployments_dir.glob("*.json")):
+            try:
+                with path.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+                family = AppFamily.from_dict(data)
+                if family.name == path.stem:
+                    families.append(family)
+            except (json.JSONDecodeError, RegistryError, KeyError, TypeError):
+                continue
+        return families
+
     def _atomic_write(self, path: Path, data: dict[str, Any]) -> None:
         """Write data atomically with a temporary backup."""
         backup_path = path.with_suffix(".json.bak")

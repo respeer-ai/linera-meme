@@ -10,6 +10,7 @@ from linest.client.query_client import QueryClient
 from linest.command.bootstrap_command import BootstrapCommand
 from linest.command.deploy_command import DeployCommand
 from linest.command.domain_command import DomainCommand
+from linest.command.fund_command import FundCommand
 from linest.config import NetworkConfig
 from linest.domain_registry import DomainRegistry
 from linest.errors import LinestError
@@ -172,6 +173,47 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output", type=Path, required=True, help="Output path for domain.ts"
     )
 
+    fund_parser = subparsers.add_parser("fund", help="Fund chains")
+    fund_subparsers = fund_parser.add_subparsers(
+        dest="fund_command", required=True
+    )
+
+    fund_chains_parser = fund_subparsers.add_parser(
+        "chains", help="Top up chain balances from a source wallet or faucet"
+    )
+    fund_chains_parser.add_argument(
+        "--min-balance",
+        dest="min_balance",
+        type=float,
+        default=100.0,
+        help="Minimum target balance (default: 100)",
+    )
+    fund_chains_parser.add_argument(
+        "--source-wallet-dir",
+        dest="source_wallet_dir",
+        type=Path,
+        help="Existing wallet directory to use as the funding source",
+    )
+    fund_chains_parser.add_argument(
+        "--claim-from-faucet",
+        dest="claim_from_faucet",
+        action="store_true",
+        help="Claim a chain from the faucet to use as the funding source",
+    )
+    fund_chains_parser.add_argument(
+        "--faucet-url",
+        dest="faucet_url",
+        help="Faucet URL used when --claim-from-faucet is set",
+    )
+
+    fund_subparsers.add_parser(
+        "funder-list", help="List claimed funder chains and their balances"
+    )
+
+    fund_subparsers.add_parser(
+        "funder-clean", help="Remove spent funder wallets"
+    )
+
     return parser
 
 
@@ -304,6 +346,7 @@ def _handle_deploy(args: argparse.Namespace) -> int:
         registry=registry,
         linera_client=linera_client,
         query_client=query_client,
+        base_dir=args.base_dir,
     )
 
     try:
@@ -326,6 +369,75 @@ def _handle_deploy(args: argparse.Namespace) -> int:
     return 0
 
 
+def _handle_fund_chains(args: argparse.Namespace) -> int:
+    base_dir = args.base_dir or NetworkConfig.default_base_dir()
+    config = NetworkConfig.load(args.env, base_dir=base_dir)
+    registry = DeploymentRegistry(config.deployments_dir(base_dir))
+    domain_registry = DomainRegistry(base_dir / "domain.json")
+    linera_client = LineraClient(
+        wallet_dir=config.wallet_dir,
+        app_name="fund",
+    )
+
+    source_wallet_dir = args.source_wallet_dir
+    faucet_url = args.faucet_url
+    if args.claim_from_faucet:
+        faucet_url = args.faucet_url
+        source_wallet_dir = None
+
+    command = FundCommand(
+        config=config,
+        registry=registry,
+        linera_client=linera_client,
+        base_dir=base_dir,
+        domain_registry=domain_registry,
+    )
+    command.fund_chains(
+        min_balance=args.min_balance,
+        source_wallet_dir=source_wallet_dir,
+        faucet_url=faucet_url,
+    )
+    return 0
+
+
+def _handle_funder_list(args: argparse.Namespace) -> int:
+    base_dir = args.base_dir or NetworkConfig.default_base_dir()
+    config = NetworkConfig.load(args.env, base_dir=base_dir)
+    linera_client = LineraClient(
+        wallet_dir=config.wallet_dir,
+        app_name="fund",
+    )
+    command = FundCommand(
+        config=config,
+        registry=DeploymentRegistry(config.deployments_dir(base_dir)),
+        linera_client=linera_client,
+        base_dir=base_dir,
+        domain_registry=DomainRegistry(base_dir / "domain.json"),
+    )
+    for funder in command.list_funders():
+        print(f"{funder['chain_id']}  {funder['balance']}  {funder['wallet_dir']}")
+    return 0
+
+
+def _handle_funder_clean(args: argparse.Namespace) -> int:
+    base_dir = args.base_dir or NetworkConfig.default_base_dir()
+    config = NetworkConfig.load(args.env, base_dir=base_dir)
+    linera_client = LineraClient(
+        wallet_dir=config.wallet_dir,
+        app_name="fund",
+    )
+    command = FundCommand(
+        config=config,
+        registry=DeploymentRegistry(config.deployments_dir(base_dir)),
+        linera_client=linera_client,
+        base_dir=base_dir,
+        domain_registry=DomainRegistry(base_dir / "domain.json"),
+    )
+    removed = command.clean_funders()
+    print(f"Removed {removed} spent funder wallet(s)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Main entry point for the linest CLI."""
     parser = _build_parser()
@@ -344,6 +456,13 @@ def main(argv: list[str] | None = None) -> int:
                 return _handle_domain_register(args)
             if args.domain_command == "generate":
                 return _handle_domain_generate(args)
+        if args.command == "fund":
+            if args.fund_command == "chains":
+                return _handle_fund_chains(args)
+            if args.fund_command == "funder-list":
+                return _handle_funder_list(args)
+            if args.fund_command == "funder-clean":
+                return _handle_funder_clean(args)
     except LinestError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

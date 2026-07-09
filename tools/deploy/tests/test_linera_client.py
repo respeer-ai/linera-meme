@@ -118,6 +118,61 @@ def test_publish_module_retries_on_block_conflict(client: LineraClient) -> None:
         assert mock_run.call_count == 2
 
 
+def test_query_balance_parses_last_line(client: LineraClient) -> None:
+    stdout = "some log line\n19.5\n"
+    with patch("linest.client.linera_client.subprocess.run") as mock_run:
+        mock_run.return_value = _completed_process(stdout)
+
+        balance = client.query_balance(
+            wallet_path="/w/wallet.json",
+            keystore_path="/w/keystore.json",
+            storage_path="rocksdb:///w/client.db",
+            chain_id="chain1",
+        )
+
+        assert balance == 19.5
+        assert mock_run.call_count == 2
+        sync_args = mock_run.call_args_list[0][0][0]
+        assert "sync" in sync_args
+        assert "chain1" in sync_args
+        query_args = mock_run.call_args_list[1][0][0]
+        assert "query-balance" in query_args
+        assert "chain1" in query_args
+
+
+def test_query_balance_raises_on_unparseable_output(client: LineraClient) -> None:
+    with patch("linest.client.linera_client.subprocess.run") as mock_run:
+        mock_run.return_value = _completed_process("not-a-number\n")
+
+        with pytest.raises(LineraCliError, match="Could not parse balance"):
+            client.query_balance(
+                wallet_path="/w/wallet.json",
+                keystore_path="/w/keystore.json",
+                storage_path="rocksdb:///w/client.db",
+                chain_id="chain1",
+            )
+
+
+def test_transfer_invokes_linera_transfer(client: LineraClient) -> None:
+    with patch("linest.client.linera_client.subprocess.run") as mock_run:
+        mock_run.return_value = _completed_process("ok\n")
+
+        client.transfer(
+            wallet_path="/w/wallet.json",
+            keystore_path="/w/keystore.json",
+            storage_path="rocksdb:///w/client.db",
+            from_chain_id="source-chain",
+            to_chain_id="target-chain",
+            amount="5.5",
+        )
+
+        args = mock_run.call_args[0][0]
+        assert "transfer" in args
+        assert args[args.index("--from") + 1] == "source-chain"
+        assert args[args.index("--to") + 1] == "target-chain"
+        assert args[-1] == "5.5"
+
+
 def test_publish_module_does_not_retry_fatal_error(client: LineraClient) -> None:
     fatal = _completed_process(stderr="Invalid bytecode format", returncode=1)
     with patch("linest.client.linera_client.subprocess.run") as mock_run:

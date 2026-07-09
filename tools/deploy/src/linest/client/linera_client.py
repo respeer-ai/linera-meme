@@ -22,11 +22,13 @@ class LineraClient:
         app_name: str,
         wallet_services: dict[str, str] | None = None,
         retry_policy: RetryPolicy | None = None,
+        command_timeout: float = 120.0,
     ) -> None:
         self.wallet_dir = Path(wallet_dir)
         self.app_name = app_name
         self.wallet_services = wallet_services or {}
         self.retry_policy = retry_policy or RetryPolicy()
+        self.command_timeout = command_timeout
         self._managed_service: WalletService | None = None
 
         # Publisher wallet used for publish-module.
@@ -264,6 +266,66 @@ class LineraClient:
             "process-inbox",
         )
 
+    def query_balance(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+        chain_id: str,
+    ) -> float:
+        """Return the native-token balance of a chain as a float."""
+        self._run_with_wallet(
+            wallet_path,
+            keystore_path,
+            storage_path,
+            "sync",
+            chain_id,
+        )
+        result = self._run_with_wallet(
+            wallet_path,
+            keystore_path,
+            storage_path,
+            "query-balance",
+            chain_id,
+        )
+        return self._extract_balance(result.stdout)
+
+    @staticmethod
+    def _extract_balance(output: str) -> float:
+        """Parse the last non-empty line of query-balance output as a float."""
+        lines = output.strip().splitlines()
+        if not lines:
+            raise LineraCliError("Could not extract balance from empty output")
+        last_line = lines[-1].strip()
+        try:
+            return float(last_line)
+        except ValueError as exc:
+            raise LineraCliError(
+                f"Could not parse balance from: {last_line!r}"
+            ) from exc
+
+    def transfer(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+        from_chain_id: str,
+        to_chain_id: str,
+        amount: str,
+    ) -> None:
+        """Transfer native tokens from one chain to another."""
+        self._run_with_wallet(
+            wallet_path,
+            keystore_path,
+            storage_path,
+            "transfer",
+            "--from",
+            from_chain_id,
+            "--to",
+            to_chain_id,
+            amount,
+        )
+
     def change_ownership(
         self,
         wallet_path: Path,
@@ -355,12 +417,19 @@ class LineraClient:
         ]
 
         def _execute() -> subprocess.CompletedProcess[str]:
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+            try:
+                result = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=self.command_timeout,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise LineraCliError(
+                    f"linera command timed out after {self.command_timeout}s: "
+                    f"{' '.join(command)}"
+                ) from exc
 
             if result.returncode != 0:
                 raise LineraCliError(

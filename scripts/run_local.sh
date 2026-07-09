@@ -262,7 +262,7 @@ function run_linest() {
     shift
 
     log_step "START $step_name"
-    if ! env $(linera_env_args) "$@" >> "$RUN_LOCAL_DEBUG_LOG" 2>&1; then
+    if ! env $(linera_env_args) "$@" 2>&1 | tee -a "$RUN_LOCAL_DEBUG_LOG"; then
         log_step "FAIL $step_name"
         tail -n 80 "$RUN_LOCAL_DEBUG_LOG" >&2
         return 1
@@ -615,7 +615,6 @@ process_inboxes swap
 
 # Bootstrap shared wallets and services for linest.
 LINEST_BASE_DIR="$OUTPUT_DIR/linest-registry"
-rm -rf "$LINEST_BASE_DIR"
 mkdir -p "$LINEST_BASE_DIR"
 
 env $(linera_env_args) "$LINEST_BIN" \
@@ -633,6 +632,16 @@ wait_query_service_ready
 import_query_chain "$BLOB_GATEWAY_QUERY_OWNER" "$BLOB_GATEWAY_CHAIN_ID" blob-gateway
 import_query_chain "$PROXY_QUERY_OWNER" "$PROXY_CHAIN_ID" proxy
 import_query_chain "$SWAP_QUERY_OWNER" "$SWAP_CHAIN_ID" swap
+
+# Prepare funder wallets after bootstrap so they are ready for deployments.
+run_linest "linest_fund_chains_prepare" \
+    "$LINEST_BIN" \
+    --base-dir "$LINEST_BASE_DIR" \
+    --env local \
+    fund chains \
+    --claim-from-faucet \
+    --faucet-url "$FAUCET_URL" \
+    --min-balance 100
 
 function create_application() {
     wallet_name=$1
@@ -710,8 +719,8 @@ run_linest "linest_deploy_ams" \
     "$LINEST_BIN" \
     --base-dir "$LINEST_BASE_DIR" \
     --env local \
-    --repo-dir "$ROOT_DIR" \
     app deploy \
+    --repo-dir "$ROOT_DIR" \
     --name ams \
     --contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_app_contract.wasm" \
     --service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/ams_app_service.wasm" \
@@ -753,6 +762,16 @@ function change_multi_owner_chain_single_leader() {
 change_multi_owner_chain_single_leader blob-gateway $BLOB_GATEWAY_CHAIN_ID $BLOB_GATEWAY_OWNERS
 change_multi_owner_chain_single_leader proxy $PROXY_CHAIN_ID $PROXY_OWNERS
 change_multi_owner_chain_single_leader swap $SWAP_CHAIN_ID $SWAP_OWNERS
+
+# Top up all registered chains to the target minimum balance.
+run_linest "linest_fund_chains" \
+    "$LINEST_BIN" \
+    --base-dir "$LINEST_BASE_DIR" \
+    --env local \
+    fund chains \
+    --claim-from-faucet \
+    --faucet-url "$FAUCET_URL" \
+    --min-balance 100
 
 function service_servers() {
     port_base=$1

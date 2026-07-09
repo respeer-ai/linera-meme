@@ -29,6 +29,16 @@ class WalletPaths:
         storage = data["storage"]
         return cls(wallet=wallet, keystore=keystore, storage=storage)
 
+    @classmethod
+    def from_wallet_dir(cls, wallet_dir: Path) -> "WalletPaths":
+        """Build wallet paths from a wallet directory."""
+        wallet_dir = wallet_dir.expanduser()
+        return cls(
+            wallet=wallet_dir / "wallet.json",
+            keystore=wallet_dir / "keystore.json",
+            storage=f"rocksdb://{wallet_dir / 'client.db'}",
+        )
+
 
 @dataclass(frozen=True)
 class NetworkConfig:

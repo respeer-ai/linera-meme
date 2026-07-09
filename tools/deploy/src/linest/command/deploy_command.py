@@ -27,11 +27,13 @@ class DeployCommand:
         registry: DeploymentRegistry,
         linera_client: LineraClient,
         query_client: QueryClient,
+        base_dir: Path | None = None,
     ) -> None:
         self.config = config
         self.registry = registry
         self.linera_client = linera_client
         self.query_client = query_client
+        self.base_dir = base_dir
 
     def deploy(
         self,
@@ -68,6 +70,9 @@ class DeployCommand:
                 wallet_dir=self.config.wallet_dir,
                 app_name=name,
                 linera_client=self.linera_client,
+                base_dir=self.base_dir,
+                env=self.config.env,
+                faucet_url=faucet_url,
             ).ensure_chain(
                 family=family,
                 creator_owner=creator_owner,
