@@ -146,6 +146,11 @@ class MultiOwnerChainManager:
         chain_id: str,
     ) -> bool:
         """Wait for a funding transfer to land by polling inbox and balance."""
+        print(
+            f"[funder-check] waiting for balance on {chain_id} "
+            f"to reach {self._CREATOR_CHAIN_TARGET_BALANCE}",
+            flush=True,
+        )
         deadline = monotonic() + self._FUNDING_COOLDOWN_SECONDS
         while monotonic() < deadline:
             self.linera_client.process_inbox(
@@ -154,12 +159,22 @@ class MultiOwnerChainManager:
             balance = self.linera_client.query_balance(
                 wallet_path, keystore_path, storage_path, chain_id
             )
+            print(
+                f"[funder-check] chain {chain_id} balance {balance} "
+                f"target {self._CREATOR_CHAIN_TARGET_BALANCE}",
+                flush=True,
+            )
             if balance >= self._CREATOR_CHAIN_TARGET_BALANCE:
                 print(
                     f"[funder-check] balance {balance} landed on {chain_id}"
                 )
                 return True
             sleep(self._FUNDING_COOLDOWN_INTERVAL)
+        print(
+            f"[funder-check] cooldown expired for {chain_id} "
+            "without reaching target balance",
+            flush=True,
+        )
         return False
 
     def _assign_chain_to_owners(

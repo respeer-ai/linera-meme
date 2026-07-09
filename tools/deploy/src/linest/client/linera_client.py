@@ -261,12 +261,12 @@ class LineraClient:
     ) -> None:
         """Process the inbox for a wallet.
 
-        When ``chain_id`` is provided, ``--chain`` is passed so the target
-        chain is processed instead of the wallet's default chain.
+        When ``chain_id`` is provided, it is passed as the positional argument
+        so the target chain is processed instead of the wallet's default chain.
         """
         args: list[str | Path] = ["process-inbox"]
         if chain_id is not None:
-            args.extend(["--chain", chain_id])
+            args.append(chain_id)
         self._run_with_wallet(
             wallet_path,
             keystore_path,

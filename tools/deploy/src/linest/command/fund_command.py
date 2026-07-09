@@ -282,6 +282,10 @@ class FundCommand:
         Returns ``True`` as soon as the balance reaches ``min_balance``.
         Returns ``False`` if the cooldown expires without the balance arriving.
         """
+        print(
+            f"Waiting for balance on {chain_id} to reach {min_balance}",
+            flush=True,
+        )
         deadline = monotonic() + self._FUNDING_COOLDOWN_SECONDS
         while monotonic() < deadline:
             self.linera_client.process_inbox(
@@ -293,6 +297,11 @@ class FundCommand:
                 paths.storage,
                 chain_id,
             )
+            print(
+                f"[funding-wait] chain {chain_id} balance {balance} "
+                f"target {min_balance}",
+                flush=True,
+            )
             if balance >= min_balance:
                 print(
                     f"Chain {chain_id} balance {balance} >= {min_balance} "
@@ -301,6 +310,11 @@ class FundCommand:
                 )
                 return True
             sleep(self._FUNDING_COOLDOWN_INTERVAL)
+        print(
+            f"[funding-wait] cooldown expired for {chain_id} "
+            f"without reaching {min_balance}",
+            flush=True,
+        )
         return False
 
     def _target_wallet_paths(self, chain_id: str) -> "WalletPaths":
