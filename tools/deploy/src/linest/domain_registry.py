@@ -27,17 +27,13 @@ class DomainRegistry:
         name: str,
         chain_id: str,
         application_id: str,
-        wallet_dir: str | None = None,
     ) -> None:
         """Register or update an app entry."""
         data = self.load()
-        entry: dict[str, str] = {
+        data[name] = {
             "chain_id": chain_id,
             "application_id": application_id,
         }
-        if wallet_dir is not None:
-            entry["wallet_dir"] = wallet_dir
-        data[name] = entry
         self._atomic_write(data)
 
     def _atomic_write(self, data: dict[str, Any]) -> None:

@@ -694,8 +694,7 @@ run_linest "linest_domain_register_blob_gateway" \
     domain register \
     --name blob-gateway \
     --chain-id "$BLOB_GATEWAY_CHAIN_ID" \
-    --application-id "$BLOB_GATEWAY_APPLICATION_ID" \
-    --wallet-dir "$WALLET_DIR/blob-gateway/0"
+    --application-id "$BLOB_GATEWAY_APPLICATION_ID"
 
 run_linest "linest_domain_register_swap" \
     "$LINEST_BIN" \
@@ -704,8 +703,7 @@ run_linest "linest_domain_register_swap" \
     domain register \
     --name swap \
     --chain-id "$SWAP_CHAIN_ID" \
-    --application-id "$SWAP_APPLICATION_ID" \
-    --wallet-dir "$WALLET_DIR/swap/0"
+    --application-id "$SWAP_APPLICATION_ID"
 
 run_linest "linest_domain_register_proxy" \
     "$LINEST_BIN" \
@@ -714,8 +712,7 @@ run_linest "linest_domain_register_proxy" \
     domain register \
     --name proxy \
     --chain-id "$PROXY_CHAIN_ID" \
-    --application-id "$PROXY_APPLICATION_ID" \
-    --wallet-dir "$WALLET_DIR/proxy/0"
+    --application-id "$PROXY_APPLICATION_ID"
 
 # Deploy AMS business app and typed state app via linest.
 run_linest "linest_deploy_ams" \

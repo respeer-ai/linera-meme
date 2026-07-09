@@ -132,11 +132,8 @@ class FundCommand:
         if self.domain_registry is not None:
             for name, entry in self.domain_registry.load().items():
                 chain_id = entry.get("chain_id")
-                wallet_dir = self._resolve_wallet_dir(
-                    entry.get("wallet_dir")
-                )
                 if chain_id:
-                    targets[chain_id] = wallet_dir
+                    targets[chain_id] = Path(self.config.wallet_dir) / name / "0"
         return targets
 
     def _resolve_wallet_dir(self, stored: str | None) -> Path | None:

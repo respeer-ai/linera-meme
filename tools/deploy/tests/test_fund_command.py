@@ -227,7 +227,7 @@ def test_clean_funders_removes_spent_wallets(
     assert not spent_dir.exists()
 
 
-def test_fund_chains_includes_domain_registry_chains_with_wallet_dir(
+def test_fund_chains_includes_domain_registry_chains(
     tmp_path: Path,
     command: FundCommand,
     linera_client: MagicMock,
@@ -239,7 +239,6 @@ def test_fund_chains_includes_domain_registry_chains_with_wallet_dir(
         name="swap",
         chain_id="swap-chain",
         application_id="swap-app",
-        wallet_dir=str(tmp_path / "wallets" / "swap" / "0"),
     )
     command.domain_registry = domain_registry
 
