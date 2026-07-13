@@ -25,11 +25,11 @@ def registry(tmp_path: Path) -> DeploymentRegistry:
 @pytest.fixture
 def linera_client() -> MagicMock:
     client = MagicMock(spec=LineraClient)
-    client.wallet_url_for.return_value = "http://wallet:8080"
     client.default_chain_id.return_value = "chain1"
     client.publish_module.return_value = "module-new"
     client.create_application.return_value = "app-new"
-    client.call_operation.return_value = {"appendState": True}
+    client.bcs_serialize_application_operation.return_value = "0xdeadbeef"
+    client.submit_application_operation.return_value = None
     return client
 
 
@@ -299,8 +299,8 @@ def test_append_state_step_executes_mutation(
     result = step.execute(registry, linera_client, query_client)
 
     assert result.success
-    linera_client.call_operation.assert_called_once()
-    args = linera_client.call_operation.call_args.kwargs
+    linera_client.submit_application_operation.assert_called_once()
+    args = linera_client.submit_application_operation.call_args.kwargs
     assert args["application_id"] == "app-biz"
     assert args["variables"]["stateApplicationId"] == "app-state"
 
@@ -354,7 +354,7 @@ def test_append_state_step_skips_when_already_on_chain(
 
     assert result.success
     assert "already appended" in result.message
-    linera_client.call_operation.assert_not_called()
+    linera_client.submit_application_operation.assert_not_called()
 
     updated = registry.load_business_app("ams-v1")
     assert updated.state_apps == ["ams-state-v1"]
@@ -417,8 +417,8 @@ def test_handoff_step_executes_mutation(
     result = step.execute(registry, linera_client, query_client)
 
     assert result.success
-    linera_client.call_operation.assert_called_once()
-    args = linera_client.call_operation.call_args.kwargs
+    linera_client.submit_application_operation.assert_called_once()
+    args = linera_client.submit_application_operation.call_args.kwargs
     assert args["application_id"] == "app-old"
     assert args["variables"]["newBusinessApplicationId"] == "app-new"
 
@@ -485,5 +485,5 @@ def test_handoff_step_skips_when_already_on_chain(
 
     assert result.success
     assert "already completed" in result.message
-    linera_client.call_operation.assert_not_called()
+    linera_client.submit_application_operation.assert_not_called()
     assert family.current_version == 2

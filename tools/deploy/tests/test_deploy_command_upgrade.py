@@ -34,11 +34,11 @@ def config() -> NetworkConfig:
 @pytest.fixture
 def linera_client() -> MagicMock:
     client = MagicMock(spec=LineraClient)
-    client.wallet_url_for.return_value = "http://ams-wallet:8080"
     client.default_chain_id.return_value = "chain1"
     client.publish_module.return_value = "module-v2"
     client.create_application.return_value = "app-biz-v2"
-    client.call_operation.return_value = {"handoff": True}
+    client.bcs_serialize_application_operation.return_value = "0xdeadbeef"
+    client.submit_application_operation.return_value = None
     return client
 
 
@@ -119,7 +119,7 @@ def test_upgrade_v1_to_v2(
 
     assert linera_client.publish_module.call_count == 1
     assert linera_client.create_application.call_count == 1
-    assert linera_client.call_operation.call_count == 2
+    assert linera_client.submit_application_operation.call_count == 2
 
 
 def test_upgrade_recovers_after_append_state(
@@ -155,8 +155,8 @@ def test_upgrade_recovers_after_append_state(
     assert family.versions[1].status == "handed_off"
 
     # One call for appendState (skipped) and one for handoff.
-    assert linera_client.call_operation.call_count == 1
-    args = linera_client.call_operation.call_args.kwargs
+    assert linera_client.submit_application_operation.call_count == 1
+    args = linera_client.submit_application_operation.call_args.kwargs
     assert "handoff" in args["mutation"]
 
 
@@ -193,7 +193,7 @@ def test_upgrade_recovers_after_handoff(
     assert family.versions[1].status == "handed_off"
     assert family.versions[2].status == "active"
 
-    linera_client.call_operation.assert_not_called()
+    linera_client.submit_application_operation.assert_not_called()
 
 
 def test_upgrade_rejects_older_version(
@@ -208,15 +208,15 @@ def test_upgrade_rejects_older_version(
     contract = _write_file(tmp_path / "contract.wasm")
     service = _write_file(tmp_path / "service.wasm")
 
-    from linest.errors import UpgradeError
+    result = command.deploy(
+        name="ams",
+        version=1,
+        contract_bytecode=contract,
+        service_bytecode=service,
+        state_contract_bytecode=None,
+        state_service_bytecode=None,
+        dry_run=False,
+    )
 
-    with pytest.raises(UpgradeError):
-        command.deploy(
-            name="ams",
-            version=1,
-            contract_bytecode=contract,
-            service_bytecode=service,
-            state_contract_bytecode=None,
-            state_service_bytecode=None,
-            dry_run=False,
-        )
+    assert result.status == "skipped"
+    assert result.version == 1

@@ -9,7 +9,6 @@ from time import monotonic, sleep
 from linest.client.funder_pool import FunderPool
 from linest.client.linera_client import LineraClient
 from linest.config import NetworkConfig, WalletPaths
-from linest.domain_registry import DomainRegistry
 from linest.errors import DeploymentError, LinestError
 from linest.registry import DeploymentRegistry
 
@@ -27,13 +26,11 @@ class FundCommand:
         registry: DeploymentRegistry,
         linera_client: LineraClient,
         base_dir: Path,
-        domain_registry: DomainRegistry | None = None,
     ) -> None:
         self.config = config
         self.registry = registry
         self.linera_client = linera_client
         self.base_dir = base_dir
-        self.domain_registry = domain_registry
 
     def fund_chains(
         self,
@@ -108,7 +105,7 @@ class FundCommand:
         return pool.clean_spent()
 
     def _collect_targets(self) -> dict[str, Path | None]:
-        """Return chain_id -> wallet_dir for all fundable chains.
+        """Return chain_id -> wallet_dir for all linest-managed deployments.
 
         The wallet dir is taken from the app family's persisted
         ``creator_chain_wallet_dir``. Chains without a recorded wallet dir
@@ -129,11 +126,6 @@ class FundCommand:
                     self._add_deployment_target(
                         targets, state_app_name, wallet_dir
                     )
-        if self.domain_registry is not None:
-            for name, entry in self.domain_registry.load().items():
-                chain_id = entry.get("chain_id")
-                if chain_id:
-                    targets[chain_id] = Path(self.config.wallet_dir) / name / "0"
         return targets
 
     def _resolve_wallet_dir(self, stored: str | None) -> Path | None:

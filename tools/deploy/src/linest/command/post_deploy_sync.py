@@ -11,7 +11,7 @@ from linest.models.app_family import AppFamily
 
 
 class PostDeploySync:
-    """Synchronize a freshly deployed app with the operator and query service."""
+    """Synchronize a freshly deployed app with the query service and owners."""
 
     def __init__(
         self,
@@ -35,7 +35,6 @@ class PostDeploySync:
             return
 
         self._process_owner_inboxes(wallet_dir, family.name, owner_count)
-        self._assign_operator(chain_id)
         self._import_to_query_service(family, wallet_dir, owner_count, chain_id)
         self._set_single_leader(wallet_dir, family.name, chain_id, owner_count)
 
@@ -59,29 +58,6 @@ class PostDeploySync:
             wallet_dir, app_name, index
         )
         self.linera_client.process_inbox(wallet_path, keystore_path, storage_path)
-
-    def _assign_operator(self, chain_id: str) -> None:
-        if self.config.operator_wallet is None:
-            return
-        self.linera_client.assign_chain(
-            self.config.operator_wallet.wallet,
-            self.config.operator_wallet.keystore,
-            self.config.operator_wallet.storage,
-            owner=self._operator_owner(),
-            chain_id=chain_id,
-        )
-        if self.config.operator_wallet is not None:
-            self.linera_client.process_inbox(
-                self.config.operator_wallet.wallet,
-                self.config.operator_wallet.keystore,
-                self.config.operator_wallet.storage,
-            )
-
-    def _operator_owner(self) -> str:
-        operator = self.config.operator
-        if isinstance(operator, dict):
-            return str(operator.get("owner", operator))
-        return str(operator)
 
     def _import_to_query_service(
         self,

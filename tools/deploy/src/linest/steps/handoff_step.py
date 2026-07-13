@@ -52,9 +52,7 @@ class HandoffStep(Step):
                 message=f"Handoff from {self.from_app_name} already completed",
             )
 
-        wallet_url = linera_client.wallet_url_for(self.family.name)
-        linera_client.call_operation(
-            wallet_url=wallet_url,
+        linera_client.submit_application_operation(
             chain_id=from_app.creator_chain_id,
             application_id=from_app.application_id,
             mutation=_HANDOFF_MUTATION,

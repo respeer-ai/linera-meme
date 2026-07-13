@@ -46,14 +46,14 @@ class UpgradePlan:
     def _build(self) -> None:
         self.family.validate_upgrade_target(self.target_version)
 
-        if self.target_version == 1:
+        if not self.family.versions:
             self._build_first_deploy()
             return
 
         previous_version = self.family.previous_version(self.target_version)
         if previous_version is None:
             raise UpgradeError(
-                f"Cannot deploy version {self.target_version} without version 1"
+                f"Cannot deploy version {self.target_version} without a previous version"
             )
 
         previous_record = self.family.get_version(previous_version)
@@ -116,7 +116,7 @@ class UpgradePlan:
                 version=1,
                 contract_bytecode_path=self.state_contract_bytecode_path,
                 service_bytecode_path=self.state_service_bytecode_path,
-                business_app_version=1,
+                business_app_version=self.target_version,
                 operator=self.operator,
                 creator_chain_id=self.creator_chain_id,
                 abi_source_hash=self._resolve_abi_source_hash(1),
@@ -125,7 +125,7 @@ class UpgradePlan:
         self.steps.append(
             AppendStateStep(
                 family=self.family,
-                business_app_version=1,
+                business_app_version=self.target_version,
                 state_app_name=f"{self.family.name}-state-v1",
             )
         )

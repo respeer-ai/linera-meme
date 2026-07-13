@@ -15,7 +15,7 @@ from linest.errors import ConfigError
 
 
 class BootstrapCommand:
-    """Create operator/query wallets and start their services."""
+    """Create operator/query wallets and start the query service."""
 
     def __init__(
         self,
@@ -28,7 +28,6 @@ class BootstrapCommand:
         self.linera_client = linera_client
         self.base_dir = base_dir
         self.env = env
-        self._operator_service: WalletService | None = None
         self._query_service: WalletService | None = None
 
     def bootstrap(
@@ -36,10 +35,9 @@ class BootstrapCommand:
         faucet_url: str,
         operator_wallet_dir: Path,
         query_wallet_dir: Path,
-        operator_service_port: int,
         query_service_port: int,
     ) -> None:
-        """Ensure shared wallets exist and start their services."""
+        """Ensure shared wallets exist and start the query service."""
         operator_paths = self._wallet_paths(operator_wallet_dir)
         query_paths = self._wallet_paths(query_wallet_dir)
 
@@ -47,15 +45,6 @@ class BootstrapCommand:
         self._ensure_wallet(query_paths, faucet_url)
 
         log_dir = self.base_dir / "logs"
-        self._operator_service = WalletService(
-            wallet_path=operator_paths.wallet,
-            keystore_path=operator_paths.keystore,
-            storage_path=operator_paths.storage,
-            port=operator_service_port,
-            log_file=log_dir / "operator_wallet_service.log",
-        )
-        operator_service_url = self._operator_service.start()
-
         self._query_service = WalletService(
             wallet_path=query_paths.wallet,
             keystore_path=query_paths.keystore,
@@ -71,7 +60,6 @@ class BootstrapCommand:
         self._write_config(
             operator_owner=operator_owner,
             operator_paths=operator_paths,
-            operator_service_url=operator_service_url,
             query_paths=query_paths,
             query_service_url=query_service_url,
         )
@@ -91,8 +79,6 @@ class BootstrapCommand:
 
     def _stop_services(self) -> None:
         """Stop the services started by bootstrap."""
-        if self._operator_service is not None:
-            self._operator_service.stop()
         if self._query_service is not None:
             self._query_service.stop()
 
@@ -133,7 +119,6 @@ class BootstrapCommand:
         self,
         operator_owner: str,
         operator_paths: WalletPaths,
-        operator_service_url: str,
         query_paths: WalletPaths,
         query_service_url: str,
     ) -> None:
@@ -148,7 +133,6 @@ class BootstrapCommand:
                 "keystore": str(operator_paths.keystore),
                 "storage": operator_paths.storage,
             },
-            "operator_service_url": operator_service_url,
             "query_wallet": {
                 "wallet": str(query_paths.wallet),
                 "keystore": str(query_paths.keystore),

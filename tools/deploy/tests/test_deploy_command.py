@@ -31,11 +31,11 @@ def config() -> NetworkConfig:
 @pytest.fixture
 def linera_client() -> MagicMock:
     client = MagicMock(spec=LineraClient)
-    client.wallet_url_for.return_value = "http://ams-wallet:8080"
     client.default_chain_id.return_value = "chain1"
     client.publish_module.return_value = "module-id"
     client.create_application.side_effect = ["app-biz", "app-state"]
-    client.call_operation.return_value = {"appendState": True}
+    client.bcs_serialize_application_operation.return_value = "0xdeadbeef"
+    client.submit_application_operation.return_value = None
     return client
 
 
@@ -95,7 +95,7 @@ def test_deploy_command_first_deploy(
     state = registry.load_state_app("ams-state-v1")
     assert state.application_id == "app-state"
 
-    assert linera_client.call_operation.call_count == 1
+    assert linera_client.submit_application_operation.call_count == 1
 
 
 def test_deploy_command_dry_run_does_not_execute(
@@ -125,7 +125,7 @@ def test_deploy_command_dry_run_does_not_execute(
 
     linera_client.publish_module.assert_not_called()
     linera_client.create_application.assert_not_called()
-    linera_client.call_operation.assert_not_called()
+    linera_client.submit_application_operation.assert_not_called()
 
     family = registry.load_family("ams")
     assert family.current_version == 0

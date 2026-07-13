@@ -51,9 +51,7 @@ class AppendStateStep(Step):
                 message=f"{self.state_app_name} already appended to {self.business_app_name}",
             )
 
-        wallet_url = linera_client.wallet_url_for(self.family.name)
-        linera_client.call_operation(
-            wallet_url=wallet_url,
+        linera_client.submit_application_operation(
             chain_id=business_app.creator_chain_id,
             application_id=business_app.application_id,
             mutation=_APPEND_STATE_MUTATION,

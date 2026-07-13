@@ -51,7 +51,6 @@ class NetworkConfig:
     wallet_services: dict[str, str]
     operator_wallet: WalletPaths | None = None
     query_wallet: WalletPaths | None = None
-    operator_service_url: str | None = None
 
     @classmethod
     def default_base_dir(cls) -> Path:
@@ -106,7 +105,6 @@ class NetworkConfig:
             wallet_services=wallet_services,
             operator_wallet=operator_wallet,
             query_wallet=query_wallet,
-            operator_service_url=data.get("operator_service_url"),
         )
 
     def wallet_service_url(self, app_name: str) -> str:

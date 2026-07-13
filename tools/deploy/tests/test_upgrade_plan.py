@@ -56,6 +56,29 @@ def test_first_deploy_plan_has_three_steps(repo_dir: Path) -> None:
     assert isinstance(plan.steps[2], AppendStateStep)
 
 
+def test_first_deploy_plan_works_with_non_one_version(repo_dir: Path) -> None:
+    """A fresh family should allow the first deploy to target any version."""
+    family = AppFamily.create("ams", "local")
+    plan = UpgradePlan(
+        family=family,
+        target_version=1000,
+        contract_bytecode_path="/tmp/ams_app_contract.wasm",
+        service_bytecode_path="/tmp/ams_app_service.wasm",
+        state_contract_bytecode_path="/tmp/ams_state_contract.wasm",
+        state_service_bytecode_path="/tmp/ams_state_service.wasm",
+        operator="operator1",
+        repo_dir=repo_dir,
+    )
+
+    assert len(plan.steps) == 3
+    assert isinstance(plan.steps[0], DeployBusinessAppStep)
+    assert isinstance(plan.steps[1], DeployStateAppStep)
+    assert isinstance(plan.steps[2], AppendStateStep)
+    assert plan.steps[0].version == 1000
+    assert plan.steps[1].business_app_version == 1000
+    assert plan.steps[2].business_app_version == 1000
+
+
 def test_upgrade_allows_non_sequential_version(repo_dir: Path) -> None:
     family = AppFamily.create("ams", "local")
     family.add_version(1, "ams-v1", ["ams-state-v1"], status="active")

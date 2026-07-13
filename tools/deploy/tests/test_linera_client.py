@@ -1,5 +1,6 @@
 """Tests for LineraClient."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,11 +11,7 @@ from linest.errors import ConfigError, LineraCliError
 
 @pytest.fixture
 def client() -> LineraClient:
-    return LineraClient(
-        "/wallets",
-        "ams",
-        wallet_services={"ams": "http://ams-wallet:8080"},
-    )
+    return LineraClient("/wallets", "ams")
 
 
 def _completed_process(stdout: str = "", stderr: str = "", returncode: int = 0) -> MagicMock:
@@ -194,10 +191,49 @@ def test_extract_id_raises_on_empty_output(client: LineraClient) -> None:
         client._extract_id("")
 
 
-def test_wallet_url_for_known_app(client: LineraClient) -> None:
-    assert client.wallet_url_for("ams") == "http://ams-wallet:8080"
+def test_bcs_serialize_requires_repo_dir(client: LineraClient) -> None:
+    with pytest.raises(ConfigError, match="repo_dir is required"):
+        client.bcs_serialize_application_operation("mutation { test }", {})
 
 
-def test_wallet_url_for_unknown_app_raises(client: LineraClient) -> None:
-    with pytest.raises(ConfigError, match="No wallet service URL"):
-        client.wallet_url_for("unknown")
+def test_bcs_serialize_invokes_linera(tmp_path: Path) -> None:
+    abi_dir = tmp_path / "abi"
+    abi_dir.mkdir()
+    client = LineraClient("/wallets", "ams", repo_dir=tmp_path)
+
+    with patch("linest.client.linera_client.subprocess.run") as mock_run:
+        mock_run.return_value = _completed_process("0x00abc\n")
+
+        hex_bytes = client.bcs_serialize_application_operation(
+            "mutation AppendState($id: ApplicationId!) { appendState(stateApplicationId: $id) }",
+            {"id": "app-id"},
+        )
+
+    assert hex_bytes == "0x00abc"
+    args = mock_run.call_args[0][0]
+    assert "bcs-serilize-application-operation" in args
+    assert "abi::ams::AmsOperation" in args
+    assert str(abi_dir) in args
+
+
+def test_submit_application_operation_executes_serialized_op(tmp_path: Path) -> None:
+    client = LineraClient("/wallets", "ams", repo_dir=tmp_path)
+
+    with patch("linest.client.linera_client.subprocess.run") as mock_run:
+        mock_run.side_effect = [
+            _completed_process("0x00deadbeef\n"),
+            _completed_process("ok\n"),
+        ]
+
+        client.submit_application_operation(
+            chain_id="chain1",
+            application_id="app1",
+            mutation="mutation { test }",
+            variables={},
+        )
+
+    assert mock_run.call_count == 2
+    execute_args = mock_run.call_args_list[1][0][0]
+    assert "execute-application-operation" in execute_args
+    assert "--operation" in execute_args
+    assert "0x00deadbeef" in execute_args

@@ -64,13 +64,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Directory for the query service wallet",
     )
     bootstrap_parser.add_argument(
-        "--operator-service-port",
-        dest="operator_service_port",
-        type=int,
-        default=21180,
-        help="Port for the operator wallet service (default: 21180)",
-    )
-    bootstrap_parser.add_argument(
         "--query-service-port",
         dest="query_service_port",
         type=int,
@@ -241,7 +234,6 @@ def _handle_bootstrap(args: argparse.Namespace) -> int:
         faucet_url=args.faucet_url,
         operator_wallet_dir=Path(args.operator_wallet_dir),
         query_wallet_dir=Path(args.query_wallet_dir),
-        operator_service_port=args.operator_service_port,
         query_service_port=args.query_service_port,
     )
     command.keep_alive()
@@ -333,11 +325,13 @@ def _handle_deploy(args: argparse.Namespace) -> int:
 
     config = NetworkConfig.load(args.env, base_dir=args.base_dir)
     registry = DeploymentRegistry(config.deployments_dir(args.base_dir))
-    wallet_services = dict(config.wallet_services)
-    if config.operator_service_url is not None:
-        wallet_services[args.name] = config.operator_service_url
+    # App-chain mutations (appendState, handoff) are signed directly by the
+    # creator wallet via `linera execute-application-operation`, so no wallet
+    # service is required.
     linera_client = LineraClient(
-        config.wallet_dir, args.name, wallet_services=wallet_services
+        wallet_dir=config.wallet_dir,
+        app_name=args.name,
+        repo_dir=args.repo_dir,
     )
     query_client = QueryClient(config.query_service_url)
 
@@ -349,31 +343,27 @@ def _handle_deploy(args: argparse.Namespace) -> int:
         base_dir=args.base_dir,
     )
 
-    try:
-        command.deploy(
-            name=args.name,
-            version=version,
-            contract_bytecode=args.contract_bytecode,
-            service_bytecode=args.service_bytecode,
-            state_contract_bytecode=args.state_contract_bytecode,
-            state_service_bytecode=args.state_service_bytecode,
-            repo_dir=args.repo_dir,
-            creator_chain_id=args.creator_chain_id,
-            dry_run=args.dry_run,
-            ensure_wallet=args.ensure_wallet,
-            faucet_url=args.faucet_url,
-            wallet_owner_count=args.wallet_owner_count,
-        )
-    finally:
-        linera_client.stop_wallet_service()
-    return 0
+    result = command.deploy(
+        name=args.name,
+        version=version,
+        contract_bytecode=args.contract_bytecode,
+        service_bytecode=args.service_bytecode,
+        state_contract_bytecode=args.state_contract_bytecode,
+        state_service_bytecode=args.state_service_bytecode,
+        repo_dir=args.repo_dir,
+        creator_chain_id=args.creator_chain_id,
+        dry_run=args.dry_run,
+        ensure_wallet=args.ensure_wallet,
+        faucet_url=args.faucet_url,
+        wallet_owner_count=args.wallet_owner_count,
+    )
+    return 0 if result.status in ("skipped", "deployed") else 1
 
 
 def _handle_fund_chains(args: argparse.Namespace) -> int:
     base_dir = args.base_dir or NetworkConfig.default_base_dir()
     config = NetworkConfig.load(args.env, base_dir=base_dir)
     registry = DeploymentRegistry(config.deployments_dir(base_dir))
-    domain_registry = DomainRegistry(base_dir / "domain.json")
     linera_client = LineraClient(
         wallet_dir=config.wallet_dir,
         app_name="fund",
@@ -390,7 +380,6 @@ def _handle_fund_chains(args: argparse.Namespace) -> int:
         registry=registry,
         linera_client=linera_client,
         base_dir=base_dir,
-        domain_registry=domain_registry,
     )
     command.fund_chains(
         min_balance=args.min_balance,
@@ -412,7 +401,6 @@ def _handle_funder_list(args: argparse.Namespace) -> int:
         registry=DeploymentRegistry(config.deployments_dir(base_dir)),
         linera_client=linera_client,
         base_dir=base_dir,
-        domain_registry=DomainRegistry(base_dir / "domain.json"),
     )
     for funder in command.list_funders():
         print(f"{funder['chain_id']}  {funder['balance']}  {funder['wallet_dir']}")
@@ -431,7 +419,6 @@ def _handle_funder_clean(args: argparse.Namespace) -> int:
         registry=DeploymentRegistry(config.deployments_dir(base_dir)),
         linera_client=linera_client,
         base_dir=base_dir,
-        domain_registry=DomainRegistry(base_dir / "domain.json"),
     )
     removed = command.clean_funders()
     print(f"Removed {removed} spent funder wallet(s)")

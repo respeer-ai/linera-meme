@@ -7,8 +7,6 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from linest.client.query_client import QueryClient
-from linest.client.wallet_service import WalletService
 from linest.errors import ConfigError, LineraCliError
 from linest.retry import RetryPolicy
 
@@ -20,16 +18,19 @@ class LineraClient:
         self,
         wallet_dir: str,
         app_name: str,
-        wallet_services: dict[str, str] | None = None,
+        repo_dir: str | Path | None = None,
         retry_policy: RetryPolicy | None = None,
         command_timeout: float = 120.0,
     ) -> None:
         self.wallet_dir = Path(wallet_dir)
         self.app_name = app_name
-        self.wallet_services = wallet_services or {}
         self.retry_policy = retry_policy or RetryPolicy()
         self.command_timeout = command_timeout
-        self._managed_service: WalletService | None = None
+
+        if repo_dir is not None:
+            self.operation_type_crate = Path(repo_dir).resolve() / "abi"
+        else:
+            self.operation_type_crate = None
 
         # Publisher wallet used for publish-module.
         self.publisher_wallet_path = (
@@ -90,34 +91,6 @@ class LineraClient:
                 return current_chain
         raise LineraCliError("Wallet has no DEFAULT chain")
 
-    def wallet_url_for(self, app_name: str) -> str:
-        """Return the wallet service URL for the given app family.
-
-        If no external service is configured for the current app family, start
-        a temporary local service on the creator wallet.
-        """
-        if app_name in self.wallet_services:
-            return self.wallet_services[app_name]
-
-        if app_name != self.app_name:
-            raise ConfigError(f"No wallet service URL configured for {app_name}")
-
-        if self._managed_service is None:
-            self._managed_service = WalletService(
-                wallet_path=self.creator_wallet_path,
-                keystore_path=self.creator_keystore_path,
-                storage_path=self.creator_storage_path,
-            )
-            self._managed_service.start()
-
-        return self._managed_service.url
-
-    def stop_wallet_service(self) -> None:
-        """Stop any temporary wallet service started by this client."""
-        if self._managed_service is not None:
-            self._managed_service.stop()
-            self._managed_service = None
-
     def wallet_show(
         self,
         wallet_path: Path,
@@ -155,7 +128,7 @@ class LineraClient:
             stripped = line.strip()
             if stripped.startswith("Default owner:"):
                 owner = stripped.split(":", 1)[1].strip()
-                if owner and owner.lower() != "no":
+                if owner and owner.lower() not in ("no", "no owner key"):
                     return owner
         raise LineraCliError("Wallet has no default owner")
 
@@ -243,6 +216,21 @@ class LineraClient:
             "--faucet",
             faucet_url,
         )
+
+    def keygen(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+    ) -> str:
+        """Generate an unassigned key pair and return the public key/owner."""
+        result = self._run_with_wallet(
+            wallet_path,
+            keystore_path,
+            storage_path,
+            "keygen",
+        )
+        return result.stdout.strip()
 
     def publish_module(self, contract_path: str, service_path: str) -> str:
         """Publish a module and return the module ID."""
@@ -376,17 +364,62 @@ class LineraClient:
         result = self._run_creator(*args)
         return self._extract_id(result.stdout)
 
-    def call_operation(
+    def bcs_serialize_application_operation(
         self,
-        wallet_url: str,
+        mutation: str,
+        variables: dict[str, Any],
+        operation_type: str = "abi::ams::AmsOperation",
+    ) -> str:
+        """Serialize a GraphQL mutation into BCS bytes using the ABI crate.
+
+        Returns the hex-encoded operation bytes (including the ``0x`` prefix).
+        """
+        if self.operation_type_crate is None:
+            raise ConfigError(
+                "repo_dir is required to locate the ABI crate for operation serialization"
+            )
+
+        result = self._run_with_wallet(
+            self.creator_wallet_path,
+            self.creator_keystore_path,
+            self.creator_storage_path,
+            "bcs-serilize-application-operation",
+            "--operation-type-crate",
+            str(self.operation_type_crate),
+            "--operation-type",
+            operation_type,
+            "--query",
+            mutation,
+            "--variables",
+            json.dumps(variables),
+        )
+        return result.stdout.strip()
+
+    def submit_application_operation(
+        self,
         chain_id: str,
         application_id: str,
         mutation: str,
         variables: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Submit an operation via the wallet service GraphQL endpoint."""
-        client = QueryClient(wallet_url)
-        return client.query(chain_id, application_id, mutation, variables)
+    ) -> None:
+        """Serialize and execute an application operation on a chain.
+
+        The operation is signed with the app family's creator wallet, which must
+        own the target chain.
+        """
+        operation_hex = self.bcs_serialize_application_operation(mutation, variables)
+        self._run_with_wallet(
+            self.creator_wallet_path,
+            self.creator_keystore_path,
+            self.creator_storage_path,
+            "execute-application-operation",
+            "--chain-id",
+            chain_id,
+            "--application-id",
+            application_id,
+            "--operation",
+            operation_hex,
+        )
 
     def _run_publisher(self, *args: str) -> subprocess.CompletedProcess[str]:
         """Run a linera CLI command using the publisher wallet."""
