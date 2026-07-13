@@ -91,6 +91,26 @@ class LineraClient:
                 return current_chain
         raise LineraCliError("Wallet has no DEFAULT chain")
 
+    def wallet_chain_ids(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+    ) -> list[str]:
+        """Return all chain IDs present in the wallet."""
+        output = self.wallet_show(wallet_path, keystore_path, storage_path)
+        return self._extract_chain_ids(output)
+
+    @staticmethod
+    def _extract_chain_ids(output: str) -> list[str]:
+        """Parse `linera wallet show` output and return all chain IDs."""
+        chain_ids: list[str] = []
+        for line in output.strip().splitlines():
+            stripped = line.strip()
+            if stripped.startswith("Chain ID:"):
+                chain_ids.append(stripped.split(":", 1)[1].strip())
+        return chain_ids
+
     def wallet_show(
         self,
         wallet_path: Path,
@@ -131,6 +151,71 @@ class LineraClient:
                 if owner and owner.lower() not in ("no", "no owner key"):
                     return owner
         raise LineraCliError("Wallet has no default owner")
+
+    def show_ownership(
+        self,
+        wallet_path: Path,
+        keystore_path: Path,
+        storage_path: str,
+        chain_id: str,
+    ) -> dict[str, Any]:
+        """Return parsed ownership information for a chain.
+
+        The output format of ``linera show-ownership`` is expected to be::
+
+            Multi-leader rounds: 100
+            Owner weights:
+              0x<owner1>: 100
+              0x<owner2>: 100
+
+        This parser tolerates extra fields and whitespace.
+        """
+        result = self._run_with_wallet(
+            wallet_path,
+            keystore_path,
+            storage_path,
+            "show-ownership",
+            "--chain-id",
+            chain_id,
+        )
+        return self._parse_ownership_output(result.stdout)
+
+    @staticmethod
+    def _parse_ownership_output(output: str) -> dict[str, Any]:
+        """Parse ``linera show-ownership`` output into a dictionary."""
+        ownership: dict[str, Any] = {
+            "multi_leader_rounds": None,
+            "owners": {},
+        }
+        in_owner_weights = False
+        for line in output.strip().splitlines():
+            stripped = line.strip()
+            if not stripped:
+                in_owner_weights = False
+                continue
+
+            if stripped.lower().startswith("multi-leader rounds:"):
+                value = stripped.split(":", 1)[1].strip()
+                try:
+                    ownership["multi_leader_rounds"] = int(value)
+                except ValueError:
+                    ownership["multi_leader_rounds"] = value
+                continue
+
+            if stripped.lower().startswith("owner weights"):
+                in_owner_weights = True
+                continue
+
+            if in_owner_weights and ":" in stripped:
+                owner, weight_str = stripped.rsplit(":", 1)
+                owner = owner.strip()
+                try:
+                    weight = int(weight_str.strip())
+                except ValueError:
+                    weight = weight_str.strip()
+                ownership["owners"][owner] = weight
+
+        return ownership
 
     def open_multi_owner_chain(
         self,
@@ -370,10 +455,7 @@ class LineraClient:
         variables: dict[str, Any],
         operation_type: str = "abi::ams::AmsOperation",
     ) -> str:
-        """Serialize a GraphQL mutation into BCS bytes using the ABI crate.
-
-        Returns the hex-encoded operation bytes (including the ``0x`` prefix).
-        """
+        """Serialize a GraphQL mutation into BCS bytes using the ABI crate."""
         if self.operation_type_crate is None:
             raise ConfigError(
                 "repo_dir is required to locate the ABI crate for operation serialization"
@@ -488,4 +570,4 @@ class LineraClient:
         lines = output.strip().splitlines()
         if lines:
             return lines[-1].strip()
-        raise LineraCliError(f"Could not extract ID from empty output")
+        raise LineraCliError("Could not extract ID from empty output")

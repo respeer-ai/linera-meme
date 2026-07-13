@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 from typing import Any
+
+from linest.persistence import atomic_json_write
 
 
 class DomainRegistry:
@@ -34,18 +35,5 @@ class DomainRegistry:
             "chain_id": chain_id,
             "application_id": application_id,
         }
-        self._atomic_write(data)
+        atomic_json_write(self.path, data)
 
-    def _atomic_write(self, data: dict[str, Any]) -> None:
-        """Write data atomically with a temporary backup."""
-        backup_path = self.path.with_suffix(".json.bak")
-        temp_path = self.path.with_suffix(".json.tmp")
-
-        if self.path.exists():
-            shutil.copy2(self.path, backup_path)
-
-        with temp_path.open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-            f.write("\n")
-
-        temp_path.replace(self.path)

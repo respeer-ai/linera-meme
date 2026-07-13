@@ -7,6 +7,7 @@ from time import monotonic, sleep
 
 from linest.client.funder_pool import FunderPool
 from linest.client.linera_client import LineraClient
+from linest.client.wallet_layout import AppWalletLayout
 from linest.config import WalletPaths
 from linest.errors import DeploymentError
 from linest.models.app_family import AppFamily
@@ -29,8 +30,9 @@ class MultiOwnerChainManager:
         env: str | None = None,
         faucet_url: str | None = None,
     ) -> None:
-        self.wallet_dir = Path(wallet_dir)
-        self.app_name = app_name
+        self.layout = AppWalletLayout(
+            wallet_dir=Path(wallet_dir), app_name=app_name
+        )
         self.linera_client = linera_client
         self.funder_pool: FunderPool | None = None
         if base_dir is not None and env is not None and faucet_url is not None:
@@ -81,31 +83,31 @@ class MultiOwnerChainManager:
     def _create_chain(
         self, family: AppFamily, creator_owner: str, owners: list[str]
     ) -> str:
-        wallet_path, keystore_path, storage_path = self._creator_wallet_paths()
+        creator_paths = self.layout.creator()
         default_chain = self.linera_client.default_chain_id_for(
-            wallet_path, keystore_path, storage_path
+            creator_paths.wallet,
+            creator_paths.keystore,
+            creator_paths.storage,
         )
         self._ensure_creator_chain_balance(
-            wallet_path, keystore_path, storage_path, default_chain
+            creator_paths, default_chain
         )
         chain_id = self.linera_client.open_multi_owner_chain(
-            wallet_path=wallet_path,
-            keystore_path=keystore_path,
-            storage_path=storage_path,
+            wallet_path=creator_paths.wallet,
+            keystore_path=creator_paths.keystore,
+            storage_path=creator_paths.storage,
             from_chain_id=default_chain,
             owners=[creator_owner, *owners],
         )
         self._assign_chain_to_owners(chain_id, [creator_owner, *owners])
         family.creator_chain_wallet_dir = str(
-            self.wallet_dir / self.app_name / "creator"
+            self.layout.wallet_dir / self.layout.app_name / "creator"
         )
         return chain_id
 
     def _ensure_creator_chain_balance(
         self,
-        wallet_path: Path,
-        keystore_path: Path,
-        storage_path: str,
+        paths: WalletPaths,
         chain_id: str,
     ) -> None:
         """Top up the creator chain from the funder pool before opening a chain."""
@@ -113,9 +115,11 @@ class MultiOwnerChainManager:
         if self.funder_pool is None:
             return
 
-        self.linera_client.process_inbox(wallet_path, keystore_path, storage_path, chain_id)
+        self.linera_client.process_inbox(
+            paths.wallet, paths.keystore, paths.storage, chain_id
+        )
         current_balance = self.linera_client.query_balance(
-            wallet_path, keystore_path, storage_path, chain_id
+            paths.wallet, paths.keystore, paths.storage, chain_id
         )
         print(f"[funder-check] current_balance={current_balance} target={self._CREATOR_CHAIN_TARGET_BALANCE}")
         if current_balance >= self._CREATOR_CHAIN_TARGET_BALANCE:
@@ -140,15 +144,11 @@ class MultiOwnerChainManager:
             f"{amount:.10g}",
         )
         print("[funder-check] transfer complete")
-        self._wait_for_balance(
-            wallet_path, keystore_path, storage_path, chain_id
-        )
+        self._wait_for_balance(paths, chain_id)
 
     def _wait_for_balance(
         self,
-        wallet_path: Path,
-        keystore_path: Path,
-        storage_path: str,
+        paths: WalletPaths,
         chain_id: str,
     ) -> bool:
         """Wait for a funding transfer to land by polling inbox and balance."""
@@ -160,10 +160,10 @@ class MultiOwnerChainManager:
         deadline = monotonic() + self._FUNDING_COOLDOWN_SECONDS
         while monotonic() < deadline:
             self.linera_client.process_inbox(
-                wallet_path, keystore_path, storage_path, chain_id
+                paths.wallet, paths.keystore, paths.storage, chain_id
             )
             balance = self.linera_client.query_balance(
-                wallet_path, keystore_path, storage_path, chain_id
+                paths.wallet, paths.keystore, paths.storage, chain_id
             )
             print(
                 f"[funder-check] chain {chain_id} balance {balance} "
@@ -189,27 +189,16 @@ class MultiOwnerChainManager:
         owners: list[str],
     ) -> None:
         for index, owner in enumerate(owners):
-            wallet_path, keystore_path, storage_path = self._owner_wallet_paths(
-                "creator" if index == 0 else str(index - 1)
-            )
+            paths = self._owner_paths("creator" if index == 0 else str(index - 1))
             self.linera_client.assign_chain(
-                wallet_path=wallet_path,
-                keystore_path=keystore_path,
-                storage_path=storage_path,
+                wallet_path=paths.wallet,
+                keystore_path=paths.keystore,
+                storage_path=paths.storage,
                 owner=owner,
                 chain_id=chain_id,
             )
 
-    def _creator_wallet_paths(self) -> tuple[Path, Path, str]:
-        return self._wallet_paths("creator")
-
-    def _owner_wallet_paths(self, index: str) -> tuple[Path, Path, str]:
-        return self._wallet_paths(index)
-
-    def _wallet_paths(self, index: str) -> tuple[Path, Path, str]:
-        wallet_path = self.wallet_dir / self.app_name / index / "wallet.json"
-        keystore_path = self.wallet_dir / self.app_name / index / "keystore.json"
-        storage_path = (
-            f"rocksdb://{self.wallet_dir / self.app_name / index / 'client.db'}"
-        )
-        return wallet_path, keystore_path, storage_path
+    def _owner_paths(self, index: str) -> WalletPaths:
+        if index == "creator":
+            return self.layout.creator()
+        return self.layout.owner(int(index))

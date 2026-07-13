@@ -239,7 +239,11 @@ def test_append_state_step_proceeds_when_chain_query_fails(
     registry.save_deployment(state)
     registry.save_family(family)
 
-    query_client.query_state_applications.side_effect = RuntimeError("network down")
+    from linest.errors import DeploymentError
+
+    query_client.query_state_applications.side_effect = DeploymentError(
+        "network down"
+    )
 
     step = AppendStateStep(family, 1, "ams-state-v1")
     result = step.execute(registry, linera_client, query_client)
@@ -301,7 +305,11 @@ def test_handoff_step_proceeds_when_chain_query_fails(
     registry.save_deployment(state)
     registry.save_family(family)
 
-    query_client.query_business_application_id.side_effect = RuntimeError("network down")
+    from linest.errors import DeploymentError
+
+    query_client.query_business_application_id.side_effect = DeploymentError(
+        "network down"
+    )
 
     step = HandoffStep(family, 1, 2)
     result = step.execute(registry, linera_client, query_client)

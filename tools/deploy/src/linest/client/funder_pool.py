@@ -6,7 +6,7 @@ from pathlib import Path
 
 from linest.client.linera_client import LineraClient
 from linest.config import WalletPaths
-from linest.errors import LinestError
+from linest.errors import LinestError, LineraCliError
 
 
 class FunderPool:
@@ -33,20 +33,16 @@ class FunderPool:
     def ensure_one(self) -> str:
         """Return an existing or newly claimed funder chain ID."""
         print("[funder] looking for an available funder chain", flush=True)
-        for wallet_dir in sorted(self.chain_dir.iterdir()):
-            if not wallet_dir.is_dir():
-                continue
-            if self._is_spent(wallet_dir):
-                continue
-            chain_id = self._try_use_chain(wallet_dir)
-            if chain_id:
-                print(f"[funder] reusing funder chain {chain_id}", flush=True)
-                return chain_id
-        print("[funder] no available funder chain, claiming a new one", flush=True)
-        return self._claim_new_chain()
+        chain_id = self.next_available_chain_id(claim_if_empty=True)
+        print(f"[funder] using funder chain {chain_id}", flush=True)
+        return chain_id
 
-    def next_available_chain_id(self) -> str:
-        """Return a funder chain with remaining balance, claiming one if needed."""
+    def next_available_chain_id(self, claim_if_empty: bool = True) -> str:
+        """Return a funder chain with remaining balance.
+
+        If no available chain exists and ``claim_if_empty`` is True, a new
+        chain is claimed from the faucet.
+        """
         for wallet_dir in sorted(self.chain_dir.iterdir()):
             if not wallet_dir.is_dir():
                 continue
@@ -55,7 +51,11 @@ class FunderPool:
             chain_id = self._try_use_chain(wallet_dir)
             if chain_id:
                 return chain_id
-        return self._claim_new_chain()
+
+        if claim_if_empty:
+            return self._claim_new_chain()
+
+        raise LinestError("No available funder chain")
 
     def _try_use_chain(self, wallet_dir: Path) -> str | None:
         """Return the chain ID if this funder wallet still has balance."""
@@ -74,7 +74,7 @@ class FunderPool:
             if balance > self._SPENT_BALANCE_THRESHOLD:
                 return chain_id
             self._mark_spent(wallet_dir)
-        except Exception as exc:
+        except LineraCliError as exc:
             print(f"[funder] failed to use funder wallet {wallet_dir}: {exc}", flush=True)
             return None
         return None
@@ -122,7 +122,7 @@ class FunderPool:
                 )
                 if candidate_id == chain_id:
                     return wallet_dir
-            except Exception:
+            except LineraCliError:
                 continue
         raise LinestError(f"Funder wallet not found for chain {chain_id}")
 
@@ -165,7 +165,7 @@ class FunderPool:
                         "balance": str(balance),
                     }
                 )
-            except Exception:
+            except LineraCliError:
                 continue
         return funders
 
@@ -188,7 +188,7 @@ class FunderPool:
                 if balance <= self._SPENT_BALANCE_THRESHOLD or self._is_spent(wallet_dir):
                     self._remove_wallet_dir(wallet_dir)
                     removed += 1
-            except Exception:
+            except LineraCliError:
                 continue
         return removed
 

@@ -71,25 +71,7 @@ class UpgradePlan:
 
         if self._has_new_state_app():
             new_state_version = self._new_state_version(previous_record.state_apps)
-            self.steps.append(
-                DeployStateAppStep(
-                    family=self.family,
-                    version=new_state_version,
-                    contract_bytecode_path=self.state_contract_bytecode_path,
-                    service_bytecode_path=self.state_service_bytecode_path,
-                    business_app_version=self.target_version,
-                    operator=self.operator,
-                    creator_chain_id=self.creator_chain_id,
-                    abi_source_hash=self._resolve_abi_source_hash(new_state_version),
-                )
-            )
-            self.steps.append(
-                AppendStateStep(
-                    family=self.family,
-                    business_app_version=self.target_version,
-                    state_app_name=f"{self.family.name}-state-v{new_state_version}",
-                )
-            )
+            self._add_state_app_steps(version=new_state_version)
 
         self.steps.append(
             HandoffStep(
@@ -110,23 +92,27 @@ class UpgradePlan:
             )
 
         self._add_deploy_business_app_step()
+        self._add_state_app_steps(version=1)
+
+    def _add_state_app_steps(self, version: int) -> None:
+        """Add steps to deploy a state app and append it to the business app."""
         self.steps.append(
             DeployStateAppStep(
                 family=self.family,
-                version=1,
+                version=version,
                 contract_bytecode_path=self.state_contract_bytecode_path,
                 service_bytecode_path=self.state_service_bytecode_path,
                 business_app_version=self.target_version,
                 operator=self.operator,
                 creator_chain_id=self.creator_chain_id,
-                abi_source_hash=self._resolve_abi_source_hash(1),
+                abi_source_hash=self._resolve_abi_source_hash(version),
             )
         )
         self.steps.append(
             AppendStateStep(
                 family=self.family,
                 business_app_version=self.target_version,
-                state_app_name=f"{self.family.name}-state-v1",
+                state_app_name=f"{self.family.name}-state-v{version}",
             )
         )
 

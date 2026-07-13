@@ -2,6 +2,7 @@
 
 from linest.client.linera_client import LineraClient
 from linest.client.query_client import QueryClient
+from linest.errors import DeploymentError
 from linest.models.app_family import AppFamily, VersionRecord
 from linest.models.business_app import BusinessAppDeployment
 from linest.models.state_app import StateAppDeployment
@@ -95,7 +96,7 @@ class AppendStateStep(Step):
             apps = query_client.query_state_applications(
                 business_app.creator_chain_id, business_app.application_id
             )
-        except Exception:
+        except DeploymentError:
             return False
         return any(
             entry.get("applicationId") == state_app.application_id for entry in apps

@@ -196,7 +196,7 @@ def test_upgrade_recovers_after_handoff(
     linera_client.submit_application_operation.assert_not_called()
 
 
-def test_upgrade_rejects_older_version(
+def test_upgrade_skips_older_version(
     registry: DeploymentRegistry,
     config: NetworkConfig,
     linera_client: MagicMock,

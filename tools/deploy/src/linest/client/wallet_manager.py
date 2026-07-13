@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from linest.client.linera_client import LineraClient
+from linest.client.wallet_layout import AppWalletLayout
+from linest.config import WalletPaths
 from linest.errors import DeploymentError, LineraCliError
 
 
@@ -20,8 +22,9 @@ class WalletManager:
         owner_count: int = 1,
         existing_owners: list[str] | None = None,
     ) -> None:
-        self.wallet_dir = Path(wallet_dir)
-        self.app_name = app_name
+        self.layout = AppWalletLayout(
+            wallet_dir=Path(wallet_dir), app_name=app_name
+        )
         self.faucet_url = faucet_url
         self.linera_client = linera_client
         self.owner_count = owner_count
@@ -36,11 +39,17 @@ class WalletManager:
         return creator_owner, owners
 
     def _ensure_publisher_wallet(self) -> str:
-        paths = self._wallet_paths("creator")
-        if not self._wallet_is_valid(*paths):
-            self.linera_client.init_wallet(*paths, self.faucet_url)
-            self.linera_client.request_chain(*paths, self.faucet_url)
-        return self.linera_client.default_owner(*paths)
+        paths = self.layout.creator()
+        if not self._wallet_is_valid(paths):
+            self.linera_client.init_wallet(
+                paths.wallet, paths.keystore, paths.storage, self.faucet_url
+            )
+            self.linera_client.request_chain(
+                paths.wallet, paths.keystore, paths.storage, self.faucet_url
+            )
+        return self.linera_client.default_owner(
+            paths.wallet, paths.keystore, paths.storage
+        )
 
     def _ensure_owner_wallet(self, index: int) -> str:
         """Ensure an owner wallet exists and return its owner public key.
@@ -48,56 +57,47 @@ class WalletManager:
         Owner wallets do not request their own chain from the faucet. Instead,
         they hold an unassigned keypair whose public key becomes one of the
         owners of the application's multi-owner chain. Once the chain is
-        created, that chain is assigned to the owner wallet and ``linera wallet
-        show`` reports the owner as the wallet's default owner.
+        created and assigned to this wallet, ``linera wallet show`` reports
+        that owner as the wallet's default owner.
         """
-        paths = self._wallet_paths(str(index))
+        paths = self.layout.owner(index)
 
         # If the registry already records an owner for this index, verify that
         # the wallet actually contains the same owner before reusing it.
         if index < len(self.existing_owners):
             registry_owner = self.existing_owners[index]
             try:
-                wallet_owner = self.linera_client.default_owner(*paths)
+                wallet_owner = self.linera_client.default_owner(
+                    paths.wallet, paths.keystore, paths.storage
+                )
             except LineraCliError as exc:
                 raise DeploymentError(
-                    f"Owner wallet {self.app_name}/{index} has no default owner; "
+                    f"Owner wallet {self.layout.app_name}/{index} has no default owner; "
                     f"registry expects {registry_owner}. The chain may not have "
                     f"been assigned to this wallet yet."
                 ) from exc
-
             if wallet_owner != registry_owner:
                 raise DeploymentError(
-                    f"Owner mismatch for {self.app_name}/{index}: "
+                    f"Owner wallet {self.layout.app_name}/{index} mismatch: "
                     f"registry has {registry_owner}, wallet has {wallet_owner}"
                 )
             return registry_owner
 
         # First deployment: ensure the wallet exists and create the unassigned
         # owner key that will be used to open the multi-owner chain.
-        if not self._wallet_is_valid(*paths):
-            self.linera_client.init_wallet(*paths, self.faucet_url)
-        return self.linera_client.keygen(*paths)
+        if not self._wallet_is_valid(paths):
+            self.linera_client.init_wallet(
+                paths.wallet, paths.keystore, paths.storage, self.faucet_url
+            )
+        return self.linera_client.keygen(paths.wallet, paths.keystore, paths.storage)
 
-    def _wallet_is_valid(
-        self,
-        wallet_path: Path,
-        keystore_path: Path,
-        storage_path: str,
-    ) -> bool:
-        if not wallet_path.exists() or not keystore_path.exists():
+    def _wallet_is_valid(self, paths: WalletPaths) -> bool:
+        if not paths.wallet.exists() or not paths.keystore.exists():
             return False
         try:
-            self.linera_client.wallet_show(wallet_path, keystore_path, storage_path)
+            self.linera_client.wallet_show(
+                paths.wallet, paths.keystore, paths.storage
+            )
         except LineraCliError:
             return False
         return True
-
-    def _wallet_paths(
-        self,
-        index: str,
-    ) -> tuple[Path, Path, str]:
-        wallet_path = self.wallet_dir / self.app_name / index / "wallet.json"
-        keystore_path = self.wallet_dir / self.app_name / index / "keystore.json"
-        storage_path = f"rocksdb://{self.wallet_dir / self.app_name / index / 'client.db'}"
-        return wallet_path, keystore_path, storage_path

@@ -26,10 +26,19 @@ class QueryClient:
             "query": query,
             "variables": variables or {},
         }
-        response = requests.post(url, json=payload, timeout=30)
-        response.raise_for_status()
+        try:
+            response = requests.post(url, json=payload, timeout=30)
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise DeploymentError(f"Query service request failed: {exc}") from exc
 
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise DeploymentError(
+                f"Query service returned invalid JSON: {exc}"
+            ) from exc
+
         if "errors" in data:
             raise DeploymentError(f"GraphQL error: {data['errors']}")
 
@@ -100,10 +109,19 @@ class QueryClient:
             "query": query,
             "variables": {"owner": owner, "chainId": chain_id},
         }
-        response = requests.post(self.base_url, json=payload, timeout=30)
-        response.raise_for_status()
+        try:
+            response = requests.post(self.base_url, json=payload, timeout=30)
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise DeploymentError(f"Query service request failed: {exc}") from exc
 
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise DeploymentError(
+                f"Query service returned invalid JSON: {exc}"
+            ) from exc
+
         if "errors" in data:
             raise DeploymentError(f"GraphQL error: {data['errors']}")
 

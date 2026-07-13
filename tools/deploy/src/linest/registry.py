@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +11,7 @@ from linest.models.app_family import AppFamily
 from linest.models.business_app import BusinessAppDeployment
 from linest.models.deployment import Deployment
 from linest.models.state_app import StateAppDeployment
+from linest.persistence import atomic_json_write
 
 
 class DeploymentRegistry:
@@ -43,7 +43,7 @@ class DeploymentRegistry:
     def save_family(self, family: AppFamily) -> None:
         """Save an app family to the registry."""
         path = self.family_path(family.name)
-        self._atomic_write(path, family.to_dict())
+        atomic_json_write(path, family.to_dict())
 
     def load_deployment(self, name: str) -> Deployment:
         """Load a concrete deployment from the registry."""
@@ -78,7 +78,7 @@ class DeploymentRegistry:
     def save_deployment(self, deployment: Deployment) -> None:
         """Save a concrete deployment to the registry."""
         path = self.deployment_path(deployment.name)
-        self._atomic_write(path, deployment.to_dict())
+        atomic_json_write(path, deployment.to_dict())
 
     def list_deployments(self) -> list[str]:
         """Return the names of all deployments in the registry."""
@@ -110,16 +110,3 @@ class DeploymentRegistry:
                 continue
         return families
 
-    def _atomic_write(self, path: Path, data: dict[str, Any]) -> None:
-        """Write data atomically with a temporary backup."""
-        backup_path = path.with_suffix(".json.bak")
-        temp_path = path.with_suffix(".json.tmp")
-
-        if path.exists():
-            shutil.copy2(path, backup_path)
-
-        with temp_path.open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-            f.write("\n")
-
-        temp_path.replace(path)

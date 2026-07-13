@@ -6,7 +6,9 @@ from pathlib import Path
 
 from linest.client.linera_client import LineraClient
 from linest.client.query_client import QueryClient
-from linest.config import NetworkConfig
+from linest.client.wallet_layout import AppWalletLayout
+from linest.config import NetworkConfig, WalletPaths
+from linest.errors import LineraCliError
 from linest.models.app_family import AppFamily
 
 
@@ -34,91 +36,101 @@ class PostDeploySync:
         if chain_id is None:
             return
 
-        self._process_owner_inboxes(wallet_dir, family.name, owner_count)
-        self._import_to_query_service(family, wallet_dir, owner_count, chain_id)
-        self._set_single_leader(wallet_dir, family.name, chain_id, owner_count)
+        layout = AppWalletLayout(
+            wallet_dir=wallet_dir, app_name=family.name
+        )
+
+        self._process_owner_inboxes(layout, owner_count)
+        self._import_to_query_service(layout, chain_id)
+        self._set_single_leader(layout, chain_id, owner_count)
 
     def _process_owner_inboxes(
         self,
-        wallet_dir: Path,
-        app_name: str,
+        layout: AppWalletLayout,
         owner_count: int,
     ) -> None:
-        self._process_inbox(wallet_dir, app_name, "creator")
+        self._process_inbox(layout.creator())
         for index in range(owner_count):
-            self._process_inbox(wallet_dir, app_name, str(index))
+            self._process_inbox(layout.owner(index))
 
-    def _process_inbox(
-        self,
-        wallet_dir: Path,
-        app_name: str,
-        index: str,
-    ) -> None:
-        wallet_path, keystore_path, storage_path = self._wallet_paths(
-            wallet_dir, app_name, index
+    def _process_inbox(self, paths: WalletPaths) -> None:
+        self.linera_client.process_inbox(
+            paths.wallet, paths.keystore, paths.storage
         )
-        self.linera_client.process_inbox(wallet_path, keystore_path, storage_path)
 
     def _import_to_query_service(
         self,
-        family: AppFamily,
-        wallet_dir: Path,
-        owner_count: int,
+        layout: AppWalletLayout,
         chain_id: str,
     ) -> None:
         if self.config.query_wallet is None:
             return
-        if owner_count == 0:
+
+        existing_chain_ids = self.linera_client.wallet_chain_ids(
+            self.config.query_wallet.wallet,
+            self.config.query_wallet.keystore,
+            self.config.query_wallet.storage,
+        )
+        if chain_id in existing_chain_ids:
+            print(
+                f"[post-deploy-sync] chain {chain_id} already imported to query service"
+            )
             return
-        query_owner = self._default_owner(wallet_dir, family.name, "0")
+
+        query_owner = self._default_owner(layout.creator())
         self.query_client.import_chain(owner=query_owner, chain_id=chain_id)
 
     def _set_single_leader(
         self,
-        wallet_dir: Path,
-        app_name: str,
+        layout: AppWalletLayout,
         chain_id: str,
         owner_count: int,
     ) -> None:
         owners: dict[str, int] = {}
-        creator_owner = self._default_owner(wallet_dir, app_name, "creator")
+        creator_owner = self._default_owner(layout.creator())
         owners[creator_owner] = 100
         for index in range(owner_count):
-            owner = self._default_owner(wallet_dir, app_name, str(index))
+            owner = self._default_owner(layout.owner(index))
             owners[owner] = 100
 
-        wallet_path, keystore_path, storage_path = self._wallet_paths(
-            wallet_dir, app_name, "0"
-        )
+        operator_paths = layout.owner(0)
+        if self._already_single_leader(operator_paths, chain_id, owners):
+            print(
+                f"[post-deploy-sync] chain {chain_id} already in single-leader mode"
+            )
+            return
+
         self.linera_client.change_ownership(
-            wallet_path,
-            keystore_path,
-            storage_path,
+            operator_paths.wallet,
+            operator_paths.keystore,
+            operator_paths.storage,
             chain_id,
             owners,
             multi_leader_rounds=0,
         )
 
-    def _default_owner(
+    def _already_single_leader(
         self,
-        wallet_dir: Path,
-        app_name: str,
-        index: str,
-    ) -> str:
-        wallet_path, keystore_path, storage_path = self._wallet_paths(
-            wallet_dir, app_name, index
-        )
-        return self.linera_client.default_owner(
-            wallet_path, keystore_path, storage_path
-        )
+        paths: WalletPaths,
+        chain_id: str,
+        expected_owners: dict[str, int],
+    ) -> bool:
+        """Check whether the chain is already configured for single leader."""
+        try:
+            ownership = self.linera_client.show_ownership(
+                paths.wallet, paths.keystore, paths.storage, chain_id
+            )
+        except LineraCliError:
+            return False
 
-    @staticmethod
-    def _wallet_paths(
-        wallet_dir: Path,
-        app_name: str,
-        index: str,
-    ) -> tuple[Path, Path, str]:
-        wallet_path = wallet_dir / app_name / index / "wallet.json"
-        keystore_path = wallet_dir / app_name / index / "keystore.json"
-        storage_path = f"rocksdb://{wallet_dir / app_name / index / 'client.db'}"
-        return wallet_path, keystore_path, storage_path
+        multi_leader_rounds = ownership.get("multi_leader_rounds")
+        if multi_leader_rounds != 0:
+            return False
+
+        actual_owners = ownership.get("owners", {})
+        return actual_owners == expected_owners
+
+    def _default_owner(self, paths: WalletPaths) -> str:
+        return self.linera_client.default_owner(
+            paths.wallet, paths.keystore, paths.storage
+        )

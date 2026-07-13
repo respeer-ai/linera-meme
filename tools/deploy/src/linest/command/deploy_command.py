@@ -9,11 +9,13 @@ from typing import Any
 from linest.client.chain_manager import MultiOwnerChainManager
 from linest.client.linera_client import LineraClient
 from linest.client.query_client import QueryClient
+from linest.client.wallet_layout import AppWalletLayout
 from linest.client.wallet_manager import WalletManager
 from linest.command.dry_run_reporter import DryRunReporter
 from linest.command.post_deploy_sync import PostDeploySync
 from linest.config import NetworkConfig
 from linest.errors import DeploymentError, LinestError
+from linest.models.app_family import AppFamily
 from linest.plan.upgrade_plan import UpgradePlan
 from linest.registry import DeploymentRegistry
 from linest.steps.append_state_step import AppendStateStep
@@ -80,7 +82,7 @@ class DeployCommand:
         completed, or failed. The result is also printed before returning.
         """
         family = self.registry.load_family(name)
-        result = DeployResult(name=name, version=version, status="failed")
+        result = DeployResult(name=name, version=version, status="in_progress")
 
         if version <= family.current_version:
             result.status = "skipped"
@@ -98,40 +100,94 @@ class DeployCommand:
                 result.error = LinestError("--ensure-wallet requires --faucet-url")
                 print(result)
                 return result
-            try:
-                creator_owner, owners = WalletManager(
-                    wallet_dir=self.config.wallet_dir,
-                    app_name=name,
-                    faucet_url=faucet_url,
-                    linera_client=self.linera_client,
-                    owner_count=wallet_owner_count,
-                    existing_owners=family.owners,
-                ).ensure_wallets()
-                resolved_chain_id = MultiOwnerChainManager(
-                    wallet_dir=self.config.wallet_dir,
-                    app_name=name,
-                    linera_client=self.linera_client,
-                    base_dir=self.base_dir,
-                    env=self.config.env,
-                    faucet_url=faucet_url,
-                ).ensure_chain(
-                    family=family,
-                    creator_owner=creator_owner,
-                    owners=owners,
-                )
-                if creator_chain_id is not None and creator_chain_id != resolved_chain_id:
-                    raise DeploymentError(
-                        f"Creator chain mismatch: expected {creator_chain_id}, "
-                        f"registry has {resolved_chain_id}"
-                    )
-                creator_chain_id = resolved_chain_id
-                self.registry.save_family(family)
-            except Exception as exc:
-                result.error = exc
-                result.messages.append(f"wallet/chain preparation failed: {exc}")
-                print(result)
+            result = self._prepare_wallet_and_chain(
+                result=result,
+                family=family,
+                faucet_url=faucet_url,
+                wallet_owner_count=wallet_owner_count,
+            )
+            if result.status == "failed":
                 return result
+            creator_chain_id = family.creator_chain_id
 
+        result = self._build_and_execute_plan(
+            result=result,
+            family=family,
+            version=version,
+            contract_bytecode=contract_bytecode,
+            service_bytecode=service_bytecode,
+            state_contract_bytecode=state_contract_bytecode,
+            state_service_bytecode=state_service_bytecode,
+            creator_chain_id=creator_chain_id,
+            repo_dir=repo_dir,
+            dry_run=dry_run,
+        )
+        if result.status == "failed":
+            return result
+
+        result = self._post_deploy_sync(
+            result=result,
+            family=family,
+            wallet_owner_count=wallet_owner_count if ensure_wallet else len(family.owners),
+        )
+        return result
+
+    def _prepare_wallet_and_chain(
+        self,
+        result: DeployResult,
+        family: AppFamily,
+        faucet_url: str,
+        wallet_owner_count: int,
+    ) -> DeployResult:
+        """Ensure wallets and the multi-owner chain exist."""
+        try:
+            creator_owner, owners = WalletManager(
+                wallet_dir=self.config.wallet_dir,
+                app_name=family.name,
+                faucet_url=faucet_url,
+                linera_client=self.linera_client,
+                owner_count=wallet_owner_count,
+                existing_owners=family.owners,
+            ).ensure_wallets()
+            resolved_chain_id = MultiOwnerChainManager(
+                wallet_dir=self.config.wallet_dir,
+                app_name=family.name,
+                linera_client=self.linera_client,
+                base_dir=self.base_dir,
+                env=self.config.env,
+                faucet_url=faucet_url,
+            ).ensure_chain(
+                family=family,
+                creator_owner=creator_owner,
+                owners=owners,
+            )
+            if family.creator_chain_id is not None and family.creator_chain_id != resolved_chain_id:
+                raise DeploymentError(
+                    f"Creator chain mismatch: expected {family.creator_chain_id}, "
+                    f"resolved to {resolved_chain_id}"
+                )
+            self.registry.save_family(family)
+        except Exception as exc:
+            result.status = "failed"
+            result.error = exc
+            result.messages.append(f"wallet/chain preparation failed: {exc}")
+            print(result)
+        return result
+
+    def _build_and_execute_plan(
+        self,
+        result: DeployResult,
+        family: AppFamily,
+        version: int,
+        contract_bytecode: str | None,
+        service_bytecode: str | None,
+        state_contract_bytecode: str | None,
+        state_service_bytecode: str | None,
+        creator_chain_id: str | None,
+        repo_dir: Path | None,
+        dry_run: bool,
+    ) -> DeployResult:
+        """Build the upgrade plan and execute its steps."""
         try:
             plan = UpgradePlan(
                 family=family,
@@ -145,6 +201,7 @@ class DeployCommand:
                 repo_dir=repo_dir,
             )
         except Exception as exc:
+            result.status = "failed"
             result.error = exc
             result.messages.append(f"upgrade planning failed: {exc}")
             print(result)
@@ -159,30 +216,53 @@ class DeployCommand:
 
         for step in plan.steps:
             print(f"-> {step.description}")
-            try:
-                step_result = step.execute(
-                    registry=self.registry,
-                    linera_client=self.linera_client,
-                    query_client=self.query_client,
-                )
-            except Exception as exc:
-                result.error = exc
-                result.messages.append(f"step '{step.description}' failed: {exc}")
-                print(result)
+            result = self._execute_step(result, step)
+            if result.status == "failed":
                 return result
-
-            if not step_result.success:
-                result.error = RuntimeError(step_result.message)
-                result.messages.append(f"step '{step.description}' failed: {step_result.message}")
-                print(result)
-                return result
-
-            print(f"   {step_result.message}")
-            result.messages.append(f"{step.description}: {step_result.message}")
 
         family.current_version = version
         self.registry.save_family(family)
+        return result
 
+    def _execute_step(
+        self,
+        result: DeployResult,
+        step: Any,
+    ) -> DeployResult:
+        """Execute a single deployment step and record the outcome."""
+        try:
+            step_result = step.execute(
+                registry=self.registry,
+                linera_client=self.linera_client,
+                query_client=self.query_client,
+            )
+        except Exception as exc:
+            result.status = "failed"
+            result.error = exc
+            result.messages.append(f"step '{step.description}' failed: {exc}")
+            print(result)
+            return result
+
+        if not step_result.success:
+            result.status = "failed"
+            result.error = RuntimeError(step_result.message)
+            result.messages.append(
+                f"step '{step.description}' failed: {step_result.message}"
+            )
+            print(result)
+            return result
+
+        print(f"   {step_result.message}")
+        result.messages.append(f"{step.description}: {step_result.message}")
+        return result
+
+    def _post_deploy_sync(
+        self,
+        result: DeployResult,
+        family: AppFamily,
+        wallet_owner_count: int,
+    ) -> DeployResult:
+        """Run post-deployment synchronization steps."""
         try:
             PostDeploySync(
                 config=self.config,
@@ -191,9 +271,10 @@ class DeployCommand:
             ).sync(
                 family=family,
                 wallet_dir=Path(self.config.wallet_dir),
-                owner_count=wallet_owner_count if ensure_wallet else len(family.owners),
+                owner_count=wallet_owner_count,
             )
         except Exception as exc:
+            result.status = "failed"
             result.error = exc
             result.messages.append(f"post-deploy sync failed: {exc}")
             print(result)

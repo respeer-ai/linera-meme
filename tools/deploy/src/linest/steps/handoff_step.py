@@ -2,6 +2,7 @@
 
 from linest.client.linera_client import LineraClient
 from linest.client.query_client import QueryClient
+from linest.errors import DeploymentError, RegistryError
 from linest.models.app_family import AppFamily, VersionRecord
 from linest.models.business_app import BusinessAppDeployment
 from linest.registry import DeploymentRegistry
@@ -79,13 +80,13 @@ class HandoffStep(Step):
         first_state_app_name = from_app.state_apps[0]
         try:
             state_app = registry.load_state_app(first_state_app_name)
-        except Exception:
+        except RegistryError:
             return False
         try:
             current_business_id = query_client.query_business_application_id(
                 state_app.creator_chain_id, state_app.application_id
             )
-        except Exception:
+        except DeploymentError:
             return False
         return current_business_id == to_app.application_id
 
