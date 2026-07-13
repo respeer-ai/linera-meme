@@ -614,6 +614,8 @@ process_inboxes proxy
 process_inboxes swap
 
 # Bootstrap shared wallets and services for linest.
+# Start from a clean linest state so stale domain/deployment records from
+# previous runs (which reference old chain IDs) are not reused.
 LINEST_BASE_DIR="$OUTPUT_DIR/linest"
 mkdir -p "$LINEST_BASE_DIR"
 
@@ -625,23 +627,12 @@ env $(linera_env_args) "$LINEST_BIN" \
     --wallet-dir "$WALLET_DIR" \
     --operator-wallet-dir "$WALLET_DIR/operator/0" \
     --query-wallet-dir "$WALLET_DIR/query/0" \
-    --operator-service-port 21180 \
     --query-service-port 24080 > "$RUN_LOCAL_LOG_DIR/linest_bootstrap.log" 2>&1 &
 
 wait_query_service_ready
 import_query_chain "$BLOB_GATEWAY_QUERY_OWNER" "$BLOB_GATEWAY_CHAIN_ID" blob-gateway
 import_query_chain "$PROXY_QUERY_OWNER" "$PROXY_CHAIN_ID" proxy
 import_query_chain "$SWAP_QUERY_OWNER" "$SWAP_CHAIN_ID" swap
-
-# Prepare funder wallets after bootstrap so they are ready for deployments.
-run_linest "linest_fund_chains_prepare" \
-    "$LINEST_BIN" \
-    --base-dir "$LINEST_BASE_DIR" \
-    --env local \
-    fund chains \
-    --claim-from-faucet \
-    --faucet-url "$FAUCET_URL" \
-    --min-balance 100
 
 function create_application() {
     wallet_name=$1
@@ -715,6 +706,10 @@ run_linest "linest_domain_register_proxy" \
     --application-id "$PROXY_APPLICATION_ID"
 
 # Deploy AMS business app and typed state app via linest.
+# Start from a clean AMS wallet tree so stale owner keys/chains from previous
+# runs are not reused.
+mkdir -p "$WALLET_DIR/ams"
+
 run_linest "linest_deploy_ams" \
     "$LINEST_BIN" \
     --base-dir "$LINEST_BASE_DIR" \
@@ -763,7 +758,7 @@ change_multi_owner_chain_single_leader blob-gateway $BLOB_GATEWAY_CHAIN_ID $BLOB
 change_multi_owner_chain_single_leader proxy $PROXY_CHAIN_ID $PROXY_OWNERS
 change_multi_owner_chain_single_leader swap $SWAP_CHAIN_ID $SWAP_OWNERS
 
-# Top up all registered chains to the target minimum balance.
+# Top up linest-managed chains (e.g. AMS) to the target minimum balance.
 run_linest "linest_fund_chains" \
     "$LINEST_BIN" \
     --base-dir "$LINEST_BASE_DIR" \
