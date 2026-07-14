@@ -6,7 +6,10 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    ams::{AmsAbi, InstantiationArgument as AmsInstantiationArgument},
+    ams::{
+        AmsAbi, AmsOperation, AmsStateAbi, InstantiationArgument as AmsInstantiationArgument,
+        StateInstantiationArgument,
+    },
     blob_gateway::BlobGatewayAbi,
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeParameters,
@@ -174,20 +177,52 @@ impl TestSuite {
     }
 
     pub async fn create_ams_application(&mut self) {
-        let bytecode_id = self.proxy_chain.publish_bytecode_files_in("../ams/app").await;
+        let bytecode_id = self
+            .proxy_chain
+            .publish_bytecode_files_in("../ams/app")
+            .await;
+        let operator = self.chain_owner_account(&self.proxy_chain);
 
-        self.ams_application_id = Some(
-            self.proxy_chain
-                .create_application::<AmsAbi, (), AmsInstantiationArgument>(
-                    bytecode_id,
-                    (),
-                    AmsInstantiationArgument {
-                        state_app_id: Self::state_application_id(),
+        let ams_application_id = self
+            .proxy_chain
+            .create_application::<AmsAbi, (), AmsInstantiationArgument>(
+                bytecode_id,
+                (),
+                AmsInstantiationArgument {},
+                vec![],
+            )
+            .await;
+
+        let state_bytecode_id = self
+            .proxy_chain
+            .publish_bytecode_files_in("../ams/state")
+            .await;
+        let state_application_id = self
+            .proxy_chain
+            .create_application::<AmsStateAbi, (), StateInstantiationArgument>(
+                state_bytecode_id,
+                (),
+                StateInstantiationArgument {
+                    business_application_id: ams_application_id.forget_abi(),
+                    operator: Some(operator),
+                },
+                vec![],
+            )
+            .await;
+
+        self.proxy_chain
+            .add_block(|block| {
+                block.with_operation(
+                    ams_application_id,
+                    AmsOperation::AppendState {
+                        state_application_id: state_application_id.forget_abi(),
                     },
-                    vec![],
-                )
-                .await,
-        );
+                );
+            })
+            .await;
+        self.proxy_chain.handle_received_messages().await;
+
+        self.ams_application_id = Some(ams_application_id);
     }
 
     pub async fn propose_add_genesis_miner(&self, chain: &ActiveChain, owner: Account) {

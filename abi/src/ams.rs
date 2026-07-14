@@ -2,8 +2,8 @@ pub mod abi;
 pub mod state_v1;
 
 pub use self::abi::{
-    AmsAbi, AmsMessage, AmsOperation, AmsResponse, APPLICATION_TYPES, InstantiationArgument,
-    Metadata, AMS, BLOB_GATEWAY, DEFI, GAME, LIQUIDITY_POOL, MEME, MEME_PROXY, OTHER, SOCIAL,
+    AmsAbi, AmsMessage, AmsOperation, AmsResponse, InstantiationArgument, Metadata, AMS,
+    APPLICATION_TYPES, BLOB_GATEWAY, DEFI, GAME, LIQUIDITY_POOL, MEME, MEME_PROXY, OTHER, SOCIAL,
     SWAP, UTILITY,
 };
 

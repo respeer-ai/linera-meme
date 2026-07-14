@@ -156,18 +156,16 @@ struct MutationRoot {
 #[Object]
 impl MutationRoot {
     async fn append_state(&self, state_application_id: ApplicationId) -> bool {
-        self.runtime
-            .schedule_operation(&AmsOperation::AppendState {
-                state_application_id,
-            });
+        self.runtime.schedule_operation(&AmsOperation::AppendState {
+            state_application_id,
+        });
         true
     }
 
     async fn handoff(&self, new_business_application_id: ApplicationId) -> bool {
-        self.runtime
-            .schedule_operation(&AmsOperation::Handoff {
-                new_business_application_id,
-            });
+        self.runtime.schedule_operation(&AmsOperation::Handoff {
+            new_business_application_id,
+        });
         true
     }
 }
@@ -266,8 +264,7 @@ mod service_tests {
             .handle_query(Request::new("{ latestStateVersion }"))
             .await;
 
-        let expected =
-            Response::new(Value::from_json(json!({ "latestStateVersion": 1 })).unwrap());
+        let expected = Response::new(Value::from_json(json!({ "latestStateVersion": 1 })).unwrap());
         assert_eq!(response, expected);
     }
 
@@ -277,7 +274,9 @@ mod service_tests {
         let service = service_with_runtime(runtime);
 
         let response = service
-            .handle_query(Request::new("{ stateApplications { version applicationId } }"))
+            .handle_query(Request::new(
+                "{ stateApplications { version applicationId } }",
+            ))
             .await;
 
         let expected = Response::new(
@@ -294,7 +293,8 @@ mod service_tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn append_state_mutation_schedules_operation() {
-        let new_state_id = application_id("c30ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae");
+        let new_state_id =
+            application_id("c30ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae");
         let runtime = runtime();
         let service = service_with_runtime(runtime.clone());
 
@@ -305,8 +305,7 @@ mod service_tests {
             )))
             .await;
 
-        let expected =
-            Response::new(Value::from_json(json!({ "appendState": true })).unwrap());
+        let expected = Response::new(Value::from_json(json!({ "appendState": true })).unwrap());
         assert_eq!(response, expected);
 
         let operations: Vec<AmsOperation> = runtime.scheduled_operations();
@@ -325,7 +324,8 @@ mod service_tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn handoff_mutation_schedules_operation() {
-        let new_business_id = application_id("c40ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae");
+        let new_business_id =
+            application_id("c40ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae");
         let runtime = runtime();
         let service = service_with_runtime(runtime.clone());
 
@@ -354,9 +354,10 @@ mod service_tests {
     }
 
     fn runtime() -> Arc<ServiceRuntime<AmsService>> {
-        Arc::new(ServiceRuntime::<AmsService>::new().with_application_id(
-            ams_application_id().with_abi::<AmsAbi>(),
-        ))
+        Arc::new(
+            ServiceRuntime::<AmsService>::new()
+                .with_application_id(ams_application_id().with_abi::<AmsAbi>()),
+        )
     }
 
     fn runtime_with_state_query(

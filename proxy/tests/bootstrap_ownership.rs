@@ -4,7 +4,10 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    ams::{AmsOperation, Metadata, MEME},
+    ams::{
+        AmsOperation, AmsStateAbi, InstantiationArgument as AmsInstantiationArgument, Metadata,
+        StateInstantiationArgument, MEME,
+    },
     blob_gateway::{BlobDataType, BlobGatewayOperation},
     policy::open_chain_fee_budget,
     store_type::StoreType,
@@ -79,16 +82,40 @@ async fn bootstrap_multi_owner_single_leader_apps_process_frontend_protocol_oper
         .await;
 
     let ams_bytecode_id = ams_chain.publish_bytecode_files_in("../ams/app").await;
+    let ams_operator = suite.chain_owner_account(&ams_chain);
     let ams_application_id = ams_chain
-        .create_application::<abi::ams::AmsAbi, (), abi::ams::InstantiationArgument>(
+        .create_application::<abi::ams::AmsAbi, (), AmsInstantiationArgument>(
             ams_bytecode_id,
             (),
-            abi::ams::InstantiationArgument {
-                state_app_id: TestSuite::state_application_id(),
+            AmsInstantiationArgument {},
+            vec![],
+        )
+        .await;
+
+    let ams_state_bytecode_id = ams_chain.publish_bytecode_files_in("../ams/state").await;
+    let ams_state_application_id = ams_chain
+        .create_application::<AmsStateAbi, (), StateInstantiationArgument>(
+            ams_state_bytecode_id,
+            (),
+            StateInstantiationArgument {
+                business_application_id: ams_application_id.forget_abi(),
+                operator: Some(ams_operator),
             },
             vec![],
         )
         .await;
+
+    ams_chain
+        .add_block(|block| {
+            block.with_operation(
+                ams_application_id,
+                AmsOperation::AppendState {
+                    state_application_id: ams_state_application_id.forget_abi(),
+                },
+            );
+        })
+        .await;
+    ams_chain.handle_received_messages().await;
 
     let pool_bytecode_id = swap_chain.publish_bytecode_files_in("../pool").await;
     let swap_bytecode_id = swap_chain.publish_bytecode_files_in("../swap").await;

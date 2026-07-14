@@ -1089,7 +1089,9 @@ fn decode_ams_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resul
                 "application_name": metadata.application_name,
             },
         }),
-        AmsOperation::Claim { application_id: claimed_application_id } => json!({
+        AmsOperation::Claim {
+            application_id: claimed_application_id,
+        } => json!({
             "payload_type": "claim",
             "decoder_version": "ams-operation-rust-v1",
             "decoded_payload_json": {
@@ -1098,7 +1100,10 @@ fn decode_ams_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resul
                 "claimed_application_id": claimed_application_id.to_string(),
             },
         }),
-        AmsOperation::Update { application_id: updated_application_id, metadata } => json!({
+        AmsOperation::Update {
+            application_id: updated_application_id,
+            metadata,
+        } => json!({
             "payload_type": "update",
             "decoder_version": "ams-operation-rust-v1",
             "decoded_payload_json": {
@@ -1109,7 +1114,9 @@ fn decode_ams_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resul
                 "application_name": metadata.application_name,
             },
         }),
-        AmsOperation::AppendState { state_application_id } => json!({
+        AmsOperation::AppendState {
+            state_application_id,
+        } => json!({
             "payload_type": "append_state",
             "decoder_version": "ams-operation-rust-v1",
             "decoded_payload_json": {
@@ -1118,7 +1125,9 @@ fn decode_ams_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resul
                 "state_application_id": state_application_id.to_string(),
             },
         }),
-        AmsOperation::Handoff { new_business_application_id } => json!({
+        AmsOperation::Handoff {
+            new_business_application_id,
+        } => json!({
             "payload_type": "handoff",
             "decoder_version": "ams-operation-rust-v1",
             "decoded_payload_json": {

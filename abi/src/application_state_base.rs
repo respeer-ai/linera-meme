@@ -14,7 +14,6 @@ pub trait PublicStateBaseInterface {
         state_application_id: ApplicationId,
     ) -> Result<(), Self::Error>;
 
-
     async fn handoff(
         &mut self,
         new_business_application_id: ApplicationId,

@@ -90,9 +90,8 @@ mod service_tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn business_application_id_query_reads_state_register() {
-        let business_id = application_id(
-            "a10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
-        );
+        let business_id =
+            application_id("a10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad");
         let runtime = ServiceRuntime::<AmsStateService>::new();
         let mut state = AmsState::load(runtime.root_view_storage_context())
             .blocking_wait()

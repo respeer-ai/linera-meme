@@ -294,7 +294,9 @@ async fn claim_application_rejects_other_owner() {
     suite
         .register_application(suite.metadata(application_id, "Custom"))
         .await;
-    suite.claim_application(&suite.other_owner_chain, application_id).await;
+    suite
+        .claim_application(&suite.other_owner_chain, application_id)
+        .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -355,7 +357,11 @@ async fn add_application_type_does_not_create_messages_for_unrelated_chain() {
     let suite = TestSuite::new().await;
     suite.add_application_type("Custom").await;
     assert!(
-        suite.other_owner_chain.handle_received_messages().await.is_none(),
+        suite
+            .other_owner_chain
+            .handle_received_messages()
+            .await
+            .is_none(),
         "unrelated chain should have no messages to handle"
     );
 }
@@ -375,11 +381,19 @@ async fn add_application_type_succeeds_and_produces_state_message_for_creator_ch
         })
         .await;
     assert!(
-        suite.other_owner_chain.handle_received_messages().await.is_none(),
+        suite
+            .other_owner_chain
+            .handle_received_messages()
+            .await
+            .is_none(),
         "unrelated chain should have no messages to handle"
     );
     assert!(
-        suite.ams_creator_chain.handle_received_messages().await.is_some(),
+        suite
+            .ams_creator_chain
+            .handle_received_messages()
+            .await
+            .is_some(),
         "creator chain should have a state-app message to handle"
     );
 }
@@ -388,7 +402,11 @@ async fn add_application_type_succeeds_and_produces_state_message_for_creator_ch
 async fn no_pending_messages_before_add_application_type() {
     let suite = TestSuite::new().await;
     assert!(
-        suite.ams_creator_chain.handle_received_messages().await.is_none(),
+        suite
+            .ams_creator_chain
+            .handle_received_messages()
+            .await
+            .is_none(),
         "no messages should be pending before any operation"
     );
     suite.add_application_type("Custom").await;
@@ -421,7 +439,10 @@ async fn upgrade_without_new_state_allows_v2_to_read_and_write_old_records() {
         .update_application_on(v2_app_id, &suite.same_owner_chain, application_id, updated)
         .await;
 
-    let stored = suite.application_on(v2_app_id, application_id).await.unwrap();
+    let stored = suite
+        .application_on(v2_app_id, application_id)
+        .await
+        .unwrap();
     assert_eq!(stored.application_name, "Updated by V2");
 }
 
@@ -442,7 +463,10 @@ async fn upgrade_without_new_state_rejects_v1_writes_after_handoff() {
     suite.append_state_to(v2_app_id).await;
     suite.handoff(v2_app_id).await;
 
-    let stored = suite.application_on(v2_app_id, application_id).await.unwrap();
+    let stored = suite
+        .application_on(v2_app_id, application_id)
+        .await
+        .unwrap();
     let mut updated = stored.clone();
     updated.application_name = "Updated by V1".to_string();
     suite
