@@ -43,7 +43,7 @@ on_demand_done:
       - agents/tasks/board.yaml
       - agents/primitives/typed-state-versioning.md
   - id: TSTATE-011
-    why: completed AMS same-state upgrade validation; TSTATE-012 cancelled, so this is historical completion only
+    why: completed AMS same-state upgrade validation; active semantic dependency for TSTATE-013
     canonical_refs:
       - agents/tasks/board.yaml
       - ams/app/tests/multi_chain.rs
