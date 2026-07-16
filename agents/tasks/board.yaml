@@ -2776,108 +2776,81 @@ groups:
           - Tests: `upgrade_without_new_state_allows_v2_to_read_and_write_old_records`, `upgrade_without_new_state_rejects_v1_writes_after_handoff`
           - Result: 9 passed; 0 failed
       - id: TSTATE-012
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [TSTATE-011D]
         title: AMS upgrade with appended typed state V2 work package
         notes: |
-          Umbrella only. Complete through TSTATE-012A through TSTATE-012E.
+          Cancelled by product decision. There is no current AMS business requirement for a new typed state version.
+
+          The existing TSTATE-011 same-state upgrade path already validates that appending/handoff of state applications works, which is sufficient for the current architecture.
+          Reopen this work package only when AMS state schema actually needs to change.
       - id: TSTATE-012A
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [TSTATE-011D]
         title: Design AMS StateV2 appended record
         notes: |
-          Design only. No ABI or contract changes.
-
-          Scope:
-          - Choose a minimal AMS StateV2 typed field or correction record.
-          - Define adapter composition from StateV1 plus StateV2.
-          - Confirm old StateV1 data remains unchanged.
+          Cancelled with TSTATE-012. Design work is only needed when a concrete StateV2 requirement appears.
       - id: TSTATE-012B
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [TSTATE-012A]
         title: Produce AMS StateV2 append diff for review
         notes: |
-          Diff proposal only. Do not apply ABI or contract changes.
-
-          Scope:
-          - Show StateV2 ABI and typed state shape.
-          - Show adapter version routing and composition.
-          - Show bootstrap of StateV2-only required records.
-          - Stop for user review before applying code.
+          Cancelled with TSTATE-012. No StateV2 diff is required until the business needs a new state version.
       - id: TSTATE-012C
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [TSTATE-012B]
         title: Apply reviewed AMS StateV2 append support
         notes: |
-          Implement only after TSTATE-012B is approved.
-
-          Scope:
-          - Add reviewed StateV2 support.
-          - Keep StateV1 records unchanged.
-          - Add unit tests for composed reads and exact latest-version checks.
+          Cancelled with TSTATE-012. Implementation is only needed when StateV2 is actually designed and approved.
       - id: TSTATE-012D
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [TSTATE-012C]
         title: Validate AMS StateV2 appended upgrade multi-chain flow
         notes: |
-          Scope:
-          - Append StateV1 and StateV2 to the new AMS app.
-          - Bootstrap only StateV2 required records.
-          - Handoff old StateV1 from old AMS to new AMS.
-          - Verify composed V1+V2 reads and unchanged V1 records.
+          Cancelled with TSTATE-012. Multi-chain validation for StateV2 is only needed when StateV2 exists.
       - id: TSTATE-012E
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [TSTATE-012D]
         title: Document AMS typed state upgrade findings
         notes: |
-          Scope:
-          - Record test commands and outcomes.
-          - Record any read-count or gas-sensitive paths discovered during AMS validation.
-          - Keep durable architecture conclusions in `agents/primitives/typed-state-versioning.md` if the design changes.
+          Cancelled with TSTATE-012. Documentation updates are only needed after an actual StateV2 iteration.
       - id: TSTATE-013
-        status: Todo
+        status: Cancelled
         priority: P0
-        depends_on: [TSTATE-011D, TSTATE-012D]
+        depends_on: [TSTATE-011D]
         title: Multi-state handoff atomicity work package
         notes: |
-          Umbrella only. Complete through TSTATE-013A through TSTATE-013C.
+          Cancelled by product decision. Multi-state handoff rollback is only relevant when multiple typed state versions exist (TSTATE-012).
+
+          With only StateV1 in use, the handoff loop iterates over a single state application, so multi-state atomicity is not a current concern.
+          Reopen if a second AMS state version is introduced.
       - id: TSTATE-013A
-        status: Todo
+        status: Cancelled
         priority: P0
-        depends_on: [TSTATE-011D, TSTATE-012D]
+        depends_on: [TSTATE-011D]
         title: Design multi-state rollback test cases
         notes: |
-          Design only. No ABI or contract changes.
-
-          Scope:
-          - Define same-transaction rollback tests for multiple state app handoff calls.
-          - Define rollback tests for business operations that write multiple state app versions.
-          - Define the observable failure injection point.
+          Cancelled with TSTATE-013. No multi-state rollback test cases are needed while only StateV1 exists.
       - id: TSTATE-013B
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [TSTATE-013A]
         title: Implement multi-state rollback tests
         notes: |
-          Scope:
-          - Add tests only unless the design review requires code support.
-          - Verify failed partial handoff leaves no previous state handoff committed.
-          - Verify failed multi-version write leaves no partial state writes committed.
+          Cancelled with TSTATE-013. Test implementation is only needed after a multi-state scenario exists.
       - id: TSTATE-013C
-        status: Todo
+        status: Cancelled
         priority: P0
         depends_on: [TSTATE-013B]
         title: Decide whether two-phase handoff is required
         notes: |
-          Scope:
-          - If rollback tests pass, record atomicity as validated.
-          - If rollback tests fail, stop implementation and create a reviewed two-phase handoff design task.
+          Cancelled with TSTATE-013. The two-phase handoff decision is only relevant when multiple state versions are in play.
       - id: TSTATE-020
         status: Todo
         priority: P0
