@@ -37,6 +37,11 @@ active_focus:
       - agents/tasks/board.yaml
       - webui-v2/AGENTS.md
 on_demand_done:
+  - id: TSTATE-010
+    why: completed AMS typed StateV1 first-deploy work package umbrella
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/typed-state-versioning.md
   - id: TSTATE-010D
     why: completed AMS StateV1 app shell and operation handlers before AppendState work
     canonical_refs:

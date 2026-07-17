@@ -2484,14 +2484,14 @@ groups:
           - `ulimit -v 6000000; cargo check -p state`
           - `ulimit -v 6000000; cargo test -p state create_namespace_rejects_wrong_creator_chain_and_unbound_caller_reads -- --test-threads=1`
       - id: TSTATE-010
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [TSTATE-001, TSTATE-002C]
         title: AMS typed state V1 first-deploy work package
         notes: |
-          Umbrella only. Do not implement directly from this task.
+          Complete. All subtasks TSTATE-010A through TSTATE-010L/M are done.
 
-          Complete through TSTATE-010A through TSTATE-010L. TSTATE-010I through TSTATE-010K clean AMS generic BCS state usage after typed StateV1 validation.
+          AMS now uses typed StateV1 for first deploy: app/state package split, StateV1 ABI/contract/service, AppendState, adapter routing, and first-deploy + multi-chain tests.
       - id: TSTATE-010A
         status: Done
         priority: P0
