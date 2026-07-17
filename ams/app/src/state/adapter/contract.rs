@@ -61,6 +61,17 @@ impl<R: ContractRuntimeContext> PublicStateBaseInterface for ContractStateAdapte
                         new_business_application_id,
                     },
                 ),
+                // Version 2 is accepted only as test scaffolding for multi-state handoff
+                // atomicity tests (TSTATE-013). In production it is unreachable because
+                // `append_state` rejects versions beyond `EXPECTED_LATEST_STATE_VERSION`.
+                // Replace this arm with the real StateV2 ABI when a second state version
+                // is actually designed.
+                2 => self.runtime_context.borrow_mut().call_application(
+                    state_application_id.with_abi::<AmsStateV1Abi>(),
+                    &AmsStateV1Operation::Handoff {
+                        new_business_application_id,
+                    },
+                ),
                 _ => return Err(StateError::InvalidStateVersion),
             };
             match response {

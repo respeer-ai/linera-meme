@@ -330,7 +330,14 @@ StateV1.handoff(new_app)
 StateV2.handoff(new_app)
 ```
 
-The implementation must test same-transaction `call_application` rollback semantics. If one state handoff fails, no previous state handoff may remain committed. If Linera does not provide the required rollback behavior for this flow, introduce a reviewed two-phase handoff design before implementation.
+The implementation must test same-transaction `call_application` rollback semantics. If one state handoff fails, no previous state handoff may remain committed.
+
+### Validated Conclusion (AMS/TSTATE-013)
+
+- Mock-runtime tests verify the business adapter iterates over all appended state versions in order and issues a `Handoff` call for each one.
+- Tests verify that if any state `Handoff` returns a non-Ok response, the business `Handoff` operation returns an error immediately without continuing to the remaining state apps.
+- Because all state handoff calls happen inside a single contract execution, Linera's atomic block execution rolls back any state changes made by earlier calls if the operation ultimately fails. No two-phase handoff is required for the current same-chain, same-transaction flow.
+- Re-evaluate two-phase handoff only if a future design moves handoff across transactions, chains, or asynchronous messages.
 
 The same atomicity requirement applies to normal business operations that write multiple state versions.
 

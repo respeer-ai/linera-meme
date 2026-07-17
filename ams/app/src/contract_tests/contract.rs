@@ -20,7 +20,12 @@ use linera_sdk::{
     views::View,
     Contract, ContractRuntime,
 };
-use std::{cell::RefCell, rc::Rc, str::FromStr};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
 
 struct TestSuite {
     ams: AmsContract,
@@ -212,6 +217,25 @@ impl TestSuite {
     fn state_application_id() -> ApplicationId {
         ApplicationId::from_str("b20ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
             .unwrap()
+    }
+
+    fn state_application_id_v2() -> ApplicationId {
+        ApplicationId::from_str("b30ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap()
+    }
+
+    fn append_state_directly(&mut self, version: u16, state_application_id: ApplicationId) {
+        self.ams
+            .state
+            .borrow_mut()
+            .state_applications
+            .insert(&version, state_application_id)
+            .expect("Failed to insert state application");
+        self.ams
+            .state
+            .borrow_mut()
+            .latest_state_version
+            .set(version);
     }
 }
 
@@ -620,6 +644,80 @@ async fn message_update_application_rejects_missing_state_v1_append() {
             origin: TestSuite::other_account(),
             application_id,
             metadata,
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_handoff_calls_all_appended_state_applications() {
+    let mut suite = TestSuite::new();
+    suite.append_state_directly(1, TestSuite::state_application_id());
+    suite.append_state_directly(2, TestSuite::state_application_id_v2());
+    let new_business_application_id = TestSuite::application_id(
+        "b70ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+    );
+
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let calls_clone = calls.clone();
+    let state_v1_id = TestSuite::state_application_id();
+    let state_v2_id = TestSuite::state_application_id_v2();
+    suite.ams.runtime.borrow_mut().set_call_application_handler(
+        move |authenticated, application_id, call| {
+            calls_clone.lock().unwrap().push(application_id);
+            assert!(authenticated);
+            assert_eq!(
+                AmsStateV1Abi::deserialize_operation(call).unwrap(),
+                AmsStateV1Operation::Handoff {
+                    new_business_application_id,
+                }
+            );
+            AmsStateV1Abi::serialize_response(AmsStateV1Response::Ok).unwrap()
+        },
+    );
+
+    suite
+        .execute_operation(AmsOperation::Handoff {
+            new_business_application_id,
+        })
+        .await;
+
+    let recorded = calls.lock().unwrap();
+    assert_eq!(recorded.len(), 2);
+    assert_eq!(recorded[0], state_v1_id);
+    assert_eq!(recorded[1], state_v2_id);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid state response")]
+async fn operation_handoff_fails_when_any_state_application_handoff_fails() {
+    let mut suite = TestSuite::new();
+    suite.append_state_directly(1, TestSuite::state_application_id());
+    suite.append_state_directly(2, TestSuite::state_application_id_v2());
+    let new_business_application_id = TestSuite::application_id(
+        "b70ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+    );
+
+    let state_v2_id = TestSuite::state_application_id_v2();
+    suite.ams.runtime.borrow_mut().set_call_application_handler(
+        move |authenticated, application_id, call| {
+            assert!(authenticated);
+            assert_eq!(
+                AmsStateV1Abi::deserialize_operation(call).unwrap(),
+                AmsStateV1Operation::Handoff {
+                    new_business_application_id,
+                }
+            );
+            if application_id == state_v2_id {
+                AmsStateV1Abi::serialize_response(AmsStateV1Response::Application(None)).unwrap()
+            } else {
+                AmsStateV1Abi::serialize_response(AmsStateV1Response::Ok).unwrap()
+            }
+        },
+    );
+
+    suite
+        .execute_operation(AmsOperation::Handoff {
+            new_business_application_id,
         })
         .await;
 }

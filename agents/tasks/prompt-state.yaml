@@ -48,6 +48,13 @@ on_demand_done:
       - agents/tasks/board.yaml
       - ams/app/tests/multi_chain.rs
       - agents/primitives/typed-state-versioning.md
+  - id: TSTATE-013
+    why: completed multi-state handoff atomicity validation; no two-phase handoff needed for current same-transaction flow
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - ams/app/src/state/adapter/contract.rs
+      - ams/app/src/contract_tests/contract.rs
+      - agents/primitives/typed-state-versioning.md
   - id: TSTATE-010D1
     why: completed AMS app/state package split and bin rename foundation before StateV1 app internals
     canonical_refs:

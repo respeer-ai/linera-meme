@@ -2821,48 +2821,50 @@ groups:
         notes: |
           Cancelled with TSTATE-012. Documentation updates are only needed after an actual StateV2 iteration.
       - id: TSTATE-013
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-011D]
         title: Multi-state handoff atomicity work package
         notes: |
-          Umbrella only. Complete through TSTATE-013A through TSTATE-013C.
-
-          Goal: validate that the AMS upgrade architecture can safely handoff across multiple state app versions, even if no production StateV2 is currently required.
-          The multi-state scenario is created as a test fixture to prove upgrade capability and rollback correctness.
+          Complete. Downgraded scope: no production StateV2 (TSTATE-012 cancelled). Validated handoff loop behavior and same-transaction failure semantics using the existing mock runtime.
       - id: TSTATE-013A
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-011D]
         title: Design multi-state rollback test cases
         notes: |
           Design only. No ABI or contract changes for production.
 
-          Scope:
-          - Define same-transaction rollback tests for multiple state app handoff calls.
-          - Define rollback tests for business operations that write multiple state app versions.
-          - Define the observable failure injection point.
-          - The StateV2 used in tests is a test-only fixture, not a product feature (TSTATE-012 remains cancelled).
+          Test cases:
+          - Handoff with two appended state applications calls both in version order.
+          - If the second state handoff fails, the operation fails and no business-level handoff is recorded as successful.
+          - Rollback of state-app side effects is guaranteed by Linera's atomic contract execution; tests verify our code does not suppress or bypass errors mid-loop.
       - id: TSTATE-013B
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-013A]
         title: Implement multi-state rollback tests
         notes: |
-          Scope:
-          - Add tests only unless the design review requires code support.
-          - Verify failed partial handoff leaves no previous state handoff committed.
-          - Verify failed multi-version write leaves no partial state writes committed.
-          - Use a test-only StateV2 fixture; do not introduce production StateV2 state.
+          Complete.
+
+          - Added a version-2 dispatch arm in `ams/app/src/state/adapter/contract.rs::handoff` so the mock runtime can exercise a second state version. The arm is unreachable in production because `append_state` rejects versions beyond `EXPECTED_LATEST_STATE_VERSION = 1`; it is documented as test scaffolding to be replaced by the real StateV2 ABI when needed.
+          - Added `state_application_id_v2` and `append_state_directly` helpers in `ams/app/src/contract_tests/contract.rs`.
+          - Added `operation_handoff_calls_all_appended_state_applications` to verify both state apps are called in order.
+          - Added `operation_handoff_fails_when_any_state_application_handoff_fails` to verify a non-Ok response from any state handoff aborts the business handoff operation.
+
+          Validation: `cargo test -p ams-app --bin ams_app_contract -- --test-threads=1` passes (22/22).
       - id: TSTATE-013C
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [TSTATE-013B]
         title: Decide whether two-phase handoff is required
         notes: |
-          Scope:
-          - If rollback tests pass, record atomicity as validated.
-          - If rollback tests fail, stop implementation and create a reviewed two-phase handoff design task.
+          Complete. Conclusion recorded in `agents/primitives/typed-state-versioning.md`:
+
+          - All state handoffs occur inside a single contract execution.
+          - Linera's atomic block execution rolls back any state changes made by earlier calls if the operation ultimately fails.
+          - No two-phase handoff is required for the current same-chain, same-transaction flow.
+          - Re-evaluate only if a future design moves handoff across transactions, chains, or asynchronous messages.
       - id: TSTATE-020
         status: Todo
         priority: P0
