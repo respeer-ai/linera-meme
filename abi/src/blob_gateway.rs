@@ -2,9 +2,11 @@ use crate::store_type::StoreType;
 use async_graphql::{Enum, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
-    linera_base_types::{Account, ContractAbi, CryptoHash, ServiceAbi, Timestamp},
+    linera_base_types::{Account, ApplicationId, ContractAbi, CryptoHash, ServiceAbi, Timestamp},
 };
 use serde::{Deserialize, Serialize};
+
+pub mod state_v1;
 
 pub struct BlobGatewayAbi;
 
@@ -19,6 +21,7 @@ impl ServiceAbi for BlobGatewayAbi {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Eq, PartialEq, Enum, Copy)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum BlobDataType {
     Image,
     Video,
@@ -27,6 +30,7 @@ pub enum BlobDataType {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, SimpleObject, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct BlobData {
     pub store_type: StoreType,
     pub data_type: BlobDataType,
@@ -42,6 +46,12 @@ pub enum BlobGatewayOperation {
         data_type: BlobDataType,
         blob_hash: CryptoHash,
     },
+    AppendState {
+        state_application_id: ApplicationId,
+    },
+    Handoff {
+        new_business_application_id: ApplicationId,
+    },
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -54,3 +64,8 @@ pub enum BlobGatewayResponse {
     #[default]
     Ok,
 }
+
+pub use self::state_v1::{
+    BlobGatewayStateAbi, BlobGatewayStateV1Operation, BlobGatewayStateV1Response,
+    StateInstantiationArgument,
+};
