@@ -1,6 +1,6 @@
 use super::BlobData;
 use async_graphql::{Request, Response};
-use linera_sdk::linera_base_types::{ApplicationId, ContractAbi, CryptoHash, ServiceAbi};
+use linera_sdk::linera_base_types::{Account, ApplicationId, ContractAbi, CryptoHash, ServiceAbi};
 use serde::{Deserialize, Serialize};
 
 pub struct BlobGatewayStateAbi;
@@ -18,6 +18,7 @@ impl ServiceAbi for BlobGatewayStateAbi {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct StateInstantiationArgument {
     pub business_application_id: ApplicationId,
+    pub operator: Option<Account>,
 }
 
 #[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize)]

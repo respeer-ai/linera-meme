@@ -39,6 +39,7 @@ impl TestSuite {
         contract
             .instantiate(StateInstantiationArgument {
                 business_application_id: Self::business_application_id(),
+                operator: Some(Self::operator()),
             })
             .blocking_wait();
         Self { contract }
@@ -172,6 +173,17 @@ fn instantiate_initializes_business_application_id() {
     assert_eq!(
         state.business_application_id.get().as_ref().copied(),
         Some(TestSuite::business_application_id())
+    );
+}
+
+#[test]
+fn instantiate_initializes_operator() {
+    let suite = TestSuite::new();
+    let state = suite.contract.state.borrow();
+
+    assert_eq!(
+        state.operator.get().as_ref().copied(),
+        Some(TestSuite::operator())
     );
 }
 

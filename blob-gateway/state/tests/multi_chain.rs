@@ -36,6 +36,7 @@ impl TestSuite {
                 (),
                 StateInstantiationArgument {
                     business_application_id: Self::business_application_id(),
+                    operator: None,
                 },
                 vec![],
             )

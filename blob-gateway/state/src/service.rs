@@ -4,7 +4,9 @@ use abi::blob_gateway::{state_v1::BlobGatewayStateAbi, BlobData, BlobDataType};
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use blob_gateway_state::state::BlobGatewayStateV1;
 use linera_sdk::{
-    linera_base_types::{ApplicationId, CryptoHash, DataBlobHash, Timestamp, WithServiceAbi},
+    linera_base_types::{
+        Account, ApplicationId, CryptoHash, DataBlobHash, Timestamp, WithServiceAbi,
+    },
     views::View,
     Service, ServiceRuntime,
 };
@@ -58,6 +60,10 @@ impl QueryRoot {
 
     async fn business_application_id(&self) -> Option<ApplicationId> {
         *self.state.business_application_id.get()
+    }
+
+    async fn operator(&self) -> Option<Account> {
+        *self.state.operator.get()
     }
 
     async fn fetch(&self, _blob_hash: DataBlobHash) -> Vec<u8> {

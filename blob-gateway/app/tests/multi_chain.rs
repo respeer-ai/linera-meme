@@ -46,6 +46,7 @@ impl TestSuite {
                 (),
                 StateInstantiationArgument {
                     business_application_id: blob_gateway_application_id.forget_abi(),
+                    operator: Some(Self::chain_owner_account(&blob_gateway_creator_chain)),
                 },
                 vec![],
             )

@@ -14,6 +14,7 @@ impl StateInterface for BlobGatewayStateV1 {
     fn instantiate(&mut self, argument: StateInstantiationArgument) {
         self.business_application_id
             .set(Some(argument.business_application_id));
+        self.operator.set(argument.operator);
     }
 
     async fn business_application_id(&mut self) -> Result<ApplicationId, Self::Error> {

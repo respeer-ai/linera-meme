@@ -1,6 +1,6 @@
 use abi::blob_gateway::BlobData;
 use linera_sdk::{
-    linera_base_types::{ApplicationId, CryptoHash},
+    linera_base_types::{Account, ApplicationId, CryptoHash},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 
@@ -8,6 +8,7 @@ use linera_sdk::{
 #[view(context = ViewStorageContext)]
 pub struct BlobGatewayStateV1 {
     pub business_application_id: RegisterView<Option<ApplicationId>>,
+    pub operator: RegisterView<Option<Account>>,
     pub blobs: MapView<CryptoHash, BlobData>,
 }
 
