@@ -164,7 +164,8 @@ cargo build --release --target wasm32-unknown-unknown -j 1 \
     -p meme \
     -p swap \
     -p pool \
-    -p blob-gateway \
+    -p blob-gateway-app \
+    -p blob-gateway-state \
     -p ams-app \
     -p ams-state
 
@@ -367,9 +368,6 @@ function create_operator_wallet() {
     wallet_owner operator 0
 }
 
-# Create wallet for blob gateway
-BLOB_GATEWAY_OWNERS=$(create_wallets blob-gateway)
-
 # Create wallet for swap
 SWAP_OWNERS=$(create_wallets swap)
 
@@ -391,8 +389,6 @@ function publish_bytecode() {
 }
 
 # Publish bytecode then create applications
-# Create blob gateway
-BLOB_GATEWAY_MODULE_ID=$(publish_bytecode blob-gateway)
 SWAP_MODULE_ID=$(publish_bytecode swap)
 POOL_MODULE_ID=$(publish_bytecode_on_chain swap pool)
 PROXY_MODULE_ID=$(publish_bytecode proxy)
@@ -518,14 +514,11 @@ function open_multi_owner_chain() {
 }
 
 # Create multi owner chains
-# Create blob gateway multi owner chains
-BLOB_GATEWAY_CHAIN_ID=$(open_multi_owner_chain blob-gateway $BLOB_GATEWAY_OWNERS)
 # Create proxy multi owner chains
 PROXY_CHAIN_ID=$(open_multi_owner_chain proxy $PROXY_OWNERS)
 # Create swap multi owner chains
 SWAP_CHAIN_ID=$(open_multi_owner_chain swap $SWAP_OWNERS)
 
-BLOB_GATEWAY_QUERY_OWNER=$(wallet_chain_owner blob-gateway 0 $BLOB_GATEWAY_CHAIN_ID)
 PROXY_QUERY_OWNER=$(wallet_chain_owner proxy 0 $PROXY_CHAIN_ID)
 SWAP_QUERY_OWNER=$(wallet_chain_owner swap 0 $SWAP_CHAIN_ID)
 
@@ -609,7 +602,6 @@ function import_query_chain() {
 }
 
 # Exhaust chain messages
-process_inboxes blob-gateway
 process_inboxes proxy
 process_inboxes swap
 
@@ -630,7 +622,34 @@ env $(linera_env_args) "$LINEST_BIN" \
     --query-service-port 24080 > "$RUN_LOCAL_LOG_DIR/linest_bootstrap.log" 2>&1 &
 
 wait_query_service_ready
-import_query_chain "$BLOB_GATEWAY_QUERY_OWNER" "$BLOB_GATEWAY_CHAIN_ID" blob-gateway
+
+# Deploy blob-gateway business app and typed state app via linest.
+# Start from a clean blob-gateway wallet tree so stale owner keys/chains from
+# previous runs are not reused.
+rm -rf "$WALLET_DIR/blob-gateway"
+mkdir -p "$WALLET_DIR/blob-gateway"
+
+run_linest "linest_deploy_blob_gateway" \
+    "$LINEST_BIN" \
+    --base-dir "$LINEST_BASE_DIR" \
+    --env local \
+    app deploy \
+    --repo-dir "$ROOT_DIR" \
+    --name blob-gateway \
+    --contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/blob_gateway_app_contract.wasm" \
+    --service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/blob_gateway_app_service.wasm" \
+    --state-contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/blob_gateway_state_contract.wasm" \
+    --state-service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/blob_gateway_state_service.wasm" \
+    --ensure-wallet \
+    --faucet-url "$FAUCET_URL" \
+    --wallet-owner-count "$CHAIN_OWNER_COUNT" \
+    --no-business-argument
+
+BLOB_GATEWAY_STATUS_JSON=$("$LINEST_BIN" --base-dir "$LINEST_BASE_DIR" --env local app status --name blob-gateway --format json)
+BLOB_GATEWAY_CHAIN_ID=$(echo "$BLOB_GATEWAY_STATUS_JSON" | jq -r '.business_app.creator_chain_id')
+BLOB_GATEWAY_APPLICATION_ID=$(echo "$BLOB_GATEWAY_STATUS_JSON" | jq -r '.business_app.application_id')
+BLOB_GATEWAY_STATE_APPLICATION_ID=$(echo "$BLOB_GATEWAY_STATUS_JSON" | jq -r '.state_apps[0].application_id // empty')
+
 import_query_chain "$PROXY_QUERY_OWNER" "$PROXY_CHAIN_ID" proxy
 import_query_chain "$SWAP_QUERY_OWNER" "$SWAP_CHAIN_ID" swap
 
@@ -673,7 +692,6 @@ function create_application() {
 }
 
 # Create applications
-BLOB_GATEWAY_APPLICATION_ID=$(create_application blob-gateway $BLOB_GATEWAY_MODULE_ID '' '' $BLOB_GATEWAY_CHAIN_ID)
 SWAP_APPLICATION_ID=$(create_application swap $SWAP_MODULE_ID "{\"pool_bytecode_id\": \"$POOL_MODULE_ID\"}" '{}' $SWAP_CHAIN_ID)
 PROXY_APPLICATION_ID=$(create_application proxy $PROXY_MODULE_ID "{\"meme_bytecode_id\": \"$MEME_MODULE_ID\", \"operators\": [], \"swap_application_id\": \"$SWAP_APPLICATION_ID\"}" '' $PROXY_CHAIN_ID)
 
@@ -731,7 +749,6 @@ AMS_CHAIN_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.business_app.creator_chain_id')
 AMS_STATE_APPLICATION_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.state_apps[0].application_id // empty')
 
 # Exhaust chain messages for the remaining apps.
-process_inboxes blob-gateway
 process_inboxes proxy
 process_inboxes swap
 
@@ -754,7 +771,6 @@ function change_multi_owner_chain_single_leader() {
            --multi-leader-rounds 0
 }
 
-change_multi_owner_chain_single_leader blob-gateway $BLOB_GATEWAY_CHAIN_ID $BLOB_GATEWAY_OWNERS
 change_multi_owner_chain_single_leader proxy $PROXY_CHAIN_ID $PROXY_OWNERS
 change_multi_owner_chain_single_leader swap $SWAP_CHAIN_ID $SWAP_OWNERS
 
