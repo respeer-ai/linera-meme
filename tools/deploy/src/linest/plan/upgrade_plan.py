@@ -29,6 +29,7 @@ class UpgradePlan:
         operator: str,
         creator_chain_id: str | None = None,
         repo_dir: Path | None = None,
+        business_instantiation_argument: dict[str, Any] | None = None,
     ) -> None:
         self.family = family
         self.target_version = target_version
@@ -39,6 +40,7 @@ class UpgradePlan:
         self.operator = operator
         self.creator_chain_id = creator_chain_id
         self.repo_dir = repo_dir
+        self.business_instantiation_argument = business_instantiation_argument
         self.steps: list[Step] = []
 
         self._build()
@@ -127,7 +129,7 @@ class UpgradePlan:
                 version=self.target_version,
                 contract_bytecode_path=self.contract_bytecode_path,
                 service_bytecode_path=self.service_bytecode_path,
-                instantiation_argument={},
+                instantiation_argument=self.business_instantiation_argument,
                 creator_chain_id=self.creator_chain_id,
             )
         )
@@ -166,7 +168,11 @@ class UpgradePlan:
                 "Deploying a state app requires --repo-dir to locate the ABI source file"
             )
         abi_path = (
-            self.repo_dir / "abi" / "src" / self.family.name / f"state_v{version}.rs"
+            self.repo_dir
+            / "abi"
+            / "src"
+            / self.family.abi_source_dir_name()
+            / f"state_v{version}.rs"
         )
         if not abi_path.exists():
             raise UpgradeError(f"ABI source file not found: {abi_path}")

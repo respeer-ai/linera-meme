@@ -8,6 +8,26 @@ from typing import Any
 from linest.errors import RegistryError, UpgradeError
 
 
+def _abi_source_dir_name(name: str) -> str:
+    """Return the ABI source directory name for an app family.
+
+    Rust module directories use underscores, while app family names may use
+    hyphens (e.g. ``blob-gateway`` -> ``blob_gateway``).
+    """
+    return name.replace("-", "_")
+
+
+def _derive_operation_type(name: str) -> str:
+    """Derive the default BCS operation type for an app family.
+
+    The convention is ``abi::<abi_dir>::<PascalCaseFamily>Operation``.
+    For example, ``blob-gateway`` -> ``abi::blob_gateway::BlobGatewayOperation``.
+    """
+    abi_dir = _abi_source_dir_name(name)
+    pascal_name = "".join(part.capitalize() for part in name.split("-"))
+    return f"abi::{abi_dir}::{pascal_name}Operation"
+
+
 @dataclass(frozen=True)
 class VersionRecord:
     """A single version in an app family's upgrade history."""
@@ -55,6 +75,15 @@ class AppFamily:
     creator_chain_id: str | None = None
     creator_chain_wallet_dir: str | None = None
     owners: list[str] = field(default_factory=list)
+    operation_type: str | None = None
+
+    def abi_source_dir_name(self) -> str:
+        """Return the ABI source directory name for this family."""
+        return _abi_source_dir_name(self.name)
+
+    def resolved_operation_type(self) -> str:
+        """Return the BCS operation type, deriving a default if needed."""
+        return self.operation_type or _derive_operation_type(self.name)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the app family to a dictionary."""
@@ -75,6 +104,8 @@ class AppFamily:
             data["creator_chain_wallet_dir"] = self.creator_chain_wallet_dir
         if self.owners:
             data["owners"] = list(self.owners)
+        if self.operation_type is not None:
+            data["operation_type"] = self.operation_type
         return data
 
     @classmethod
@@ -84,6 +115,10 @@ class AppFamily:
             int(version): VersionRecord.from_dict(record)
             for version, record in data.get("versions", {}).items()
         }
+        operation_type = data.get("operation_type")
+        if operation_type is None:
+            operation_type = _derive_operation_type(data["name"])
+
         return cls(
             name=data["name"],
             env=data["env"],
@@ -93,6 +128,7 @@ class AppFamily:
             creator_chain_id=data.get("creator_chain_id"),
             creator_chain_wallet_dir=data.get("creator_chain_wallet_dir"),
             owners=list(data.get("owners", [])),
+            operation_type=operation_type,
         )
 
     @classmethod
@@ -104,6 +140,7 @@ class AppFamily:
             current_version=0,
             versions={},
             owners=[],
+            operation_type=_derive_operation_type(name),
         )
 
     def add_version(
