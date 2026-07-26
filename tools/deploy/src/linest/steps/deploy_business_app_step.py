@@ -23,7 +23,7 @@ class DeployBusinessAppStep(Step):
         version: int,
         contract_bytecode_path: str,
         service_bytecode_path: str,
-        instantiation_argument: dict[str, Any],
+        instantiation_argument: dict[str, Any] | None = None,
         creator_chain_id: str | None = None,
     ) -> None:
         self.family = family
@@ -80,7 +80,7 @@ class DeployBusinessAppStep(Step):
             service_bytecode_path=self.service_bytecode_path,
             contract_bytecode_hash=compute_hash(self.contract_bytecode_path),
             service_bytecode_hash=compute_hash(self.service_bytecode_path),
-            instantiation_argument=self.instantiation_argument,
+            instantiation_argument=self.instantiation_argument or {},
         )
 
         registry.save_deployment(deployment)

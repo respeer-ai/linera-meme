@@ -58,6 +58,7 @@ class HandoffStep(Step):
             application_id=from_app.application_id,
             mutation=_HANDOFF_MUTATION,
             variables={"newBusinessApplicationId": to_app.application_id},
+            operation_type=self.family.resolved_operation_type(),
         )
 
         self._mark_handoff_complete(registry)

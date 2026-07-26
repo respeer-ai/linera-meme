@@ -453,7 +453,7 @@ class LineraClient:
         self,
         mutation: str,
         variables: dict[str, Any],
-        operation_type: str = "abi::ams::AmsOperation",
+        operation_type: str,
     ) -> str:
         """Serialize a GraphQL mutation into BCS bytes using the ABI crate."""
         if self.operation_type_crate is None:
@@ -483,13 +483,16 @@ class LineraClient:
         application_id: str,
         mutation: str,
         variables: dict[str, Any],
+        operation_type: str,
     ) -> None:
         """Serialize and execute an application operation on a chain.
 
         The operation is signed with the app family's creator wallet, which must
         own the target chain.
         """
-        operation_hex = self.bcs_serialize_application_operation(mutation, variables)
+        operation_hex = self.bcs_serialize_application_operation(
+            mutation, variables, operation_type
+        )
         self._run_with_wallet(
             self.creator_wallet_path,
             self.creator_keystore_path,

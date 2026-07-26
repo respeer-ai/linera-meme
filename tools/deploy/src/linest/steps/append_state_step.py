@@ -57,6 +57,7 @@ class AppendStateStep(Step):
             application_id=business_app.application_id,
             mutation=_APPEND_STATE_MUTATION,
             variables={"stateApplicationId": state_app.application_id},
+            operation_type=self.family.resolved_operation_type(),
         )
 
         updated_state_apps = list(business_app.state_apps)

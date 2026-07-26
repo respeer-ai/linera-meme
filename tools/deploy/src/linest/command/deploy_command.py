@@ -75,6 +75,8 @@ class DeployCommand:
         ensure_wallet: bool = False,
         faucet_url: str | None = None,
         wallet_owner_count: int = 1,
+        operation_type: str | None = None,
+        no_business_argument: bool = False,
     ) -> DeployResult:
         """Deploy or upgrade the named application to the target version.
 
@@ -82,6 +84,10 @@ class DeployCommand:
         completed, or failed. The result is also printed before returning.
         """
         family = self.registry.load_family(name)
+        if operation_type is not None:
+            family.operation_type = operation_type
+        self.registry.save_family(family)
+
         result = DeployResult(name=name, version=version, status="in_progress")
 
         if version <= family.current_version:
@@ -110,6 +116,8 @@ class DeployCommand:
                 return result
             creator_chain_id = family.creator_chain_id
 
+        business_argument = None if no_business_argument else {}
+
         result = self._build_and_execute_plan(
             result=result,
             family=family,
@@ -121,6 +129,7 @@ class DeployCommand:
             creator_chain_id=creator_chain_id,
             repo_dir=repo_dir,
             dry_run=dry_run,
+            business_instantiation_argument=business_argument,
         )
         if result.status == "failed":
             return result
@@ -186,6 +195,7 @@ class DeployCommand:
         creator_chain_id: str | None,
         repo_dir: Path | None,
         dry_run: bool,
+        business_instantiation_argument: dict[str, Any] | None = None,
     ) -> DeployResult:
         """Build the upgrade plan and execute its steps."""
         try:
@@ -199,6 +209,7 @@ class DeployCommand:
                 operator=self._operator_owner(),
                 creator_chain_id=creator_chain_id,
                 repo_dir=repo_dir,
+                business_instantiation_argument=business_instantiation_argument,
             )
         except Exception as exc:
             result.status = "failed"

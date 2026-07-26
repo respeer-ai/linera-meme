@@ -103,6 +103,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to state app service bytecode",
     )
     deploy_parser.add_argument(
+        "--operation-type",
+        dest="operation_type",
+        help="BCS operation type for app-chain mutations (default: derived from family name)",
+    )
+    deploy_parser.add_argument(
+        "--no-business-argument",
+        dest="no_business_argument",
+        action="store_true",
+        help="Do not pass --json-argument when creating the business app",
+    )
+    deploy_parser.add_argument(
         "--repo-dir",
         dest="repo_dir",
         type=Path,
@@ -356,6 +367,8 @@ def _handle_deploy(args: argparse.Namespace) -> int:
         ensure_wallet=args.ensure_wallet,
         faucet_url=args.faucet_url,
         wallet_owner_count=args.wallet_owner_count,
+        operation_type=args.operation_type,
+        no_business_argument=args.no_business_argument,
     )
     return 0 if result.status in ("skipped", "deployed") else 1
 

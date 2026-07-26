@@ -193,7 +193,9 @@ def test_extract_id_raises_on_empty_output(client: LineraClient) -> None:
 
 def test_bcs_serialize_requires_repo_dir(client: LineraClient) -> None:
     with pytest.raises(ConfigError, match="repo_dir is required"):
-        client.bcs_serialize_application_operation("mutation { test }", {})
+        client.bcs_serialize_application_operation(
+            "mutation { test }", {}, operation_type="abi::ams::AmsOperation"
+        )
 
 
 def test_bcs_serialize_invokes_linera(tmp_path: Path) -> None:
@@ -207,6 +209,7 @@ def test_bcs_serialize_invokes_linera(tmp_path: Path) -> None:
         hex_bytes = client.bcs_serialize_application_operation(
             "mutation AppendState($id: ApplicationId!) { appendState(stateApplicationId: $id) }",
             {"id": "app-id"},
+            operation_type="abi::ams::AmsOperation",
         )
 
     assert hex_bytes == "0x00abc"
@@ -230,6 +233,7 @@ def test_submit_application_operation_executes_serialized_op(tmp_path: Path) -> 
             application_id="app1",
             mutation="mutation { test }",
             variables={},
+            operation_type="abi::ams::AmsOperation",
         )
 
     assert mock_run.call_count == 2
