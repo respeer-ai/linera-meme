@@ -1225,6 +1225,28 @@ fn decode_blob_gateway_operation(application_id: &str, raw_bytes: &[u8]) -> anyh
                 "blob_hash_hex": encode_bytes(blob_hash.as_bytes().as_ref()),
             },
         }),
+        BlobGatewayOperation::AppendState {
+            state_application_id,
+        } => json!({
+            "payload_type": "blob_gateway_append_state",
+            "decoder_version": "blob-gateway-operation-rust-v1",
+            "decoded_payload_json": {
+                "operation_type": "append_state",
+                "application_id": application_id,
+                "state_application_id": state_application_id.to_string(),
+            },
+        }),
+        BlobGatewayOperation::Handoff {
+            new_business_application_id,
+        } => json!({
+            "payload_type": "blob_gateway_handoff",
+            "decoder_version": "blob-gateway-operation-rust-v1",
+            "decoded_payload_json": {
+                "operation_type": "handoff",
+                "application_id": application_id,
+                "new_business_application_id": new_business_application_id.to_string(),
+            },
+        }),
     };
     Ok(output)
 }
