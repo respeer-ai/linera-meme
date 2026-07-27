@@ -20,7 +20,7 @@ class LineraClient:
         app_name: str,
         repo_dir: str | Path | None = None,
         retry_policy: RetryPolicy | None = None,
-        command_timeout: float = 120.0,
+        command_timeout: float | None = None,
     ) -> None:
         self.wallet_dir = Path(wallet_dir)
         self.app_name = app_name
@@ -553,10 +553,12 @@ class LineraClient:
                     timeout=self.command_timeout,
                 )
             except subprocess.TimeoutExpired as exc:
-                raise LineraCliError(
+                timeout_msg = (
                     f"linera command timed out after {self.command_timeout}s: "
-                    f"{' '.join(command)}"
-                ) from exc
+                    if self.command_timeout is not None
+                    else "linera command timed out: "
+                )
+                raise LineraCliError(timeout_msg + f"{' '.join(command)}") from exc
 
             if result.returncode != 0:
                 raise LineraCliError(
