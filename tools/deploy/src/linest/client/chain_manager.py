@@ -9,7 +9,7 @@ from linest.client.funder_pool import FunderPool
 from linest.client.linera_client import LineraClient
 from linest.client.wallet_layout import AppWalletLayout
 from linest.config import WalletPaths
-from linest.errors import DeploymentError
+from linest.errors import DeploymentError, LineraCliError
 from linest.models.app_family import AppFamily
 
 
@@ -53,6 +53,9 @@ class MultiOwnerChainManager:
         self._validate_owners(family, creator_owner, owners)
 
         if family.creator_chain_id is not None:
+            self._ensure_chain_assigned(
+                family.creator_chain_id, [creator_owner, *owners]
+            )
             return family.creator_chain_id
 
         chain_id = self._create_chain(family, creator_owner, owners)
@@ -197,6 +200,33 @@ class MultiOwnerChainManager:
                 owner=owner,
                 chain_id=chain_id,
             )
+
+    def _ensure_chain_assigned(
+        self,
+        chain_id: str,
+        owners: list[str],
+    ) -> None:
+        """Assign chain_id to any owner wallet that lacks a default owner.
+
+        When wallets are reused across runs (e.g. run_local.sh stops deleting
+        the app wallet tree), an owner wallet may exist but not yet have the
+        multi-owner chain assigned to it. Re-assigning fixes that without
+        requiring a full chain recreation.
+        """
+        for index, owner in enumerate(owners):
+            paths = self._owner_paths("creator" if index == 0 else str(index - 1))
+            try:
+                self.linera_client.default_owner(
+                    paths.wallet, paths.keystore, paths.storage
+                )
+            except LineraCliError:
+                self.linera_client.assign_chain(
+                    wallet_path=paths.wallet,
+                    keystore_path=paths.keystore,
+                    storage_path=paths.storage,
+                    owner=owner,
+                    chain_id=chain_id,
+                )
 
     def _owner_paths(self, index: str) -> WalletPaths:
         if index == "creator":

@@ -7,7 +7,7 @@ import pytest
 
 from linest.client.chain_manager import MultiOwnerChainManager
 from linest.client.linera_client import LineraClient
-from linest.errors import DeploymentError
+from linest.errors import DeploymentError, LineraCliError
 from linest.models.app_family import AppFamily
 
 
@@ -67,6 +67,44 @@ def test_ensure_chain_returns_existing_chain(
 
     assert chain_id == "existing-chain"
     linera_client.open_multi_owner_chain.assert_not_called()
+
+
+def test_ensure_chain_reassigns_when_wallet_lacks_default_owner(
+    linera_client: MagicMock,
+    tmp_path: Path,
+) -> None:
+    family = AppFamily.create("ams", "local")
+    family.creator_owner = "owner-c"
+    family.owners = ["owner-0", "owner-1"]
+    family.creator_chain_id = "existing-chain"
+
+    # Simulate owner-0 wallet existing but not having the chain assigned yet.
+    def fake_default_owner(wallet_path, keystore_path, storage_path):
+        wallet_str = str(wallet_path)
+        if "/0/" in wallet_str and wallet_str.endswith("wallet.json"):
+            raise LineraCliError("no default owner")
+        return "owner-c" if "/creator/" in wallet_str else "owner-1"
+
+    linera_client.default_owner.side_effect = fake_default_owner
+
+    manager = MultiOwnerChainManager(
+        wallet_dir=tmp_path,
+        app_name="ams",
+        linera_client=linera_client,
+    )
+
+    chain_id = manager.ensure_chain(
+        family=family,
+        creator_owner="owner-c",
+        owners=["owner-0", "owner-1"],
+    )
+
+    assert chain_id == "existing-chain"
+    linera_client.open_multi_owner_chain.assert_not_called()
+    assert linera_client.assign_chain.call_count == 1
+    call_kwargs = linera_client.assign_chain.call_args.kwargs
+    assert call_kwargs["owner"] == "owner-0"
+    assert call_kwargs["chain_id"] == "existing-chain"
 
 
 def test_ensure_chain_rejects_owner_mismatch(
