@@ -633,8 +633,12 @@ env $(linera_env_args) "$LINEST_BIN" \
 wait_query_service_ready
 
 # Deploy blob-gateway business app and typed state app via linest.
-# Ensure the blob-gateway wallet tree exists; linest app deploy --ensure-wallet
-# will create or reuse it, matching the AMS behavior.
+# Ensure the blob-gateway wallet tree exists. If it was wiped externally,
+# also clear the linest registry so the deployment starts fresh instead of
+# trying to reuse stale owner/chain records.
+if [ ! -d "$WALLET_DIR/blob-gateway" ]; then
+    rm -f "$LINEST_BASE_DIR/deployments/local/blob-gateway.json"
+fi
 mkdir -p "$WALLET_DIR/blob-gateway"
 
 run_linest "linest_deploy_blob_gateway" \

@@ -92,7 +92,7 @@ def test_ensure_wallets_rejects_registry_wallet_mismatch(
     linera_client.keygen.assert_not_called()
 
 
-def test_ensure_wallets_rejects_missing_default_owner_when_registry_has_owner(
+def test_ensure_wallets_returns_registry_owner_when_wallet_lacks_default_owner(
     linera_client: MagicMock,
     tmp_path: Path,
 ) -> None:
@@ -116,9 +116,10 @@ def test_ensure_wallets_rejects_missing_default_owner_when_registry_has_owner(
         existing_owners=["0xregistry_owner"],
     )
 
-    with pytest.raises(DeploymentError):
-        manager.ensure_wallets()
+    creator_owner, owners = manager.ensure_wallets()
 
+    assert creator_owner == "0xcreator_owner"
+    assert owners == ["0xregistry_owner"]
     linera_client.init_wallet.assert_not_called()
     linera_client.keygen.assert_not_called()
 

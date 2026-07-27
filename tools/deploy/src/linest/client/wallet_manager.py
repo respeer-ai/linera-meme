@@ -70,12 +70,11 @@ class WalletManager:
                 wallet_owner = self.linera_client.default_owner(
                     paths.wallet, paths.keystore, paths.storage
                 )
-            except LineraCliError as exc:
-                raise DeploymentError(
-                    f"Owner wallet {self.layout.app_name}/{index} has no default owner; "
-                    f"registry expects {registry_owner}. The chain may not have "
-                    f"been assigned to this wallet yet."
-                ) from exc
+            except LineraCliError:
+                # The wallet exists but has no default owner, which means the
+                # multi-owner chain has not been assigned to it yet. Return the
+                # expected owner so the caller can assign the chain later.
+                return registry_owner
             if wallet_owner != registry_owner:
                 raise DeploymentError(
                     f"Owner wallet {self.layout.app_name}/{index} mismatch: "
