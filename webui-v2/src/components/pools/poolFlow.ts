@@ -41,7 +41,9 @@ export interface PoolFlowRoute {
   }
 }
 
-export type RouteLiquidityContext = Required<Pick<RemoveLiquidityContext, 'liquidity' | 'amount0' | 'amount1'>>
+export type RouteLiquidityContext = Required<
+  Pick<RemoveLiquidityContext, 'liquidity' | 'amount0' | 'amount1'>
+>
 
 export type LiquiditySubmissionMode = 'create-pool' | 'add-liquidity'
 
@@ -127,7 +129,10 @@ export const buildAddLiquidityRoute = (pair?: PoolPairLike): PoolFlowRoute => {
   }
 }
 
-export const buildRemoveLiquidityRoute = (pair?: PoolPairLike, context: RemoveLiquidityContext = {}): PoolFlowRoute => {
+export const buildRemoveLiquidityRoute = (
+  pair?: PoolPairLike,
+  context: RemoveLiquidityContext = {},
+): PoolFlowRoute => {
   if (!pair) {
     return {
       path: '/pools/remove-liquidity',
@@ -211,7 +216,6 @@ export const resolveLiquiditySubmissionMode = (
   return pairExists(pools, pair) ? 'add-liquidity' : 'create-pool'
 }
 
-
 const validPositiveNumber = (value: string | null | undefined) => {
   const number = Number(value)
   return Number.isFinite(number) && number > 0 ? number : undefined
@@ -252,7 +256,7 @@ export const linkedAddLiquidityAmount = ({
   const targetReserve = reserveByToken.get(targetToken)
   if (!sourceReserve || !targetReserve) return ''
 
-  const calculated = amount * targetReserve / sourceReserve * bufferMultiplier
+  const calculated = ((amount * targetReserve) / sourceReserve) * bufferMultiplier
   const targetMax = validPositiveNumber(maxTargetAmount)
   return formatLiquidityInputAmount(targetMax ? Math.min(calculated, targetMax) : calculated)
 }

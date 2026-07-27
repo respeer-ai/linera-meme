@@ -127,9 +127,10 @@ const virtualMetrics: PositionMetricsEntry = {
 describe('positionsData', () => {
   test('keys active metrics as recorded even on a virtual-initial-liquidity pool', () => {
     expect(positionMetricsKey(activeMetrics)).toBe(`${poolApplication}:11:active:recorded`)
-    expect(positionMetricsKey(virtualMetrics)).toBe(`${poolApplication}:11:virtual:virtual_initial_liquidity`)
+    expect(positionMetricsKey(virtualMetrics)).toBe(
+      `${poolApplication}:11:virtual:virtual_initial_liquidity`,
+    )
   })
-
 
   test('keeps previous ready metrics when a refresh returns snapshot unavailable', () => {
     const unavailableMetrics: PositionMetricsEntry = {
@@ -195,17 +196,27 @@ describe('positionsData', () => {
   })
 
   test('counts merged virtual protocol-fee liquidity in the top LMM summary', () => {
-    expect(positionRewardLiquidity(mergedVirtualOnlyPosition, virtualMetrics, owner)).toBe('73.853756302460584155')
+    expect(positionRewardLiquidity(mergedVirtualOnlyPosition, virtualMetrics, owner)).toBe(
+      '73.853756302460584155',
+    )
     expect(positionHasVirtualReference(mergedVirtualOnlyPosition, owner)).toBe(true)
   })
 
   test('uses actual plus virtual share ratio for displayed pool share', () => {
-    expect(positionRewardShareRatio(undefined, virtualMetrics).toFixed(18)).toBe('0.000243490868207888')
-    expect(positionRewardShareRatio(activeMetrics, virtualMetrics).toFixed(18)).toBe('0.000247447953485837')
+    expect(positionRewardShareRatio(undefined, virtualMetrics).toFixed(18)).toBe(
+      '0.000243490868207888',
+    )
+    expect(positionRewardShareRatio(activeMetrics, virtualMetrics).toFixed(18)).toBe(
+      '0.000247447953485837',
+    )
   })
 
   test('uses protocol fee liquidity for displayed pool share', () => {
-    const displayRatio = positionDisplayShareRatio(mergedVirtualOnlyPosition, undefined, virtualMetrics)
+    const displayRatio = positionDisplayShareRatio(
+      mergedVirtualOnlyPosition,
+      undefined,
+      virtualMetrics,
+    )
 
     expect(displayRatio.toFixed(18)).toBe('0.000243490868207888')
   })
@@ -218,7 +229,11 @@ describe('positionsData', () => {
   })
 
   test('uses protocol fee amounts for displayed pooled tokens', () => {
-    const liquidity = positionDisplayLiquidityAmounts(mergedVirtualOnlyPosition, undefined, virtualMetrics)
+    const liquidity = positionDisplayLiquidityAmounts(
+      mergedVirtualOnlyPosition,
+      undefined,
+      virtualMetrics,
+    )
 
     expect(liquidity.liquidity).toBe('73.85375630246058')
     expect(Number(liquidity.amount0).toFixed(6)).toBe('2469.220627')
@@ -238,7 +253,12 @@ describe('positionsData', () => {
   })
 
   test('collectable liquidity includes active LP plus protocol fees for the creator', () => {
-    const liquidity = positionCollectableLiquidityAmounts(activePosition, activeMetrics, virtualMetrics, owner)
+    const liquidity = positionCollectableLiquidityAmounts(
+      activePosition,
+      activeMetrics,
+      virtualMetrics,
+      owner,
+    )
 
     expect(Number(liquidity.liquidity).toFixed(6)).toBe('75.053989')
     expect(Number(liquidity.amount0).toFixed(6)).toBe('2509.349100')
@@ -246,7 +266,12 @@ describe('positionsData', () => {
   })
 
   test('collectable liquidity excludes protocol fees for non-creator owners', () => {
-    const liquidity = positionCollectableLiquidityAmounts(activePosition, activeMetrics, virtualMetrics, '0xother@owner-chain')
+    const liquidity = positionCollectableLiquidityAmounts(
+      activePosition,
+      activeMetrics,
+      virtualMetrics,
+      '0xother@owner-chain',
+    )
 
     expect(liquidity.liquidity).toBe('1.200232328779602238')
     expect(liquidity.amount0).toBe('40.128472432178798483')
@@ -258,12 +283,22 @@ describe('positionsData', () => {
       [positionMetricsKey(virtualMetrics)]: virtualMetrics,
     }
 
-    expect(virtualPositionMetricsFor(mergedVirtualOnlyPosition, snapshots)?.protocol_fee_amount0).toBe('2469.220627317689461086')
+    expect(
+      virtualPositionMetricsFor(mergedVirtualOnlyPosition, snapshots)?.protocol_fee_amount0,
+    ).toBe('2469.220627317689461086')
   })
 
   test('uses remove action for merged virtual-only display position', () => {
-    expect(positionActionLabel(mergedVirtualOnlyPosition, virtualMetrics, owner, [mergedVirtualOnlyPosition])).toBe('Remove')
-    expect(canUsePositionAction(mergedVirtualOnlyPosition, virtualMetrics, owner, [mergedVirtualOnlyPosition])).toBe(true)
+    expect(
+      positionActionLabel(mergedVirtualOnlyPosition, virtualMetrics, owner, [
+        mergedVirtualOnlyPosition,
+      ]),
+    ).toBe('Remove')
+    expect(
+      canUsePositionAction(mergedVirtualOnlyPosition, virtualMetrics, owner, [
+        mergedVirtualOnlyPosition,
+      ]),
+    ).toBe(true)
   })
 
   test('uses only one withdraw action per pool when actual liquidity exists', () => {
@@ -276,8 +311,12 @@ describe('positionsData', () => {
   })
 
   test('keeps remove action on virtual position when no actual liquidity exists', () => {
-    expect(positionActionLabel(virtualPosition, virtualMetrics, owner, [virtualPosition])).toBe('Remove')
-    expect(canUsePositionAction(virtualPosition, virtualMetrics, owner, [virtualPosition])).toBe(true)
+    expect(positionActionLabel(virtualPosition, virtualMetrics, owner, [virtualPosition])).toBe(
+      'Remove',
+    )
+    expect(canUsePositionAction(virtualPosition, virtualMetrics, owner, [virtualPosition])).toBe(
+      true,
+    )
   })
 
   test('keeps remove label disabled when no protocol-fee liquidity is available', () => {
@@ -288,7 +327,11 @@ describe('positionsData', () => {
       protocol_fee_amount1: '0',
     }
 
-    expect(positionActionLabel(virtualPosition, emptyVirtualMetrics, owner, [virtualPosition])).toBe('Remove')
-    expect(canUsePositionAction(virtualPosition, emptyVirtualMetrics, owner, [virtualPosition])).toBe(false)
+    expect(
+      positionActionLabel(virtualPosition, emptyVirtualMetrics, owner, [virtualPosition]),
+    ).toBe('Remove')
+    expect(
+      canUsePositionAction(virtualPosition, emptyVirtualMetrics, owner, [virtualPosition]),
+    ).toBe(false)
   })
 })

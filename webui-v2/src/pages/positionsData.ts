@@ -16,9 +16,8 @@ export interface PositionFeeDisplayAmounts {
 type PositionIdentity = Pick<Position, 'pool_application' | 'pool_id' | 'status' | 'position_kind'>
 type MetricsIdentity = Pick<PositionMetricsEntry, 'pool_application' | 'pool_id' | 'status'>
 
-export const isVirtualPosition = (
-  position: Pick<Position, 'status' | 'is_virtual_position'>,
-) => position.status === 'virtual' || Boolean(position.is_virtual_position)
+export const isVirtualPosition = (position: Pick<Position, 'status' | 'is_virtual_position'>) =>
+  position.status === 'virtual' || Boolean(position.is_virtual_position)
 
 export const isPositionProtocolFeeReceiver = (
   position: Pick<Position, 'protocol_fee_receiver_account'>,
@@ -29,17 +28,14 @@ export const positionKey = (position: PositionIdentity) =>
   `${position.pool_application}:${position.pool_id}:${position.status}:${position.position_kind || 'recorded'}`
 
 export const positionMetricsKey = (entry: MetricsIdentity) => {
-  const positionKind = entry.status === 'virtual'
-    ? 'virtual_initial_liquidity'
-    : 'recorded'
+  const positionKind = entry.status === 'virtual' ? 'virtual_initial_liquidity' : 'recorded'
   return `${entry.pool_application}:${entry.pool_id}:${entry.status}:${positionKind}`
 }
 
-export const isPositionMetricsReady = (entry: PositionMetricsEntry) => (
+export const isPositionMetricsReady = (entry: PositionMetricsEntry) =>
   entry.metrics_status !== 'snapshot_unavailable' &&
   !(entry.value_warning_codes || []).includes('snapshot_unavailable') &&
   !(entry.computation_blockers || []).includes('missing_position_metrics_snapshot')
-)
 
 export const mergePositionMetricsSnapshots = (
   previous: PositionMetricsSnapshots,
@@ -62,26 +58,24 @@ export const mergePositionMetricsSnapshots = (
 export const positionMetricsFor = (
   position: PositionIdentity,
   snapshots: PositionMetricsSnapshots,
-) => (
+) =>
   snapshots[positionKey(position)] ||
   snapshots[`${position.pool_application}:${position.pool_id}:${position.status}:recorded`]
-)
 
 export const virtualPositionMetricsFor = (
   position: Pick<Position, 'pool_application' | 'pool_id'>,
   snapshots: PositionMetricsSnapshots,
 ) => snapshots[`${position.pool_application}:${position.pool_id}:virtual:virtual_initial_liquidity`]
 
-export const selectDisplayPositions = (positions: Position[]) => (
+export const selectDisplayPositions = (positions: Position[]) =>
   positions.filter((position) => position.status === 'active' || !isVirtualPosition(position))
-)
 
-export const selectRewardPositions = (positions: Position[], owner: string) => (
-  positions.filter((position) => (
-    position.status !== 'closed' &&
-    (!isVirtualPosition(position) || isPositionProtocolFeeReceiver(position, owner))
-  ))
-)
+export const selectRewardPositions = (positions: Position[], owner: string) =>
+  positions.filter(
+    (position) =>
+      position.status !== 'closed' &&
+      (!isVirtualPosition(position) || isPositionProtocolFeeReceiver(position, owner)),
+  )
 
 export const positionRewardLiquidity = (
   position: Position,
@@ -110,13 +104,12 @@ const numericAmount = (value: string | number | null | undefined) => {
   return Number.isFinite(numeric) ? numeric : 0
 }
 
-const amountString = (value: number) => (
-  Number.isFinite(value) && value > 0 ? String(value) : '0'
-)
+const amountString = (value: number) => (Number.isFinite(value) && value > 0 ? String(value) : '0')
 
-export const virtualInitialLiquidity = (position: Position): string => (
-  positiveAmount(position.virtual_current_liquidity) ? String(position.virtual_current_liquidity) : '0'
-)
+export const virtualInitialLiquidity = (position: Position): string =>
+  positiveAmount(position.virtual_current_liquidity)
+    ? String(position.virtual_current_liquidity)
+    : '0'
 
 export const virtualInitialTokenAmount = (
   virtualLiquidity: string,
@@ -129,7 +122,7 @@ export const virtualInitialTokenAmount = (
   const protocolTokenValue = numericAmount(protocolTokenAmount)
 
   if (virtualLiquidityValue > 0 && protocolLiquidityValue > 0 && protocolTokenValue > 0) {
-    return amountString(protocolTokenValue * virtualLiquidityValue / protocolLiquidityValue)
+    return amountString((protocolTokenValue * virtualLiquidityValue) / protocolLiquidityValue)
   }
   return positiveAmount(recordedInitialAmount) ? String(recordedInitialAmount) : '0'
 }
@@ -143,16 +136,13 @@ export const positionDisplayLiquidityAmounts = (
 
   return {
     liquidity: amountString(
-      numericAmount(actual.liquidity) +
-      numericAmount(virtualMetrics?.position_liquidity),
+      numericAmount(actual.liquidity) + numericAmount(virtualMetrics?.position_liquidity),
     ),
     amount0: amountString(
-      numericAmount(actual.amount0) +
-      numericAmount(virtualMetrics?.protocol_fee_amount0),
+      numericAmount(actual.amount0) + numericAmount(virtualMetrics?.protocol_fee_amount0),
     ),
     amount1: amountString(
-      numericAmount(actual.amount1) +
-      numericAmount(virtualMetrics?.protocol_fee_amount1),
+      numericAmount(actual.amount1) + numericAmount(virtualMetrics?.protocol_fee_amount1),
     ),
   }
 }
@@ -175,8 +165,14 @@ export const positionDisplayFeeAmounts = (
   if (!actualMetrics && !virtualMetrics) return undefined
 
   return {
-    amount0: amountString(numericAmount(actualMetrics?.fee_amount0) + numericAmount(virtualMetrics?.protocol_fee_amount0)),
-    amount1: amountString(numericAmount(actualMetrics?.fee_amount1) + numericAmount(virtualMetrics?.protocol_fee_amount1)),
+    amount0: amountString(
+      numericAmount(actualMetrics?.fee_amount0) +
+        numericAmount(virtualMetrics?.protocol_fee_amount0),
+    ),
+    amount1: amountString(
+      numericAmount(actualMetrics?.fee_amount1) +
+        numericAmount(virtualMetrics?.protocol_fee_amount1),
+    ),
   }
 }
 
@@ -185,29 +181,24 @@ export const positiveAmount = (value: string | number | null | undefined) => {
   return Number.isFinite(numeric) && numeric > 0
 }
 
-export const positionHasActualLiquidity = (position: Position) => (
+export const positionHasActualLiquidity = (position: Position) =>
   !isVirtualPosition(position) && positiveAmount(position.current_liquidity)
-)
 
-export const positionHasVirtualReference = (position: Position, owner: string) => (
+export const positionHasVirtualReference = (position: Position, owner: string) =>
   Boolean(owner && position.protocol_fee_receiver_account === owner) &&
-  (
-    positiveAmount(position.virtual_current_liquidity) ||
+  (positiveAmount(position.virtual_current_liquidity) ||
     positiveAmount(position.virtual_initial_amount0) ||
     positiveAmount(position.virtual_initial_amount1) ||
     positiveAmount(position.protocol_fee_reference_amount0) ||
-    positiveAmount(position.protocol_fee_reference_amount1)
-  )
-)
+    positiveAmount(position.protocol_fee_reference_amount1))
 
-export const hasActivePositionForPool = (
-  positions: Position[],
-  position: Position,
-) => positions.some((candidate) => (
-  positionHasActualLiquidity(candidate) &&
-  candidate.pool_application === position.pool_application &&
-  Number(candidate.pool_id) === Number(position.pool_id)
-))
+export const hasActivePositionForPool = (positions: Position[], position: Position) =>
+  positions.some(
+    (candidate) =>
+      positionHasActualLiquidity(candidate) &&
+      candidate.pool_application === position.pool_application &&
+      Number(candidate.pool_id) === Number(position.pool_id),
+  )
 
 export const positionActionLabel = (
   position: Position,
@@ -221,7 +212,8 @@ export const positionActionLabel = (
     isPositionProtocolFeeReceiver(position, owner) ||
     positionHasVirtualReference(position, owner) ||
     positiveAmount(metrics?.position_liquidity)
-  ) return 'Remove'
+  )
+    return 'Remove'
   return undefined
 }
 
@@ -236,7 +228,8 @@ export const canUsePositionAction = (
   if (
     !isPositionProtocolFeeReceiver(position, owner) &&
     !positionHasVirtualReference(position, owner)
-  ) return false
+  )
+    return false
   return Number.parseFloat(metrics?.position_liquidity || '0') > 0
 }
 
@@ -276,8 +269,14 @@ export const positionCollectableLiquidityAmounts = (
   }
 
   return {
-    liquidity: amountString(numericAmount(actual.liquidity) + numericAmount(virtualMetrics?.position_liquidity)),
-    amount0: amountString(numericAmount(actual.amount0) + numericAmount(virtualMetrics?.protocol_fee_amount0)),
-    amount1: amountString(numericAmount(actual.amount1) + numericAmount(virtualMetrics?.protocol_fee_amount1)),
+    liquidity: amountString(
+      numericAmount(actual.liquidity) + numericAmount(virtualMetrics?.position_liquidity),
+    ),
+    amount0: amountString(
+      numericAmount(actual.amount0) + numericAmount(virtualMetrics?.protocol_fee_amount0),
+    ),
+    amount1: amountString(
+      numericAmount(actual.amount1) + numericAmount(virtualMetrics?.protocol_fee_amount1),
+    ),
   }
 }

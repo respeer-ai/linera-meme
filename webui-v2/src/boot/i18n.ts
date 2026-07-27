@@ -24,7 +24,8 @@ declare module 'vue-i18n' {
 /* eslint-enable @typescript-eslint/no-empty-object-type */
 
 export default defineBoot(({ app }) => {
-  const browserLanguages = typeof navigator === 'undefined' ? [] : Array.from(navigator.languages || [])
+  const browserLanguages =
+    typeof navigator === 'undefined' ? [] : Array.from(navigator.languages || [])
   const browserLanguage = typeof navigator === 'undefined' ? undefined : navigator.language
 
   const i18n = createI18n<{ message: MessageSchema }, MessageLanguages>({

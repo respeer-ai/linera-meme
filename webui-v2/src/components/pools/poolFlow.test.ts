@@ -223,11 +223,16 @@ describe('poolFlow', () => {
   })
 
   test('resolveRouteLiquidityContext rejects missing or invalid amount context', () => {
-    expect(resolveRouteLiquidityContext({ liquidity: '1', amount0: '2', amount1: undefined })).toBe(undefined)
-    expect(resolveRouteLiquidityContext({ liquidity: '-1', amount0: '2', amount1: '3' })).toBe(undefined)
-    expect(resolveRouteLiquidityContext({ liquidity: 'abc', amount0: '2', amount1: '3' })).toBe(undefined)
+    expect(resolveRouteLiquidityContext({ liquidity: '1', amount0: '2', amount1: undefined })).toBe(
+      undefined,
+    )
+    expect(resolveRouteLiquidityContext({ liquidity: '-1', amount0: '2', amount1: '3' })).toBe(
+      undefined,
+    )
+    expect(resolveRouteLiquidityContext({ liquidity: 'abc', amount0: '2', amount1: '3' })).toBe(
+      undefined,
+    )
   })
-
 
   test('linkedAddLiquidityAmount derives the opposite side from pool reserves with buffer', () => {
     expect(
@@ -248,7 +253,6 @@ describe('poolFlow', () => {
       }),
     ).toBe('110')
   })
-
 
   test('linkedAddLiquidityAmount caps the calculated side by available balance', () => {
     expect(

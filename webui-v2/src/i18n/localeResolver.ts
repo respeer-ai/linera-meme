@@ -22,7 +22,9 @@ export const resolveInitialLocale = ({
   return resolveSupportedLocale(browserLocale) || FALLBACK_LOCALE
 }
 
-export const resolveSupportedLocale = (locale: string | undefined | null): SupportedLocaleCode | undefined => {
+export const resolveSupportedLocale = (
+  locale: string | undefined | null,
+): SupportedLocaleCode | undefined => {
   if (!locale) return undefined
 
   const normalized = locale.trim()

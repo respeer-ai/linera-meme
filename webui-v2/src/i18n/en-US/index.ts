@@ -71,7 +71,7 @@ export default {
         category: 'Positions',
         question: 'What does LMM mean in positions?',
         answer:
-          'LMM is the liquidity share minted by a MicroMeme pool. It represents a provider\'s share of a V2-style pool, not a separate tradeable meme token. Active and closed positions are derived from recorded add-liquidity and remove-liquidity transactions.',
+          "LMM is the liquidity share minted by a MicroMeme pool. It represents a provider's share of a V2-style pool, not a separate tradeable meme token. Active and closed positions are derived from recorded add-liquidity and remove-liquidity transactions.",
       },
       {
         category: 'Funds',
