@@ -100,22 +100,31 @@ function linera_env_args() {
     external_proxy_env_args
 }
 
-if [ "x$COMPILE" = "x1" ]; then
-    # Install official linera for genesis cluster
-    mkdir -p "$SOURCE_DIR"
-    if [ ! -d "$PERSISTENT_LINERA_SOURCE_DIR/.git" ]; then
+function ensure_linera_protocol_checkout() {
+    # Ensure a fresh, correct-branch checkout of the respeer fork.
+    if [ -d "$PERSISTENT_LINERA_SOURCE_DIR/.git" ]; then
+        cd "$PERSISTENT_LINERA_SOURCE_DIR"
+        local current_branch
+        current_branch=$(git rev-parse --abbrev-ref HEAD)
+        if [ "x$current_branch" != "x$GIT_BRANCH" ]; then
+            cd - >/dev/null
+            rm -rf "$PERSISTENT_LINERA_SOURCE_DIR"
+        fi
+    else
         rm -rf "$PERSISTENT_LINERA_SOURCE_DIR"
+    fi
+
+    if [ ! -d "$PERSISTENT_LINERA_SOURCE_DIR/.git" ]; then
         # We should run with respeer fork for blob query
         env $(external_proxy_env_args) git clone --branch $GIT_BRANCH --single-branch --depth 1 https://github.com/respeer-ai/linera-protocol.git "$PERSISTENT_LINERA_SOURCE_DIR"
     fi
     cd "$PERSISTENT_LINERA_SOURCE_DIR"
+}
 
-    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    if [ "x$CURRENT_BRANCH" != "x$GIT_BRANCH" ]; then
-        rm -rf "$PERSISTENT_LINERA_SOURCE_DIR"
-        env $(external_proxy_env_args) git clone --branch $GIT_BRANCH --single-branch --depth 1 https://github.com/respeer-ai/linera-protocol.git "$PERSISTENT_LINERA_SOURCE_DIR"
-        cd "$PERSISTENT_LINERA_SOURCE_DIR"
-    fi
+if [ "x$COMPILE" = "x1" ]; then
+    # Install official linera for genesis cluster
+    mkdir -p "$SOURCE_DIR"
+    ensure_linera_protocol_checkout
 
     # Refresh the branch head when reusing the persistent checkout.
     env $(external_proxy_env_args) git fetch origin $GIT_BRANCH --depth 1
