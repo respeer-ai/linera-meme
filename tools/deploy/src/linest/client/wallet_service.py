@@ -32,10 +32,6 @@ class WalletService:
         self.extra_env = extra_env or {}
         self.log_file = log_file
         self._process: subprocess.Popen[str] | None = None
-        # The wallet service is always local; ignore proxy environment variables
-        # so that external SOCKS/HTTP proxies do not break local requests.
-        self._session = requests.Session()
-        self._session.trust_env = False
 
     @property
     def url(self) -> str:
@@ -105,7 +101,7 @@ class WalletService:
                 )
 
             try:
-                response = self._session.post(
+                response = requests.post(
                     self.url,
                     json=payload,
                     timeout=2,
