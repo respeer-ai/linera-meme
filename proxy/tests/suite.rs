@@ -8,9 +8,12 @@
 use abi::{
     ams::{
         AmsAbi, AmsOperation, AmsStateAbi, InstantiationArgument as AmsInstantiationArgument,
-        StateInstantiationArgument,
+        StateInstantiationArgument as AmsStateInstantiationArgument,
     },
-    blob_gateway::BlobGatewayAbi,
+    blob_gateway::{
+        BlobGatewayAbi, BlobGatewayOperation, BlobGatewayStateAbi,
+        StateInstantiationArgument as BlobGatewayStateInstantiationArgument,
+    },
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeParameters,
         Metadata,
@@ -166,14 +169,45 @@ impl TestSuite {
     pub async fn create_blob_gateway_application(&mut self) {
         let bytecode_id = self
             .proxy_chain
-            .publish_bytecode_files_in("../blob-gateway")
+            .publish_bytecode_files_in("../blob-gateway/app")
             .await;
 
-        self.blob_gateway_application_id = Some(
-            self.proxy_chain
-                .create_application::<BlobGatewayAbi, (), ()>(bytecode_id, (), (), vec![])
-                .await,
-        );
+        let blob_gateway_application_id = self
+            .proxy_chain
+            .create_application::<BlobGatewayAbi, (), ()>(bytecode_id, (), (), vec![])
+            .await;
+
+        let operator = self.chain_owner_account(&self.proxy_chain);
+        let state_bytecode_id = self
+            .proxy_chain
+            .publish_bytecode_files_in("../blob-gateway/state")
+            .await;
+        let state_application_id = self
+            .proxy_chain
+            .create_application::<BlobGatewayStateAbi, (), BlobGatewayStateInstantiationArgument>(
+                state_bytecode_id,
+                (),
+                BlobGatewayStateInstantiationArgument {
+                    business_application_id: blob_gateway_application_id.forget_abi(),
+                    operator: Some(operator),
+                },
+                vec![],
+            )
+            .await;
+
+        self.proxy_chain
+            .add_block(|block| {
+                block.with_operation(
+                    blob_gateway_application_id,
+                    BlobGatewayOperation::AppendState {
+                        state_application_id: state_application_id.forget_abi(),
+                    },
+                );
+            })
+            .await;
+        self.proxy_chain.handle_received_messages().await;
+
+        self.blob_gateway_application_id = Some(blob_gateway_application_id);
     }
 
     pub async fn create_ams_application(&mut self) {
@@ -199,10 +233,10 @@ impl TestSuite {
             .await;
         let state_application_id = self
             .proxy_chain
-            .create_application::<AmsStateAbi, (), StateInstantiationArgument>(
+            .create_application::<AmsStateAbi, (), AmsStateInstantiationArgument>(
                 state_bytecode_id,
                 (),
-                StateInstantiationArgument {
+                AmsStateInstantiationArgument {
                     business_application_id: ams_application_id.forget_abi(),
                     operator: Some(operator),
                 },

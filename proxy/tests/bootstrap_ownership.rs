@@ -6,9 +6,12 @@
 use abi::{
     ams::{
         AmsOperation, AmsStateAbi, InstantiationArgument as AmsInstantiationArgument, Metadata,
-        StateInstantiationArgument, MEME,
+        StateInstantiationArgument as AmsStateInstantiationArgument, MEME,
     },
-    blob_gateway::{BlobDataType, BlobGatewayOperation},
+    blob_gateway::{
+        BlobDataType, BlobGatewayOperation, BlobGatewayStateAbi,
+        StateInstantiationArgument as BlobGatewayStateInstantiationArgument,
+    },
     policy::open_chain_fee_budget,
     store_type::StoreType,
     swap::router::SwapOperation,
@@ -70,7 +73,7 @@ async fn bootstrap_multi_owner_single_leader_apps_process_frontend_protocol_oper
         .await;
 
     let blob_bytecode_id = blob_gateway_chain
-        .publish_bytecode_files_in("../blob-gateway")
+        .publish_bytecode_files_in("../blob-gateway/app")
         .await;
     let blob_gateway_application_id = blob_gateway_chain
         .create_application::<abi::blob_gateway::BlobGatewayAbi, (), ()>(
@@ -80,6 +83,34 @@ async fn bootstrap_multi_owner_single_leader_apps_process_frontend_protocol_oper
             vec![],
         )
         .await;
+
+    let blob_gateway_operator = suite.chain_owner_account(&blob_gateway_chain);
+    let blob_state_bytecode_id = blob_gateway_chain
+        .publish_bytecode_files_in("../blob-gateway/state")
+        .await;
+    let blob_state_application_id = blob_gateway_chain
+        .create_application::<BlobGatewayStateAbi, (), BlobGatewayStateInstantiationArgument>(
+            blob_state_bytecode_id,
+            (),
+            BlobGatewayStateInstantiationArgument {
+                business_application_id: blob_gateway_application_id.forget_abi(),
+                operator: Some(blob_gateway_operator),
+            },
+            vec![],
+        )
+        .await;
+
+    blob_gateway_chain
+        .add_block(|block| {
+            block.with_operation(
+                blob_gateway_application_id,
+                BlobGatewayOperation::AppendState {
+                    state_application_id: blob_state_application_id.forget_abi(),
+                },
+            );
+        })
+        .await;
+    blob_gateway_chain.handle_received_messages().await;
 
     let ams_bytecode_id = ams_chain.publish_bytecode_files_in("../ams/app").await;
     let ams_operator = suite.chain_owner_account(&ams_chain);
@@ -94,10 +125,10 @@ async fn bootstrap_multi_owner_single_leader_apps_process_frontend_protocol_oper
 
     let ams_state_bytecode_id = ams_chain.publish_bytecode_files_in("../ams/state").await;
     let ams_state_application_id = ams_chain
-        .create_application::<AmsStateAbi, (), StateInstantiationArgument>(
+        .create_application::<AmsStateAbi, (), AmsStateInstantiationArgument>(
             ams_state_bytecode_id,
             (),
-            StateInstantiationArgument {
+            AmsStateInstantiationArgument {
                 business_application_id: ams_application_id.forget_abi(),
                 operator: Some(ams_operator),
             },
