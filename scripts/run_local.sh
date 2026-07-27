@@ -748,6 +748,16 @@ AMS_APPLICATION_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.business_app.application_
 AMS_CHAIN_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.business_app.creator_chain_id')
 AMS_STATE_APPLICATION_ID=$(echo "$AMS_STATUS_JSON" | jq -r '.state_apps[0].application_id // empty')
 
+# Register AMS so domain.ts generation includes it.
+run_linest "linest_domain_register_ams" \
+    "$LINEST_BIN" \
+    --base-dir "$LINEST_BASE_DIR" \
+    --env local \
+    domain register \
+    --name ams \
+    --chain-id "$AMS_CHAIN_ID" \
+    --application-id "$AMS_APPLICATION_ID"
+
 # Exhaust chain messages for the remaining apps.
 process_inboxes proxy
 process_inboxes swap
