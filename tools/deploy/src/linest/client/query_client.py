@@ -12,6 +12,10 @@ class QueryClient:
 
     def __init__(self, base_url: str) -> None:
         self.base_url = base_url.rstrip("/")
+        # The query service is always local; ignore proxy environment variables
+        # so that external SOCKS/HTTP proxies do not break local requests.
+        self._session = requests.Session()
+        self._session.trust_env = False
 
     def query(
         self,
@@ -27,7 +31,7 @@ class QueryClient:
             "variables": variables or {},
         }
         try:
-            response = requests.post(url, json=payload, timeout=30)
+            response = self._session.post(url, json=payload, timeout=30)
             response.raise_for_status()
         except requests.RequestException as exc:
             raise DeploymentError(f"Query service request failed: {exc}") from exc
@@ -110,7 +114,7 @@ class QueryClient:
             "variables": {"owner": owner, "chainId": chain_id},
         }
         try:
-            response = requests.post(self.base_url, json=payload, timeout=30)
+            response = self._session.post(self.base_url, json=payload, timeout=30)
             response.raise_for_status()
         except requests.RequestException as exc:
             raise DeploymentError(f"Query service request failed: {exc}") from exc
