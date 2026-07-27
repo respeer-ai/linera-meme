@@ -1113,6 +1113,9 @@ function print_deployment_summary() {
     echo -e "Chain and Application IDs:"
     echo -e "  BLOB_GATEWAY_CHAIN_ID=$BLOB_GATEWAY_CHAIN_ID"
     echo -e "  BLOB_GATEWAY_APPLICATION_ID=$BLOB_GATEWAY_APPLICATION_ID"
+    if [ -n "${BLOB_GATEWAY_STATE_APPLICATION_ID:-}" ]; then
+        echo -e "  BLOB_GATEWAY_STATE_APPLICATION_ID=$BLOB_GATEWAY_STATE_APPLICATION_ID"
+    fi
     echo -e "  AMS_CHAIN_ID=$AMS_CHAIN_ID"
     echo -e "  AMS_APPLICATION_ID=$AMS_APPLICATION_ID"
     if [ -n "${AMS_STATE_APPLICATION_ID:-}" ]; then
