@@ -1,7 +1,8 @@
 [workspace]
 members = [
     "proxy",
-    "meme",
+    "meme/app",
+    "meme/state",
     "swap",
     "pool",
     "blob-gateway/app",
@@ -53,7 +54,8 @@ time = "=0.3.41"
 time-core = "=0.1.4"
 
 abi = { path = "./abi" }
-meme = { path = "./meme" }
+meme-app = { path = "./meme/app" }
+meme-state = { path = "./meme/state" }
 proxy = { path = "./proxy" }
 swap = { path = "./swap" }
 pool = { path = "./pool" }

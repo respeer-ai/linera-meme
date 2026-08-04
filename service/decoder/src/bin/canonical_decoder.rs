@@ -803,13 +803,6 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
 fn decode_meme_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result<Value> {
     let operation = bcs::from_bytes::<MemeOperation>(raw_bytes)?;
     let (payload_type, decoded_payload_json) = match operation {
-        MemeOperation::CreatorChainId => (
-            "creator_chain_id",
-            json!({
-                "operation_type": "creator_chain_id",
-                "application_id": application_id,
-            }),
-        ),
         MemeOperation::Transfer { to, amount } => (
             "transfer",
             json!({
@@ -917,6 +910,30 @@ fn decode_meme_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
                 "operation_type": "redeem",
                 "application_id": application_id,
                 "amount": encode_option_amount(amount),
+            }),
+        ),
+        MemeOperation::AppendState { state_application_id } => (
+            "append_state",
+            json!({
+                "operation_type": "append_state",
+                "application_id": application_id,
+                "state_application_id": state_application_id.to_string(),
+            }),
+        ),
+        MemeOperation::AppendStates { state_application_ids } => (
+            "append_states",
+            json!({
+                "operation_type": "append_states",
+                "application_id": application_id,
+                "state_application_ids": state_application_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
+            }),
+        ),
+        MemeOperation::Handoff { new_business_application_id } => (
+            "handoff",
+            json!({
+                "operation_type": "handoff",
+                "application_id": application_id,
+                "new_business_application_id": new_business_application_id.to_string(),
             }),
         ),
     };

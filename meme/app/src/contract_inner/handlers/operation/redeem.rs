@@ -1,0 +1,57 @@
+use crate::interfaces::state::StateInterface;
+use abi::{application_state_base::PublicStateBaseInterface, meme::MemeOperation};
+use async_trait::async_trait;
+use base::handler::{Handler, HandlerError, HandlerOutcome};
+use linera_sdk::linera_base_types::Amount;
+use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
+use std::{cell::RefCell, rc::Rc};
+
+pub struct RedeemHandler<
+    R: ContractRuntimeContext + AccessControl,
+    S: StateInterface + PublicStateBaseInterface,
+> {
+    runtime: Rc<RefCell<R>>,
+    _state: S,
+    amount: Option<Amount>,
+}
+
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface + PublicStateBaseInterface>
+    RedeemHandler<R, S>
+{
+    pub fn new(runtime: Rc<RefCell<R>>, state: S, operation: &MemeOperation) -> Self {
+        let MemeOperation::Redeem { amount } = operation else {
+            panic!("Invalid operation");
+        };
+
+        Self {
+            runtime,
+            _state: state,
+            amount: *amount,
+        }
+    }
+}
+
+#[async_trait(?Send)]
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface + PublicStateBaseInterface>
+    Handler<abi::meme::MemeMessage, abi::meme::MemeResponse> for RedeemHandler<R, S>
+{
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<abi::meme::MemeMessage, abi::meme::MemeResponse>>, HandlerError>
+    {
+        let destination = self.runtime.borrow_mut().application_creator_chain_id();
+        let owner = self.runtime.borrow_mut().authenticated_account();
+
+        let mut outcome = HandlerOutcome::new();
+        outcome.with_message(
+            destination,
+            abi::meme::MemeMessage::Redeem {
+                owner,
+                amount: self.amount,
+            },
+            false,
+        );
+
+        Ok(Some(outcome))
+    }
+}

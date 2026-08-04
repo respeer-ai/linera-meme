@@ -36,6 +36,10 @@ Authority: High
 - Do not add `webui/` paths to current scope-freeze documents, task-board notes, prompt-routing state, test baselines, or implementation plans
 - If a current task or assistant primitive references `webui/` without explicitly labeling it as legacy-only inspection, correct that reference to `webui-v2/` or remove it before continuing
 - Use `webui-v2/` for current frontend analysis, funding scope, frontend constraints, implementation, and tests
+- All ABI crates under `abi/src/` MUST define operation enums in `abi/src/<family>/abi.rs` and re-export them from `abi/src/<family>.rs`
+- `abi/src/<family>.rs` MUST contain only `pub mod` declarations and `pub use` re-exports; it MUST NOT define operation enums, messages, or responses directly
+- Business and state apps MUST be split into separate crates under `<family>/app/` and `<family>/state/`, named `<family>-app` and `<family>-state` respectively, matching the structure of `ams/app`, `ams/state`, `blob-gateway/app`, and `blob-gateway/state`
+- This crate and ABI layout is a design constraint to avoid the `self::` re-export bug in `linera bcs-serialize-application-operation`, which fails to compile the temporary serializer crate when the operation enum is referenced through `self::` re-exports
 - For newly created or actively refactored Python modules, keep each file at or below 1000 lines
 - For newly created or actively refactored Python modules, define only one top-level object per file
 - Organize new Python code in an object-oriented way; do not keep expanding helper-function clusters in large legacy modules

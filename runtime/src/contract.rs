@@ -5,7 +5,7 @@ use crate::interfaces::{
     access_control::AccessControl, base::BaseRuntimeContext, contract::ContractRuntimeContext,
     meme::MemeRuntimeContext,
 };
-use abi::meme::{MemeAbi, MemeOperation, MemeResponse};
+
 use linera_sdk::{
     abi::ContractAbi,
     linera_base_types::{
@@ -350,15 +350,6 @@ impl<T: Contract<Message = M>, M> MemeRuntimeContext for ContractRuntimeAdapter<
     type Error = RuntimeError;
 
     fn token_creator_chain_id(&mut self, token: ApplicationId) -> Result<ChainId, RuntimeError> {
-        let call = MemeOperation::CreatorChainId;
-        let MemeResponse::ChainId(chain_id) =
-            self.runtime
-                .borrow_mut()
-                .call_application(true, token.with_abi::<MemeAbi>(), &call)
-        else {
-            return Err(RuntimeError::InvalidApplicationResponse);
-        };
-
-        Ok(chain_id)
+        Ok(self.creator_chain_id(token))
     }
 }
