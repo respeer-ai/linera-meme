@@ -1,4 +1,4 @@
-use abi::meme::{InitializeArgument, MiningInfo};
+use abi::meme::{HandoffArgument, InitializeArgument, MiningInfo};
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{Account, Amount, ApplicationId};
 
@@ -72,4 +72,6 @@ pub trait StateInterface {
     async fn start_mining(&mut self) -> Result<(), Self::Error>;
 
     async fn initialize(&mut self, argument: InitializeArgument) -> Result<(), Self::Error>;
+
+    async fn handoff(&mut self, argument: HandoffArgument) -> Result<(), Self::Error>;
 }

@@ -1,5 +1,5 @@
 use crate::{
-    meme::InitializeArgument,
+    meme::{HandoffArgument, InitializeArgument},
     store_type::StoreType,
     swap::pool::{
         AddLiquidityTransferReceiptPayload, PoolInitializeLiquidityCall, SwapTransferReceiptPayload,
@@ -403,6 +403,6 @@ pub enum MemeOperation {
         state_application_ids: Vec<ApplicationId>,
     },
     Handoff {
-        new_business_application_id: ApplicationId,
+        argument: HandoffArgument,
     },
 }

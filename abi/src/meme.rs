@@ -2,7 +2,7 @@ pub mod abi;
 pub mod state_v1;
 
 pub use self::state_v1::{
-    InitializeArgument, MemeStateAbi, MemeStateV1Operation, MemeStateV1Response,
+    HandoffArgument, InitializeArgument, MemeStateAbi, MemeStateV1Operation, MemeStateV1Response,
     StateInstantiationArgument,
 };
 

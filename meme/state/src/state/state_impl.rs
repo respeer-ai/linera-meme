@@ -1,4 +1,4 @@
-use abi::meme::{InitializeArgument, Liquidity, MiningInfo, StateInstantiationArgument};
+use abi::meme::{HandoffArgument, InitializeArgument, Liquidity, MiningInfo, StateInstantiationArgument};
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId};
 use std::collections::HashMap;
@@ -26,12 +26,22 @@ impl StateInterface for MemeState {
             .ok_or(StateError::BusinessApplicationIdNotInitialized)
     }
 
-    async fn handoff(
-        &mut self,
-        new_business_application_id: ApplicationId,
-    ) -> Result<(), Self::Error> {
+    async fn handoff(&mut self, argument: HandoffArgument) -> Result<(), Self::Error> {
         self.business_application_id
-            .set(Some(new_business_application_id));
+            .set(Some(argument.new_business_application_id));
+        if let Some(proxy_application_id) = argument.new_proxy_application_id {
+            self.proxy_application_id.set(Some(proxy_application_id));
+        }
+        if let Some(swap_application_id) = argument.new_swap_application_id {
+            self.swap_application_id.set(Some(swap_application_id));
+        }
+        if let Some(ams_application_id) = argument.new_ams_application_id {
+            self.ams_application_id.set(Some(ams_application_id));
+        }
+        if let Some(blob_gateway_application_id) = argument.new_blob_gateway_application_id {
+            self.blob_gateway_application_id
+                .set(Some(blob_gateway_application_id));
+        }
         Ok(())
     }
 

@@ -5,7 +5,7 @@ use abi::{
     application_state_base::{LocalStateInterface, PublicStateBaseInterface},
     meme::{
         state_v1::{MemeStateAbi as MemeStateV1Abi, MemeStateV1Operation, MemeStateV1Response},
-        InitializeArgument, MiningInfo,
+        HandoffArgument, InitializeArgument, MiningInfo,
     },
 };
 use async_trait::async_trait;
@@ -77,26 +77,17 @@ impl<R: ContractRuntimeContext> PublicStateBaseInterface for ContractStateAdapte
         &mut self,
         new_business_application_id: ApplicationId,
     ) -> Result<(), Self::Error> {
-        let state_applications = self.state.borrow()._state_applications().await?;
-        for (version, state_application_id) in state_applications {
-            let response = match version {
-                1 => self.runtime_context.borrow_mut().call_application(
-                    state_application_id.with_abi::<MemeStateV1Abi>(),
-                    &MemeStateV1Operation::Handoff {
-                        new_business_application_id,
-                    },
-                ),
-                _ => return Err(StateError::InvalidStateVersion),
-            };
-            match response {
-                MemeStateV1Response::Ok => {}
-                MemeStateV1Response::Fail(error) => {
-                    return Err(StateError::StateOperationFailed(error))
-                }
-                _ => return Err(StateError::InvalidStateResponse),
-            }
-        }
-        Ok(())
+        StateInterface::handoff(
+            self,
+            HandoffArgument {
+                new_business_application_id,
+                new_proxy_application_id: None,
+                new_swap_application_id: None,
+                new_ams_application_id: None,
+                new_blob_gateway_application_id: None,
+            },
+        )
+        .await
     }
 
     async fn set_operator(&mut self, _new_operator: Account) -> Result<(), Self::Error> {
@@ -309,5 +300,28 @@ impl<R: ContractRuntimeContext> StateInterface for ContractStateAdapter<R> {
             MemeStateV1Response::Fail(error) => Err(StateError::StateOperationFailed(error)),
             _ => Err(StateError::InvalidStateResponse),
         }
+    }
+
+    async fn handoff(&mut self, argument: HandoffArgument) -> Result<(), Self::Error> {
+        let state_applications = self.state.borrow()._state_applications().await?;
+        for (version, state_application_id) in state_applications {
+            let response = match version {
+                1 => self.runtime_context.borrow_mut().call_application(
+                    state_application_id.with_abi::<MemeStateV1Abi>(),
+                    &MemeStateV1Operation::Handoff {
+                        argument: argument.clone(),
+                    },
+                ),
+                _ => return Err(StateError::InvalidStateVersion),
+            };
+            match response {
+                MemeStateV1Response::Ok => {}
+                MemeStateV1Response::Fail(error) => {
+                    return Err(StateError::StateOperationFailed(error))
+                }
+                _ => return Err(StateError::InvalidStateResponse),
+            }
+        }
+        Ok(())
     }
 }

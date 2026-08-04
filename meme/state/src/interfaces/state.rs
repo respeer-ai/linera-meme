@@ -1,4 +1,4 @@
-use abi::meme::{InitializeArgument, Liquidity, MiningInfo, StateInstantiationArgument};
+use abi::meme::{HandoffArgument, InitializeArgument, Liquidity, MiningInfo, StateInstantiationArgument};
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId};
 
@@ -10,7 +10,7 @@ pub trait StateInterface {
 
     async fn business_application_id(&mut self) -> Result<ApplicationId, Self::Error>;
 
-    async fn handoff(&mut self, new_business_application_id: ApplicationId) -> Result<(), Self::Error>;
+    async fn handoff(&mut self, argument: HandoffArgument) -> Result<(), Self::Error>;
 
     async fn operator(&mut self) -> Result<Account, Self::Error>;
 

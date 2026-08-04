@@ -40,6 +40,15 @@ pub struct InitializeArgument {
     pub now: Timestamp,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
+pub struct HandoffArgument {
+    pub new_business_application_id: ApplicationId,
+    pub new_proxy_application_id: Option<ApplicationId>,
+    pub new_swap_application_id: Option<ApplicationId>,
+    pub new_ams_application_id: Option<ApplicationId>,
+    pub new_blob_gateway_application_id: Option<ApplicationId>,
+}
+
 #[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize, GraphQLMutationRoot)]
 pub enum MemeStateV1Operation {
     Initialize { argument: InitializeArgument },
@@ -84,7 +93,7 @@ pub enum MemeStateV1Operation {
     },
     MiningInfo,
     Handoff {
-        new_business_application_id: ApplicationId,
+        argument: HandoffArgument,
     },
     Balance {
         owner: Account,
