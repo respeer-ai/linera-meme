@@ -1715,6 +1715,10 @@ fn dispatch_state_operation(
             .start_mining()
             .blocking_wait()
             .map(|_| MemeStateV1Response::Ok),
+        MemeStateV1Operation::InitialLiquidity => state
+            .initial_liquidity()
+            .blocking_wait()
+            .map(MemeStateV1Response::InitialLiquidity),
     };
     match response {
         Ok(response) => bcs::to_bytes(&response).expect("Failed to serialize state response"),
@@ -1928,4 +1932,79 @@ fn assert_transfer_from_application_receipt_err(meme: &MemeContract, caller: Acc
     ));
 }
 
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "NotAllowed")]
+async fn operation_rejected_when_mining_height_mismatches() {
+    let (mut meme, state) = create_and_instantiate_meme(true, None).await;
 
+    let mut mining_info = state
+        .borrow_mut()
+        .mining_info
+        .get()
+        .clone()
+        .expect("Mining info should be initialized");
+    mining_info.mining_started = true;
+    mining_info.mining_height = BlockHeight(1);
+    state.borrow_mut().mining_info.set(Some(mining_info));
+
+    meme.runtime.borrow_mut().set_block_height(BlockHeight(2));
+
+    let to = Account {
+        chain_id: meme.runtime.borrow_mut().chain_id(),
+        owner: AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    };
+
+    let _ = meme
+        .execute_operation(MemeOperation::Transfer {
+            to,
+            amount: Amount::ONE,
+        })
+        .now_or_never()
+        .expect("Execution of meme operation should not await anything");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "NotAllowed")]
+async fn operation_mine_rejected_on_non_creator_chain() {
+    let (mut meme, _state) = create_and_instantiate_meme(true, None).await;
+
+    let other_chain_id = ChainId::from_str(
+        "a20ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5baa",
+    )
+    .unwrap();
+    meme.runtime.borrow_mut().set_chain_id(other_chain_id);
+
+    let _ = meme
+        .execute_operation(MemeOperation::Mine {
+            nonce: CryptoHash::new(&TestString::new("aaaa")),
+        })
+        .now_or_never()
+        .expect("Execution of meme operation should not await anything");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "NotAllowed")]
+async fn message_rejected_on_non_creator_chain() {
+    let (mut meme, _state) = create_and_instantiate_meme(false, None).await;
+    let mut runtime_context = ContractRuntimeAdapter::new(meme.runtime.clone());
+
+    let from = runtime_context.authenticated_account();
+    let to = Account {
+        chain_id: runtime_context.chain_id(),
+        owner: AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    };
+
+    let other_chain_id = ChainId::from_str(
+        "a20ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5baa",
+    )
+    .unwrap();
+    meme.runtime.borrow_mut().set_chain_id(other_chain_id);
+
+    meme.execute_message(MemeMessage::Transfer { from, to, amount: Amount::ONE }).await;
+}

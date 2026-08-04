@@ -6,20 +6,24 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::interfaces::state::StateInterface;
 
-pub struct StartMiningHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
+pub struct InitialLiquidityHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
     runtime: Rc<RefCell<R>>,
     state: S,
 }
 
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> StartMiningHandler<R, S> {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, _operation: &MemeStateV1Operation) -> Self {
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> InitialLiquidityHandler<R, S> {
+    pub fn new(runtime: Rc<RefCell<R>>, state: S, operation: &MemeStateV1Operation) -> Self {
+        let MemeStateV1Operation::InitialLiquidity = operation else {
+            panic!("Invalid operation");
+        };
+
         Self { runtime, state }
     }
 }
 
 #[async_trait(?Send)]
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<(), MemeStateV1Response>
-    for StartMiningHandler<R, S>
+    for InitialLiquidityHandler<R, S>
 {
     async fn handle(
         &mut self,
@@ -29,28 +33,14 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<(), M
             .only_caller_creator()
             .map_err(|error| HandlerError::RuntimeError(error.into()))?;
 
-        let caller = self
-            .runtime
-            .borrow_mut()
-            .require_authenticated_caller_id()
-            .map_err(|error| HandlerError::RuntimeError(error.into()))?;
-
-        let business_application_id = self
+        let liquidity = self
             .state
-            .business_application_id()
-            .await
-            .map_err(|error| HandlerError::ProcessError(error.into()))?;
-        if caller != business_application_id {
-            return Err(HandlerError::NotAllowed);
-        }
-
-        self.state
-            .start_mining()
+            .initial_liquidity()
             .await
             .map_err(|error| HandlerError::ProcessError(error.into()))?;
 
         let mut outcome = HandlerOutcome::new();
-        outcome.with_response(MemeStateV1Response::Ok);
+        outcome.with_response(MemeStateV1Response::InitialLiquidity(liquidity));
         Ok(Some(outcome))
     }
 }

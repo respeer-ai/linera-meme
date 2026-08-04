@@ -4,6 +4,7 @@ pub mod allowance;
 pub mod approve;
 pub mod balance;
 pub mod handoff;
+pub mod initial_liquidity;
 pub mod initialize;
 pub mod mining_info;
 pub mod mining_reward;

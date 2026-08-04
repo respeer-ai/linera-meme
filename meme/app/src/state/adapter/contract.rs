@@ -5,7 +5,7 @@ use abi::{
     application_state_base::{LocalStateInterface, PublicStateBaseInterface},
     meme::{
         state_v1::{MemeStateAbi as MemeStateV1Abi, MemeStateV1Operation, MemeStateV1Response},
-        HandoffArgument, InitializeArgument, MiningInfo,
+        HandoffArgument, InitializeArgument, Liquidity, MiningInfo,
     },
 };
 use async_trait::async_trait;
@@ -297,6 +297,17 @@ impl<R: ContractRuntimeContext> StateInterface for ContractStateAdapter<R> {
     async fn initialize(&mut self, argument: InitializeArgument) -> Result<(), Self::Error> {
         match self.call_state(&MemeStateV1Operation::Initialize { argument })? {
             MemeStateV1Response::Ok => Ok(()),
+            MemeStateV1Response::Fail(error) => Err(StateError::StateOperationFailed(error)),
+            _ => Err(StateError::InvalidStateResponse),
+        }
+    }
+
+    async fn initial_liquidity(&self) -> Result<Option<Liquidity>, Self::Error> {
+        match self.runtime_context.borrow_mut().call_application(
+            self.state_application_id()?.with_abi::<MemeStateV1Abi>(),
+            &MemeStateV1Operation::InitialLiquidity,
+        ) {
+            MemeStateV1Response::InitialLiquidity(liquidity) => Ok(liquidity),
             MemeStateV1Response::Fail(error) => Err(StateError::StateOperationFailed(error)),
             _ => Err(StateError::InvalidStateResponse),
         }

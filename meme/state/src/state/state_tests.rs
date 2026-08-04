@@ -495,3 +495,33 @@ async fn default_balances_and_allowances_are_zero() {
         Amount::ZERO
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn initial_liquidity_returns_stored_value() {
+    let mut state = initialize_state();
+    let liquidity = Liquidity {
+        fungible_amount: Amount::from_tokens(1234),
+        native_amount: Amount::from_tokens(10),
+    };
+
+    assert_eq!(state.initial_liquidity().await.unwrap(), None);
+
+    state
+        .initialize_liquidity(liquidity.clone(), test_chain_id(), false, None)
+        .await
+        .unwrap();
+
+    assert_eq!(state.initial_liquidity().await.unwrap(), Some(liquidity));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn approve_holder_to_owner_fails() {
+    let mut state = initialize_state();
+
+    let err = state
+        .approve(test_holder(), test_owner(), Amount::ONE)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, StateError::InvalidOwner));
+}
+

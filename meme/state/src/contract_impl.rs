@@ -28,7 +28,12 @@ impl MemeStateContract {
             {
                 Ok(Some(outcome)) => outcome,
                 Ok(None) => return MemeStateV1Response::Ok,
-                Err(error) => panic!("Failed meme state v1 operation {:?}: {error}", op),
+                Err(error) => {
+                    return MemeStateV1Response::Fail(format!(
+                        "Failed meme state v1 operation {:?}: {error}",
+                        op
+                    ))
+                }
             };
 
         Self::apply_outcome(runtime_context, outcome)

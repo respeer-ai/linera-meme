@@ -149,6 +149,10 @@ impl StateInterface for MemeState {
         if owner == spender {
             return Err(StateError::InvalidOwner);
         }
+        // Approve application balance to meme creator is not allowed
+        if owner == self.holder.get().unwrap() && spender == self.owner.get().unwrap() {
+            return Err(StateError::InvalidOwner);
+        }
 
         let owner_balance = self.balance_of(owner).await?;
         if owner_balance < amount {
@@ -222,6 +226,10 @@ impl StateInterface for MemeState {
             mining_supply,
         )
         .await
+    }
+
+    async fn initial_liquidity(&self) -> Result<Option<Liquidity>, Self::Error> {
+        Ok(self.initial_liquidity.get().clone())
     }
 
     async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), Self::Error> {

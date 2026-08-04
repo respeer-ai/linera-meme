@@ -1,5 +1,6 @@
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
 use abi::{
+    application_state_base::PublicStateBaseInterface,
     meme::{MemeMessage, MemeResponse},
     swap::router::{SwapAbi, SwapOperation},
 };
@@ -10,13 +11,13 @@ use std::{cell::RefCell, rc::Rc};
 
 pub struct LiquidityFundedHandler<
     R: ContractRuntimeContext + AccessControl + ParametersInterface,
-    S: StateInterface,
+    S: StateInterface + PublicStateBaseInterface,
 > {
     runtime: Rc<RefCell<R>>,
     state: S,
 }
 
-impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateInterface>
+impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateInterface + PublicStateBaseInterface>
     LiquidityFundedHandler<R, S>
 {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &MemeMessage) -> Self {
@@ -29,7 +30,7 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateInterface>
+impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateInterface + PublicStateBaseInterface>
     Handler<MemeMessage, MemeResponse> for LiquidityFundedHandler<R, S>
 {
     async fn handle(
@@ -38,7 +39,13 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
         log::info!("DEBUG MEME:MSG liquidity funded");
 
         let virtual_liquidity = self.runtime.borrow_mut().virtual_initial_liquidity();
-        let Some(liquidity) = self.runtime.borrow_mut().initial_liquidity() else {
+        // Use the state-app stored liquidity, which has been adjusted for mining supply.
+        let Some(liquidity) = self
+            .state
+            .initial_liquidity()
+            .await
+            .map_err(|error| HandlerError::ProcessError(error.into()))?
+        else {
             return Ok(None);
         };
         let swap_application_id = self

@@ -52,6 +52,8 @@ pub trait StateInterface {
         mining_supply: Option<Amount>,
     ) -> Result<(), Self::Error>;
 
+    async fn initial_liquidity(&self) -> Result<Option<Liquidity>, Self::Error>;
+
     async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), Self::Error>;
 
     async fn transfer_ownership(

@@ -13,6 +13,7 @@ impl MemeContract {
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, Some(op), None)
+                .await
                 .expect("Failed: construct Meme operation handler")
                 .handle()
                 .await
@@ -41,6 +42,7 @@ impl MemeContract {
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, None, Some(msg))
+                .await
                 .expect("Failed: construct Meme message handler")
                 .handle()
                 .await

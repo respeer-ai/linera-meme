@@ -11,6 +11,7 @@ use operation::allowance::AllowanceHandler;
 use operation::approve::ApproveHandler;
 use operation::balance::BalanceHandler;
 use operation::handoff::HandoffHandler;
+use operation::initial_liquidity::InitialLiquidityHandler;
 use operation::initialize::InitializeHandler;
 use operation::mining_info::MiningInfoHandler;
 use operation::mining_reward::MiningRewardHandler;
@@ -85,6 +86,9 @@ impl HandlerFactory {
             MemeStateV1Operation::StartMining => {
                 Ok(Box::new(StartMiningHandler::new(runtime, state, operation)))
             }
+            MemeStateV1Operation::InitialLiquidity => Ok(Box::new(
+                InitialLiquidityHandler::new(runtime, state, operation),
+            )),
         }
     }
 

@@ -99,6 +99,10 @@ impl StateInterface for StateAdapter {
             .await
     }
 
+    async fn initial_liquidity(&self) -> Result<Option<Liquidity>, Self::Error> {
+        self.state.borrow().initial_liquidity().await
+    }
+
     async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), Self::Error> {
         self.state.borrow_mut().mint(to, amount).await
     }

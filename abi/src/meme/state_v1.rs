@@ -5,7 +5,7 @@ use linera_sdk::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::abi::{Meme, MiningInfo};
+use super::abi::{Liquidity, Meme, MiningInfo};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct StateInstantiationArgument {
@@ -106,6 +106,7 @@ pub enum MemeStateV1Operation {
     SwapApplicationId,
     ProxyApplicationId,
     StartMining,
+    InitialLiquidity,
 }
 
 #[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize)]
@@ -118,4 +119,5 @@ pub enum MemeStateV1Response {
     MiningInfo(MiningInfo),
     SwapApplicationId(Option<ApplicationId>),
     ProxyApplicationId(Option<ApplicationId>),
+    InitialLiquidity(Option<Liquidity>),
 }
