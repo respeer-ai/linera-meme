@@ -3,11 +3,12 @@ use abi::{
     application_state_base::{decode_response_field, LocalStateInterface},
     meme::{state_v1::MemeStateAbi as MemeStateV1Abi, Meme, MiningInfo},
 };
-use async_graphql::Request;
+use async_graphql::{Request, Variables};
 use linera_sdk::{
     linera_base_types::{Account, Amount, ApplicationId},
     Service, ServiceRuntime,
 };
+use serde_json::json;
 use std::sync::Arc;
 
 use super::StateError;
@@ -40,7 +41,13 @@ impl<S: Service> ServiceStateAdapter<S> {
 
     pub async fn balance_of(&self, owner: Account) -> Result<Amount, StateError> {
         let state_application_id = self.state_application_id().await?;
-        let request = Request::new(format!("query {{ balance(owner: \"{}\") }}", owner));
+        let request = Request::new("query Balance($owner: Account!) { balance(owner: $owner) }")
+            .variables(Variables::from_json(json!({
+                "owner": {
+                    "chain_id": owner.chain_id.to_string(),
+                    "owner": owner.owner.to_string(),
+                }
+            })));
         let response = self
             .runtime
             .query_application(state_application_id.with_abi::<MemeStateV1Abi>(), &request);
@@ -53,10 +60,19 @@ impl<S: Service> ServiceStateAdapter<S> {
         spender: Account,
     ) -> Result<Amount, StateError> {
         let state_application_id = self.state_application_id().await?;
-        let request = Request::new(format!(
-            "query {{ allowance(owner: \"{}\", spender: \"{}\") }}",
-            owner, spender
-        ));
+        let request = Request::new(
+            "query Allowance($owner: Account!, $spender: Account!) { allowance(owner: $owner, spender: $spender) }",
+        )
+        .variables(Variables::from_json(json!({
+            "owner": {
+                "chain_id": owner.chain_id.to_string(),
+                "owner": owner.owner.to_string(),
+            },
+            "spender": {
+                "chain_id": spender.chain_id.to_string(),
+                "owner": spender.owner.to_string(),
+            }
+        })));
         let response = self
             .runtime
             .query_application(state_application_id.with_abi::<MemeStateV1Abi>(), &request);

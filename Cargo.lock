@@ -3040,11 +3040,14 @@ dependencies = [
  "async-graphql",
  "async-trait",
  "base",
+ "bcs",
  "env_logger",
  "futures",
  "getrandom 0.2.17",
  "linera-sdk",
  "log",
+ "meme-state",
+ "meme-test-proxy",
  "num-bigint",
  "num-traits",
  "proxy",
@@ -3074,6 +3077,17 @@ dependencies = [
  "serde_json",
  "thiserror 1.0.69",
  "tokio",
+]
+
+[[package]]
+name = "meme-test-proxy"
+version = "0.1.0"
+dependencies = [
+ "abi",
+ "async-graphql",
+ "async-trait",
+ "linera-sdk",
+ "serde",
 ]
 
 [[package]]

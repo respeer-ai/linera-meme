@@ -149,3 +149,6 @@ impl QueryRoot {
         ServiceStateAdapter::new(self.runtime.clone(), self.state.clone())
     }
 }
+
+#[cfg(test)]
+mod service_tests;

@@ -3,6 +3,7 @@ members = [
     "proxy",
     "meme/app",
     "meme/state",
+    "meme/test-proxy",
     "swap",
     "pool",
     "blob-gateway/app",
@@ -56,6 +57,7 @@ time-core = "=0.1.4"
 abi = { path = "./abi" }
 meme-app = { path = "./meme/app" }
 meme-state = { path = "./meme/state" }
+meme-test-proxy = { path = "./meme/test-proxy" }
 proxy = { path = "./proxy" }
 swap = { path = "./swap" }
 pool = { path = "./pool" }

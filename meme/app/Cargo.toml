@@ -31,6 +31,9 @@ tokio = { workspace = true, features = ["rt", "sync"] }
 [dev-dependencies]
 assert_matches.workspace = true
 linera-sdk = { workspace = true, features = ["test"] }
+meme-test-proxy.workspace = true
+meme-state.workspace = true
+bcs.workspace = true
 
 [[bin]]
 name = "meme_app_contract"

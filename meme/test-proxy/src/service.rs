@@ -1,0 +1,36 @@
+#![cfg_attr(target_arch = "wasm32", no_main)]
+
+use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
+use linera_sdk::{linera_base_types::WithServiceAbi, Service, ServiceRuntime};
+use meme_test_proxy::FakeProxyAbi;
+
+pub struct FakeProxyService;
+
+linera_sdk::service!(FakeProxyService);
+
+impl WithServiceAbi for FakeProxyService {
+    type Abi = FakeProxyAbi;
+}
+
+impl Service for FakeProxyService {
+    type Parameters = ();
+
+    async fn new(_runtime: ServiceRuntime<Self>) -> Self {
+        Self
+    }
+
+    async fn handle_query(&self, request: Request) -> Response {
+        Schema::new(QueryRoot, EmptyMutation, EmptySubscription)
+            .execute(request)
+            .await
+    }
+}
+
+struct QueryRoot;
+
+#[Object]
+impl QueryRoot {
+    async fn health(&self) -> bool {
+        true
+    }
+}

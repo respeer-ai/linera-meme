@@ -58,3 +58,6 @@ impl Contract for MemeContract {
 }
 
 mod contract_impl;
+
+#[cfg(test)]
+mod contract_tests;

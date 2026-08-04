@@ -120,23 +120,12 @@ impl StateInterface for MemeState {
             return Err(StateError::InsufficientAllowance);
         }
 
-        let from_balance = self.balance_of(from).await?;
-        if from_balance < amount {
-            return Err(StateError::InsufficientFunds);
-        }
-
         let to_balance = self
             .balance_of(to)
             .await?
             .try_add(amount)
             .map_err(|_| StateError::BalanceOverflow)?;
 
-        self.balances.insert(
-            &from,
-            from_balance
-                .try_sub(amount)
-                .map_err(|_| StateError::InvalidAmount)?,
-        )?;
         self.balances.insert(&to, to_balance)?;
 
         let mut allowances = self

@@ -35,3 +35,6 @@ pub struct MemeState {
 pub mod adapter;
 pub mod errors;
 pub mod state_impl;
+
+#[cfg(test)]
+mod state_tests;

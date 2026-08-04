@@ -30,7 +30,7 @@ impl MemeContract {
             );
         }
 
-        MemeResponse::Ok
+        outcome.response.unwrap_or(MemeResponse::Ok)
     }
 
     pub async fn on_message(&mut self, msg: &MemeMessage) {

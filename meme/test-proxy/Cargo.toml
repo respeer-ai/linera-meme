@@ -1,0 +1,20 @@
+[package]
+name = "meme-test-proxy"
+version = "0.1.0"
+authors = ["ResPeer <contact@respeer.ai>"]
+edition = "2021"
+
+[dependencies]
+async-graphql.workspace = true
+async-trait.workspace = true
+linera-sdk.workspace = true
+serde.workspace = true
+abi.workspace = true
+
+[[bin]]
+name = "meme_test_proxy_contract"
+path = "src/contract.rs"
+
+[[bin]]
+name = "meme_test_proxy_service"
+path = "src/service.rs"
