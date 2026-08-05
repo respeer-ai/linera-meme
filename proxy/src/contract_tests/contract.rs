@@ -2,14 +2,17 @@ use super::super::{ProxyContract, ProxyState};
 
 use abi::approval::Approval;
 use abi::meme::{
-    InstantiationArgument as MemeInstantiationArgument, Meme, MemeParameters, Metadata,
+    InstantiationArgument as MemeInstantiationArgument, Meme, MemeOperation, MemeParameters,
+    MemeResponse, Metadata, StateInstantiationArgument,
 };
 use abi::proxy::{InstantiationArgument, ProxyAbi, ProxyMessage, ProxyOperation, ProxyResponse};
 use abi::store_type::StoreType;
 use futures::FutureExt as _;
 use linera_sdk::{
+    bcs,
     linera_base_types::{
-        Account, AccountOwner, ApplicationId, ChainId, ChainOwnership, ModuleId, Timestamp,
+        Account, AccountOwner, ApplicationId, ApplicationPermissions, ChainId, ChainOwnership,
+        ModuleId, Timestamp,
     },
     util::BlockingWait,
     views::View,
@@ -592,6 +595,183 @@ async fn msg_meme_created_is_idempotent_for_same_receipt() {
     );
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn op_set_meme_bytecode_ids_updates_business_and_state_bytecodes() {
+    let mut proxy = create_and_instantiate_proxy();
+
+    let new_business_bytecode_id = ModuleId::from_str(
+        "c94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300",
+    )
+    .unwrap();
+    let new_state_bytecode_id = ModuleId::from_str(
+        "d94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300",
+    )
+    .unwrap();
+
+    proxy
+        .execute_operation(ProxyOperation::SetMemeBytecodeIds {
+            business_bytecode_id: new_business_bytecode_id,
+            state_bytecode_id: new_state_bytecode_id,
+        })
+        .await;
+
+    assert_eq!(
+        proxy.state.borrow().meme_bytecode_id.get().unwrap(),
+        new_business_bytecode_id
+    );
+    assert_eq!(
+        proxy
+            .state
+            .borrow()
+            .meme_state_bytecode_ids
+            .get(&2)
+            .await
+            .unwrap()
+            .unwrap(),
+        new_state_bytecode_id
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn msg_create_meme_ext_creates_apps_appends_states_and_initializes() {
+    let mut proxy = create_and_instantiate_proxy();
+    let (proxy_application_id, creator_chain_id) = {
+        let mut runtime = proxy.runtime.borrow_mut();
+        (
+            runtime.application_id().forget_abi(),
+            runtime.application_creator_chain_id(),
+        )
+    };
+    let meme_chain_id =
+        ChainId::from_str("abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65")
+            .unwrap();
+
+    proxy.runtime.borrow_mut().set_chain_id(meme_chain_id);
+    proxy
+        .runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(Some(proxy_application_id));
+
+    let business_application_id = ApplicationId::from_str(
+        "c10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+    )
+    .unwrap();
+    let state_application_id = ApplicationId::from_str(
+        "c20ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+    )
+    .unwrap();
+
+    let business_bytecode_id = proxy.state.borrow().meme_bytecode_id();
+    let state_bytecode_id = proxy
+        .state
+        .borrow()
+        .meme_state_bytecode_ids()
+        .await
+        .unwrap()
+        .into_iter()
+        .next()
+        .map(|(_, bytecode_id)| bytecode_id)
+        .expect("Missing meme state bytecode id");
+
+    let mut instantiation_argument = test_meme_instantiation_argument();
+    instantiation_argument.proxy_application_id = Some(proxy_application_id);
+
+    let mut parameters = test_meme_parameters();
+    parameters.creator = test_account(
+        "abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65",
+        "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e88",
+    );
+
+    let state_instantiation_argument = StateInstantiationArgument {
+        business_application_id,
+        operator: Some(parameters.creator),
+        proxy_application_id: Some(proxy_application_id),
+    };
+
+    proxy
+        .runtime
+        .borrow_mut()
+        .add_expected_create_application_call(
+            business_bytecode_id,
+            &parameters,
+            &instantiation_argument,
+            vec![],
+            business_application_id,
+        );
+    proxy
+        .runtime
+        .borrow_mut()
+        .add_expected_create_application_call(
+            state_bytecode_id,
+            &(),
+            &state_instantiation_argument,
+            vec![],
+            state_application_id,
+        );
+
+    proxy.runtime.borrow_mut().set_call_application_handler(
+        move |_authenticated, application_id, call| {
+            assert_eq!(application_id, business_application_id);
+            let operation: MemeOperation =
+                bcs::from_bytes(&call).expect("Failed to decode meme operation");
+            match operation {
+                MemeOperation::AppendStates {
+                    state_application_ids,
+                } => {
+                    assert_eq!(state_application_ids, vec![state_application_id]);
+                }
+                MemeOperation::Initialize { argument } => {
+                    assert_eq!(
+                        argument.blob_gateway_application_id,
+                        instantiation_argument.blob_gateway_application_id
+                    );
+                    assert_eq!(
+                        argument.ams_application_id,
+                        instantiation_argument.ams_application_id
+                    );
+                    assert_eq!(
+                        argument.swap_application_id,
+                        instantiation_argument.swap_application_id
+                    );
+                    assert_eq!(argument.enable_mining, parameters.enable_mining);
+                    assert_eq!(argument.mining_supply, parameters.mining_supply);
+                }
+                _ => panic!("Unexpected meme operation: {:?}", operation),
+            }
+            bcs::to_bytes(&MemeResponse::Ok).expect("Failed to encode meme response")
+        },
+    );
+
+    proxy
+        .runtime
+        .borrow_mut()
+        .set_application_permissions(ApplicationPermissions::default());
+    proxy
+        .runtime
+        .borrow_mut()
+        .set_can_change_application_permissions(true);
+
+    proxy
+        .execute_message(ProxyMessage::CreateMemeExt {
+            bytecode_id: business_bytecode_id,
+            instantiation_argument,
+            parameters,
+        })
+        .await;
+
+    let runtime = proxy.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    let request = requests.last().expect("Missing MemeCreated message");
+    assert_eq!(request.destination, creator_chain_id);
+    assert!(matches!(
+        request.message,
+        ProxyMessage::MemeCreated {
+            chain_id,
+            token,
+        } if chain_id == meme_chain_id && token == business_application_id
+    ));
+}
+
 #[test]
 fn cross_application_call() {}
 
@@ -629,10 +809,12 @@ fn create_and_instantiate_proxy_with_operators(operators: Vec<Account>) -> Proxy
     };
 
     let meme_bytecode_id = ModuleId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300").unwrap();
+    let meme_state_bytecode_id = ModuleId::from_str("a94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300").unwrap();
 
     contract
         .instantiate(InstantiationArgument {
             meme_bytecode_id,
+            meme_state_bytecode_ids: vec![(1, meme_state_bytecode_id)],
             operators,
             swap_application_id: application_id.forget_abi(),
         })
@@ -642,6 +824,17 @@ fn create_and_instantiate_proxy_with_operators(operators: Vec<Account>) -> Proxy
     assert_eq!(
         contract.state.borrow().meme_bytecode_id.get().unwrap(),
         meme_bytecode_id
+    );
+    assert_eq!(
+        contract
+            .state
+            .borrow()
+            .meme_state_bytecode_ids
+            .get(&1)
+            .blocking_wait()
+            .unwrap()
+            .unwrap(),
+        meme_state_bytecode_id
     );
 
     contract

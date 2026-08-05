@@ -114,6 +114,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Do not pass --json-argument when creating the business app",
     )
     deploy_parser.add_argument(
+        "--bytecode-only",
+        dest="bytecode_only",
+        action="store_true",
+        help="Only publish bytecode modules; do not create applications",
+    )
+    deploy_parser.add_argument(
         "--repo-dir",
         dest="repo_dir",
         type=Path,
@@ -292,24 +298,34 @@ def _handle_status(args: argparse.Namespace) -> int:
             "name": family.name,
             "env": family.env,
             "current_version": current_version,
+            "bytecode_only": family.bytecode_only,
         }
         if record is not None:
-            business_app = registry.load_business_app(record.business_app)
-            output["business_app"] = {
-                "name": business_app.name,
-                "application_id": business_app.application_id,
-                "creator_chain_id": business_app.creator_chain_id,
-            }
-            output["state_apps"] = []
-            for state_app_name in record.state_apps:
-                state_app = registry.load_state_app(state_app_name)
-                output["state_apps"].append(
-                    {
-                        "name": state_app.name,
-                        "application_id": state_app.application_id,
-                        "creator_chain_id": state_app.creator_chain_id,
+            if family.bytecode_only:
+                if record.business_module_id:
+                    output["business_module_id"] = record.business_module_id
+                output["state_apps"] = [
+                    {"version": index + 1, "module_id": module_id}
+                    for index, module_id in enumerate(record.state_module_ids)
+                ]
+            else:
+                if record.business_app:
+                    business_app = registry.load_business_app(record.business_app)
+                    output["business_app"] = {
+                        "name": business_app.name,
+                        "application_id": business_app.application_id,
+                        "creator_chain_id": business_app.creator_chain_id,
                     }
-                )
+                output["state_apps"] = []
+                for state_app_name in record.state_apps:
+                    state_app = registry.load_state_app(state_app_name)
+                    output["state_apps"].append(
+                        {
+                            "name": state_app.name,
+                            "application_id": state_app.application_id,
+                            "creator_chain_id": state_app.creator_chain_id,
+                        }
+                    )
             output["status"] = record.status
             output["handed_off_to"] = record.handed_off_to
             output["handed_off_from"] = record.handed_off_from
@@ -318,10 +334,16 @@ def _handle_status(args: argparse.Namespace) -> int:
 
     print(f"{family.name} ({family.env})")
     print(f"  current version: {family.current_version}")
+    print(f"  bytecode_only: {family.bytecode_only}")
     for version, record in sorted(family.versions.items()):
-        print(f"  v{version}: {record.business_app} [{record.status}]")
-        for state_app in record.state_apps:
-            print(f"    state app: {state_app}")
+        if family.bytecode_only:
+            print(f"  v{version}: business_module={record.business_module_id} [{record.status}]")
+            for index, module_id in enumerate(record.state_module_ids):
+                print(f"    state module v{index + 1}: {module_id}")
+        else:
+            print(f"  v{version}: {record.business_app} [{record.status}]")
+            for state_app in record.state_apps:
+                print(f"    state app: {state_app}")
         if record.handed_off_to:
             print(f"    handed off to: v{record.handed_off_to}")
         if record.handed_off_from:
@@ -369,6 +391,7 @@ def _handle_deploy(args: argparse.Namespace) -> int:
         wallet_owner_count=args.wallet_owner_count,
         operation_type=args.operation_type,
         no_business_argument=args.no_business_argument,
+        bytecode_only=args.bytecode_only,
     )
     return 0 if result.status in ("skipped", "deployed") else 1
 

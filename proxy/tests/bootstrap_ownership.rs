@@ -171,6 +171,7 @@ async fn bootstrap_multi_owner_single_leader_apps_process_frontend_protocol_oper
             (),
             abi::proxy::InstantiationArgument {
                 meme_bytecode_id: meme_bytecode_id.forget_abi(),
+                meme_state_bytecode_ids: vec![(1, meme_bytecode_id.forget_abi())],
                 operators: vec![],
                 swap_application_id: swap_application_id.forget_abi(),
             },

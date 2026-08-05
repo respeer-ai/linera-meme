@@ -170,7 +170,8 @@ cd $SCRIPT_DIR/..
 # should not participate in the wasm target build.
 cargo build --release --target wasm32-unknown-unknown -j 1 \
     -p proxy \
-    -p meme \
+    -p meme-app \
+    -p meme-state \
     -p swap \
     -p pool \
     -p blob-gateway-app \
@@ -401,7 +402,6 @@ function publish_bytecode() {
 SWAP_MODULE_ID=$(publish_bytecode swap)
 POOL_MODULE_ID=$(publish_bytecode_on_chain swap pool)
 PROXY_MODULE_ID=$(publish_bytecode proxy)
-MEME_MODULE_ID=$(publish_bytecode_on_chain proxy meme)
 
 function wallet_owner() {
     wallet_name=$1
@@ -705,7 +705,38 @@ function create_application() {
 
 # Create applications
 SWAP_APPLICATION_ID=$(create_application swap $SWAP_MODULE_ID "{\"pool_bytecode_id\": \"$POOL_MODULE_ID\"}" '{}' $SWAP_CHAIN_ID)
-PROXY_APPLICATION_ID=$(create_application proxy $PROXY_MODULE_ID "{\"meme_bytecode_id\": \"$MEME_MODULE_ID\", \"operators\": [], \"swap_application_id\": \"$SWAP_APPLICATION_ID\"}" '' $PROXY_CHAIN_ID)
+
+# Deploy meme bytecode via linest (bytecode-only: no application instances are created).
+# Proxy will later use these module ids when it creates individual meme apps.
+mkdir -p "$WALLET_DIR/meme"
+
+run_linest "linest_deploy_meme_bytecode" \
+    "$LINEST_BIN" \
+    --base-dir "$LINEST_BASE_DIR" \
+    --env local \
+    app deploy \
+    --repo-dir "$ROOT_DIR" \
+    --name meme \
+    --bytecode-only \
+    --contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/meme_app_contract.wasm" \
+    --service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/meme_app_service.wasm" \
+    --state-contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/meme_state_contract.wasm" \
+    --state-service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/meme_state_service.wasm" \
+    --ensure-wallet \
+    --faucet-url "$FAUCET_URL" \
+    --wallet-owner-count "$CHAIN_OWNER_COUNT"
+
+MEME_STATUS_JSON=$("$LINEST_BIN" --base-dir "$LINEST_BASE_DIR" --env local app status --name meme --format json)
+MEME_MODULE_ID=$(echo "$MEME_STATUS_JSON" | jq -r '.business_module_id // empty')
+MEME_STATE_VERSION=$(echo "$MEME_STATUS_JSON" | jq -r '.state_apps[0].version // empty')
+MEME_STATE_MODULE_ID=$(echo "$MEME_STATUS_JSON" | jq -r '.state_apps[0].module_id // empty')
+
+if [ -z "$MEME_MODULE_ID" ] || [ -z "$MEME_STATE_VERSION" ] || [ -z "$MEME_STATE_MODULE_ID" ]; then
+    echo "Failed to resolve meme bytecode module ids from linest status" >&2
+    exit 1
+fi
+
+PROXY_APPLICATION_ID=$(create_application proxy $PROXY_MODULE_ID "{\"meme_bytecode_id\": \"$MEME_MODULE_ID\", \"meme_state_bytecode_ids\": [[$MEME_STATE_VERSION, \"$MEME_STATE_MODULE_ID\"]], \"operators\": [], \"swap_application_id\": \"$SWAP_APPLICATION_ID\"}" '' $PROXY_CHAIN_ID)
 
 # Register non-linest apps so domain.ts can be generated from one place.
 run_linest "linest_domain_register_blob_gateway" \
@@ -1125,6 +1156,10 @@ function print_deployment_summary() {
     echo -e "  PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID"
     echo -e "  SWAP_CHAIN_ID=$SWAP_CHAIN_ID"
     echo -e "  SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID"
+    if [ -n "${MEME_MODULE_ID:-}" ]; then
+        echo -e "  MEME_MODULE_ID=$MEME_MODULE_ID"
+        echo -e "  MEME_STATE_MODULE_ID=$MEME_STATE_MODULE_ID"
+    fi
     if [ -n "${MAKER_WALLET_CHAIN_ID:-}" ]; then
         echo -e "  MAKER_WALLET_CHAIN_ID=$MAKER_WALLET_CHAIN_ID"
         echo -e "  MAKER_WALLET_OWNER=$MAKER_WALLET_OWNER"

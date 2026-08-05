@@ -77,6 +77,7 @@ class DeployCommand:
         wallet_owner_count: int = 1,
         operation_type: str | None = None,
         no_business_argument: bool = False,
+        bytecode_only: bool = False,
     ) -> DeployResult:
         """Deploy or upgrade the named application to the target version.
 
@@ -86,6 +87,8 @@ class DeployCommand:
         family = self.registry.load_family(name)
         if operation_type is not None:
             family.operation_type = operation_type
+        if bytecode_only:
+            family.bytecode_only = True
         self.registry.save_family(family)
 
         result = DeployResult(name=name, version=version, status="in_progress")
@@ -130,15 +133,21 @@ class DeployCommand:
             repo_dir=repo_dir,
             dry_run=dry_run,
             business_instantiation_argument=business_argument,
+            bytecode_only=bytecode_only,
         )
         if result.status == "failed":
             return result
 
-        result = self._post_deploy_sync(
-            result=result,
-            family=family,
-            wallet_owner_count=wallet_owner_count if ensure_wallet else len(family.owners),
-        )
+        if not bytecode_only:
+            result = self._post_deploy_sync(
+                result=result,
+                family=family,
+                wallet_owner_count=wallet_owner_count if ensure_wallet else len(family.owners),
+            )
+        else:
+            result.status = "deployed"
+            result.messages.append("bytecode registration completed")
+            print(result)
         return result
 
     def _prepare_wallet_and_chain(
@@ -196,6 +205,7 @@ class DeployCommand:
         repo_dir: Path | None,
         dry_run: bool,
         business_instantiation_argument: dict[str, Any] | None = None,
+        bytecode_only: bool = False,
     ) -> DeployResult:
         """Build the upgrade plan and execute its steps."""
         try:
@@ -210,6 +220,7 @@ class DeployCommand:
                 creator_chain_id=creator_chain_id,
                 repo_dir=repo_dir,
                 business_instantiation_argument=business_instantiation_argument,
+                bytecode_only=bytecode_only,
             )
         except Exception as exc:
             result.status = "failed"

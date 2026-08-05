@@ -68,6 +68,14 @@ pub trait StateInterface {
 
     fn meme_bytecode_id(&self) -> ModuleId;
 
+    async fn set_meme_bytecode_ids(
+        &mut self,
+        business_bytecode_id: ModuleId,
+        state_bytecode_id: ModuleId,
+    ) -> Result<(), Self::Error>;
+
+    async fn meme_state_bytecode_ids(&self) -> Result<Vec<(u16, ModuleId)>, Self::Error>;
+
     fn swap_application_id(&self) -> ApplicationId;
 
     fn create_chain(&mut self, chain_id: ChainId, timestamp: Timestamp) -> Result<(), Self::Error>;

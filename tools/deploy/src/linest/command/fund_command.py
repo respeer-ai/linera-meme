@@ -9,7 +9,7 @@ from time import monotonic, sleep
 from linest.client.funder_pool import FunderPool
 from linest.client.linera_client import LineraClient
 from linest.config import NetworkConfig, WalletPaths
-from linest.errors import DeploymentError, LinestError
+from linest.errors import DeploymentError, LinestError, RegistryError
 from linest.registry import DeploymentRegistry
 
 
@@ -144,9 +144,11 @@ class FundCommand:
         wallet_dir: Path | None,
     ) -> None:
         """Add a concrete deployment's creator chain to the funding map."""
+        if not deployment_name:
+            return
         try:
             deployment = self.registry.load_deployment(deployment_name)
-        except (DeploymentError, FileNotFoundError):
+        except (DeploymentError, FileNotFoundError, RegistryError):
             return
         targets[deployment.creator_chain_id] = wallet_dir
 

@@ -15,6 +15,7 @@ use linera_sdk::{
 #[view(context = ViewStorageContext)]
 pub struct ProxyState {
     pub meme_bytecode_id: RegisterView<Option<ModuleId>>,
+    pub meme_state_bytecode_ids: MapView<u16, ModuleId>,
     /// Active operators
     pub operators: MapView<Account, Approval>,
     /// Banning operators waiting for approval

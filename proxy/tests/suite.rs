@@ -108,6 +108,7 @@ impl TestSuite {
                     (),
                     InstantiationArgument {
                         meme_bytecode_id: self.meme_bytecode_id,
+                        meme_state_bytecode_ids: vec![(1, self.meme_bytecode_id)],
                         operators,
                         swap_application_id: self.swap_application_id.unwrap().forget_abi(),
                     },

@@ -12,6 +12,7 @@ from linest.steps.append_state_step import AppendStateStep
 from linest.steps.deploy_business_app_step import DeployBusinessAppStep
 from linest.steps.deploy_state_app_step import DeployStateAppStep
 from linest.steps.handoff_step import HandoffStep
+from linest.steps.register_bytecode_step import RegisterBytecodeStep
 from linest.steps.step import Step
 
 
@@ -30,6 +31,7 @@ class UpgradePlan:
         creator_chain_id: str | None = None,
         repo_dir: Path | None = None,
         business_instantiation_argument: dict[str, Any] | None = None,
+        bytecode_only: bool = False,
     ) -> None:
         self.family = family
         self.target_version = target_version
@@ -41,12 +43,17 @@ class UpgradePlan:
         self.creator_chain_id = creator_chain_id
         self.repo_dir = repo_dir
         self.business_instantiation_argument = business_instantiation_argument
+        self.bytecode_only = bytecode_only
         self.steps: list[Step] = []
 
         self._build()
 
     def _build(self) -> None:
         self.family.validate_upgrade_target(self.target_version)
+
+        if self.bytecode_only:
+            self._build_bytecode_only()
+            return
 
         if not self.family.versions:
             self._build_first_deploy()
@@ -95,6 +102,30 @@ class UpgradePlan:
 
         self._add_deploy_business_app_step()
         self._add_state_app_steps(version=1)
+
+    def _build_bytecode_only(self) -> None:
+        if not self._has_business_bytecode():
+            raise UpgradeError(
+                "Bytecode-only deploy requires --contract-bytecode and --service-bytecode"
+            )
+        if not self._has_state_bytecode():
+            raise UpgradeError(
+                "Bytecode-only deploy requires --state-contract-bytecode and --state-service-bytecode"
+            )
+
+        previous_version = self.family.previous_version(self.target_version)
+
+        self.steps.append(
+            RegisterBytecodeStep(
+                family=self.family,
+                version=self.target_version,
+                business_contract_bytecode_path=self.contract_bytecode_path,
+                business_service_bytecode_path=self.service_bytecode_path,
+                state_contract_bytecode_path=self.state_contract_bytecode_path,
+                state_service_bytecode_path=self.state_service_bytecode_path,
+                previous_version=previous_version,
+            )
+        )
 
     def _add_state_app_steps(self, version: int) -> None:
         """Add steps to deploy a state app and append it to the business app."""

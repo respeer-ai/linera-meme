@@ -31,6 +31,7 @@ use operation::{
     propose_ban_operator::ProposeBanOperatorHandler as OperationProposeBanOperatorHandler,
     propose_remove_genesis_miner::ProposeRemoveGenesisMinerHandler as OperationProposeRemoveGenesisMinerHandler,
     register_miner::RegisterMinerHandler as OperationRegisterMinerHandler,
+    set_meme_bytecode_ids::SetMemeBytecodeIdsHandler as OperationSetMemeBytecodeIdsHandler,
 };
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
@@ -80,6 +81,9 @@ impl HandlerFactory {
             }
             ProxyOperation::ApproveBanOperator { .. } => {
                 Box::new(OperationApproveBanOperatorHandler::new(runtime, state, op))
+            }
+            ProxyOperation::SetMemeBytecodeIds { .. } => {
+                Box::new(OperationSetMemeBytecodeIdsHandler::new(runtime, state, op))
             }
         }
     }
@@ -158,8 +162,11 @@ impl HandlerFactory {
         msg: Option<&ProxyMessage>,
     ) -> Result<Box<dyn Handler<ProxyMessage, ProxyResponse>>, HandlerError> {
         if let Some(op) = op {
-            // All operations must be run on user chain side
-            if runtime.borrow_mut().only_application_creator().is_ok() {
+            // Admin operations that mutate proxy configuration are allowed on the creator chain.
+            let is_admin_operation = matches!(op, ProxyOperation::SetMemeBytecodeIds { .. });
+
+            // All other operations must be run on user chain side
+            if !is_admin_operation && runtime.borrow_mut().only_application_creator().is_ok() {
                 return Err(HandlerError::NotAllowed);
             }
 

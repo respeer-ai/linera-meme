@@ -445,6 +445,7 @@ fn decode_proxy_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Res
         ProxyOperation::ApproveAddOperator { .. } => "approve_add_operator",
         ProxyOperation::ProposeBanOperator { .. } => "propose_ban_operator",
         ProxyOperation::ApproveBanOperator { .. } => "approve_ban_operator",
+        ProxyOperation::SetMemeBytecodeIds { .. } => "set_meme_bytecode_ids",
     };
     Ok(json!({
         "payload_type": payload_type,
@@ -845,6 +846,27 @@ fn decode_meme_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
                 "receipt": encode_transfer_from_application_receipt(receipt),
             }),
         ),
+        MemeOperation::SetOperator { new_operator } => (
+            "set_operator",
+            json!({
+                "operation_type": "set_operator",
+                "application_id": application_id,
+                "new_operator": encode_account(new_operator),
+            }),
+        ),
+        MemeOperation::Initialize { argument } => (
+            "initialize",
+            json!({
+                "operation_type": "initialize",
+                "application_id": application_id,
+                "owner": encode_account(argument.owner),
+                "holder": encode_account(argument.holder),
+                "blob_gateway_application_id": argument.blob_gateway_application_id.map(|id| id.to_string()),
+                "ams_application_id": argument.ams_application_id.map(|id| id.to_string()),
+                "swap_application_id": argument.swap_application_id.map(|id| id.to_string()),
+                "enable_mining": argument.enable_mining,
+            }),
+        ),
         MemeOperation::InitializeLiquidity {
             pool_application,
             amount_0,
@@ -928,12 +950,12 @@ fn decode_meme_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
                 "state_application_ids": state_application_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
             }),
         ),
-        MemeOperation::Handoff { new_business_application_id } => (
+        MemeOperation::Handoff { argument } => (
             "handoff",
             json!({
                 "operation_type": "handoff",
                 "application_id": application_id,
-                "new_business_application_id": new_business_application_id.to_string(),
+                "new_business_application_id": argument.new_business_application_id.to_string(),
             }),
         ),
     };
@@ -1262,6 +1284,15 @@ fn decode_blob_gateway_operation(application_id: &str, raw_bytes: &[u8]) -> anyh
                 "operation_type": "handoff",
                 "application_id": application_id,
                 "new_business_application_id": new_business_application_id.to_string(),
+            },
+        }),
+        BlobGatewayOperation::SetOperator { new_operator } => json!({
+            "payload_type": "blob_gateway_set_operator",
+            "decoder_version": "blob-gateway-operation-rust-v1",
+            "decoded_payload_json": {
+                "operation_type": "set_operator",
+                "application_id": application_id,
+                "new_operator": encode_account(new_operator),
             },
         }),
     };

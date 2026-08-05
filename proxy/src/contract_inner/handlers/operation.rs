@@ -9,3 +9,4 @@ pub mod propose_add_operator;
 pub mod propose_ban_operator;
 pub mod propose_remove_genesis_miner;
 pub mod register_miner;
+pub mod set_meme_bytecode_ids;

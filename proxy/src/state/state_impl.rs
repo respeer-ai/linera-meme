@@ -21,6 +21,9 @@ impl StateInterface for ProxyState {
         owners: Vec<Account>,
     ) -> Result<(), StateError> {
         self.meme_bytecode_id.set(Some(argument.meme_bytecode_id));
+        for (version, bytecode_id) in argument.meme_state_bytecode_ids {
+            self.meme_state_bytecode_ids.insert(&version, bytecode_id)?;
+        }
 
         for operator in argument.operators {
             let mut approval = Approval::new(1);
@@ -218,6 +221,34 @@ impl StateInterface for ProxyState {
 
     fn meme_bytecode_id(&self) -> ModuleId {
         self.meme_bytecode_id.get().unwrap()
+    }
+
+    async fn set_meme_bytecode_ids(
+        &mut self,
+        business_bytecode_id: ModuleId,
+        state_bytecode_id: ModuleId,
+    ) -> Result<(), StateError> {
+        self.meme_bytecode_id.set(Some(business_bytecode_id));
+
+        let max_version = self
+            .meme_state_bytecode_ids
+            .index_values()
+            .await?
+            .into_iter()
+            .map(|(version, _)| version)
+            .max()
+            .unwrap_or(0);
+        let next_version = max_version + 1;
+
+        self.meme_state_bytecode_ids
+            .insert(&next_version, state_bytecode_id)?;
+        Ok(())
+    }
+
+    async fn meme_state_bytecode_ids(&self) -> Result<Vec<(u16, ModuleId)>, StateError> {
+        let mut ids = self.meme_state_bytecode_ids.index_values().await?;
+        ids.sort_by_key(|(version, _)| *version);
+        Ok(ids)
     }
 
     fn swap_application_id(&self) -> ApplicationId {

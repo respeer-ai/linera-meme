@@ -37,6 +37,8 @@ class VersionRecord:
     status: str
     handed_off_to: str | None = None
     handed_off_from: str | None = None
+    business_module_id: str | None = None
+    state_module_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the version record to a dictionary."""
@@ -49,6 +51,10 @@ class VersionRecord:
             data["handed_off_to"] = self.handed_off_to
         if self.handed_off_from is not None:
             data["handed_off_from"] = self.handed_off_from
+        if self.business_module_id is not None:
+            data["business_module_id"] = self.business_module_id
+        if self.state_module_ids:
+            data["state_module_ids"] = list(self.state_module_ids)
         return data
 
     @classmethod
@@ -60,6 +66,8 @@ class VersionRecord:
             status=data["status"],
             handed_off_to=data.get("handed_off_to"),
             handed_off_from=data.get("handed_off_from"),
+            business_module_id=data.get("business_module_id"),
+            state_module_ids=list(data.get("state_module_ids", [])),
         )
 
 
@@ -76,6 +84,7 @@ class AppFamily:
     creator_chain_wallet_dir: str | None = None
     owners: list[str] = field(default_factory=list)
     operation_type: str | None = None
+    bytecode_only: bool = False
 
     def abi_source_dir_name(self) -> str:
         """Return the ABI source directory name for this family."""
@@ -106,6 +115,8 @@ class AppFamily:
             data["owners"] = list(self.owners)
         if self.operation_type is not None:
             data["operation_type"] = self.operation_type
+        if self.bytecode_only:
+            data["bytecode_only"] = True
         return data
 
     @classmethod
@@ -129,6 +140,7 @@ class AppFamily:
             creator_chain_wallet_dir=data.get("creator_chain_wallet_dir"),
             owners=list(data.get("owners", [])),
             operation_type=operation_type,
+            bytecode_only=data.get("bytecode_only", False),
         )
 
     @classmethod
@@ -141,22 +153,27 @@ class AppFamily:
             versions={},
             owners=[],
             operation_type=_derive_operation_type(name),
+            bytecode_only=False,
         )
 
     def add_version(
         self,
         version: int,
-        business_app: str,
-        state_apps: list[str],
+        business_app: str = "",
+        state_apps: list[str] | None = None,
         status: str = "planned",
+        business_module_id: str | None = None,
+        state_module_ids: list[str] | None = None,
     ) -> None:
         """Add a new version record to the family."""
         if version in self.versions:
             raise RegistryError(f"Version {version} already exists in {self.name}")
         self.versions[version] = VersionRecord(
             business_app=business_app,
-            state_apps=list(state_apps),
+            state_apps=list(state_apps or []),
             status=status,
+            business_module_id=business_module_id,
+            state_module_ids=list(state_module_ids or []),
         )
 
     def get_version(self, version: int) -> VersionRecord:

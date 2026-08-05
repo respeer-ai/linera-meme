@@ -128,6 +128,21 @@ impl StateInterface for StateAdapter {
         self.state.borrow().meme_bytecode_id()
     }
 
+    async fn set_meme_bytecode_ids(
+        &mut self,
+        business_bytecode_id: ModuleId,
+        state_bytecode_id: ModuleId,
+    ) -> Result<(), StateError> {
+        self.state
+            .borrow_mut()
+            .set_meme_bytecode_ids(business_bytecode_id, state_bytecode_id)
+            .await
+    }
+
+    async fn meme_state_bytecode_ids(&self) -> Result<Vec<(u16, ModuleId)>, StateError> {
+        self.state.borrow().meme_state_bytecode_ids().await
+    }
+
     fn swap_application_id(&self) -> ApplicationId {
         self.state.borrow().swap_application_id()
     }

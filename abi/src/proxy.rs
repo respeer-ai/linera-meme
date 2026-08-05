@@ -74,6 +74,11 @@ pub enum ProxyOperation {
         meme_parameters: MemeParameters,
     },
 
+    SetMemeBytecodeIds {
+        business_bytecode_id: ModuleId,
+        state_bytecode_id: ModuleId,
+    },
+
     ProposeAddOperator {
         owner: Account,
     },
@@ -159,6 +164,7 @@ pub enum ProxyResponse {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct InstantiationArgument {
     pub meme_bytecode_id: ModuleId,
+    pub meme_state_bytecode_ids: Vec<(u16, ModuleId)>,
     pub operators: Vec<Account>,
     pub swap_application_id: ApplicationId,
 }
