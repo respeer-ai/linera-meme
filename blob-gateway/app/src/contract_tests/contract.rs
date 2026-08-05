@@ -324,3 +324,45 @@ async fn message_register_rejects_missing_state_v1_append() {
         .execute_message(BlobGatewayMessage::Register { blob_data })
         .await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_set_operator_calls_state_v1_set_operator() {
+    let mut suite = TestSuite::new();
+    suite.append_state();
+    let new_operator = TestSuite::other_account();
+
+    suite
+        .contract
+        .runtime
+        .borrow_mut()
+        .set_call_application_handler(move |authenticated, application_id, call| {
+            assert!(authenticated);
+            assert_eq!(application_id, TestSuite::state_application_id());
+            assert_eq!(
+                BlobGatewayStateV1Abi::deserialize_operation(call).unwrap(),
+                BlobGatewayStateV1Operation::SetOperator { new_operator }
+            );
+            BlobGatewayStateV1Abi::serialize_response(BlobGatewayStateV1Response::Ok).unwrap()
+        });
+
+    suite
+        .execute_operation(BlobGatewayOperation::SetOperator { new_operator })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Only allow application creator")]
+async fn operation_set_operator_rejects_non_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite
+        .contract
+        .runtime
+        .borrow_mut()
+        .set_chain_id(TestSuite::other_account().chain_id);
+
+    suite
+        .execute_operation(BlobGatewayOperation::SetOperator {
+            new_operator: TestSuite::other_account(),
+        })
+        .await;
+}

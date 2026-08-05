@@ -14,6 +14,8 @@ pub trait StateInterface {
 
     async fn operator(&mut self) -> Result<Account, Self::Error>;
 
+    async fn set_operator(&mut self, new_operator: Account) -> Result<(), Self::Error>;
+
     async fn owner(&self) -> Result<Account, Self::Error>;
 
     async fn balance_of(&self, owner: Account) -> Result<Amount, Self::Error>;

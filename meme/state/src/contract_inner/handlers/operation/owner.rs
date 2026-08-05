@@ -6,29 +6,25 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::interfaces::state::StateInterface;
 
-pub struct OwnerHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
-    runtime: Rc<RefCell<R>>,
+pub struct OwnerHandler<S: StateInterface> {
     state: S,
 }
 
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> OwnerHandler<R, S> {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, _operation: &MemeStateV1Operation) -> Self {
-        Self { runtime, state }
+impl<S: StateInterface> OwnerHandler<S> {
+    pub fn new<R: ContractRuntimeContext + AccessControl>(
+        _runtime: Rc<RefCell<R>>,
+        state: S,
+        _operation: &MemeStateV1Operation,
+    ) -> Self {
+        Self { state }
     }
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<(), MemeStateV1Response>
-    for OwnerHandler<R, S>
-{
+impl<S: StateInterface> Handler<(), MemeStateV1Response> for OwnerHandler<S> {
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<(), MemeStateV1Response>>, HandlerError> {
-        self.runtime
-            .borrow_mut()
-            .only_caller_creator()
-            .map_err(|error| HandlerError::RuntimeError(error.into()))?;
-
         let owner = self
             .state
             .owner()

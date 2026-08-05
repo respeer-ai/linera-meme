@@ -39,6 +39,10 @@ impl StateInterface for StateAdapter {
         self.state.borrow_mut().operator().await
     }
 
+    async fn set_operator(&mut self, new_operator: Account) -> Result<(), Self::Error> {
+        self.state.borrow_mut().set_operator(new_operator).await
+    }
+
     async fn owner(&self) -> Result<Account, Self::Error> {
         self.state.borrow().owner().await
     }

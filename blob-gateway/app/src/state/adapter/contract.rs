@@ -68,8 +68,16 @@ impl<R: ContractRuntimeContext> PublicStateBaseInterface for ContractStateAdapte
         Ok(())
     }
 
-    async fn set_operator(&mut self, _new_operator: Account) -> Result<(), Self::Error> {
-        Err(StateError::OperatorNotSupported)
+    async fn set_operator(&mut self, new_operator: Account) -> Result<(), Self::Error> {
+        let state_application_id = self.state.borrow().state_application(1).await?;
+        let response = self.runtime_context.borrow_mut().call_application(
+            state_application_id.with_abi::<BlobGatewayStateV1Abi>(),
+            &BlobGatewayStateV1Operation::SetOperator { new_operator },
+        );
+        match response {
+            BlobGatewayStateV1Response::Ok => Ok(()),
+            _ => Err(StateError::InvalidStateResponse),
+        }
     }
 }
 

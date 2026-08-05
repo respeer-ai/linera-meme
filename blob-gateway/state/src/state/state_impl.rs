@@ -1,6 +1,6 @@
 use abi::blob_gateway::{state_v1::StateInstantiationArgument, BlobData};
 use async_trait::async_trait;
-use linera_sdk::linera_base_types::{ApplicationId, CryptoHash};
+use linera_sdk::linera_base_types::{Account, ApplicationId, CryptoHash};
 
 use crate::{
     interfaces::state::StateInterface,
@@ -21,6 +21,11 @@ impl StateInterface for BlobGatewayStateV1 {
         self.business_application_id
             .get()
             .ok_or(StateError::BusinessApplicationIdNotInitialized)
+    }
+
+    async fn set_operator(&mut self, new_operator: Account) -> Result<(), Self::Error> {
+        self.operator.set(Some(new_operator));
+        Ok(())
     }
 
     async fn handoff(

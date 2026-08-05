@@ -90,9 +90,12 @@ impl<R: ContractRuntimeContext> PublicStateBaseInterface for ContractStateAdapte
         .await
     }
 
-    async fn set_operator(&mut self, _new_operator: Account) -> Result<(), Self::Error> {
-        // TODO: forward operator update to the state app once SetOperator is added there.
-        Ok(())
+    async fn set_operator(&mut self, new_operator: Account) -> Result<(), Self::Error> {
+        match self.call_state(&MemeStateV1Operation::SetOperator { new_operator })? {
+            MemeStateV1Response::Ok => Ok(()),
+            MemeStateV1Response::Fail(error) => Err(StateError::StateOperationFailed(error)),
+            _ => Err(StateError::InvalidStateResponse),
+        }
     }
 }
 

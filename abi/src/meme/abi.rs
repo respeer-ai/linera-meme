@@ -345,6 +345,9 @@ pub enum MemeResponse {
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum MemeOperation {
+    SetOperator {
+        new_operator: Account,
+    },
     Transfer {
         to: Account,
         amount: Amount,

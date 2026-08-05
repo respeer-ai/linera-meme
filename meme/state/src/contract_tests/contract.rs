@@ -222,3 +222,49 @@ async fn initial_liquidity_returns_none_before_liquidity_initialized() {
         .await;
     assert_eq!(response, MemeStateV1Response::InitialLiquidity(None));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn set_operator_succeeds_on_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite
+        .execute_operation(MemeStateV1Operation::Initialize {
+            argument: TestSuite::initialize_argument(),
+        })
+        .await;
+
+    let new_operator = Account {
+        chain_id: TestSuite::chain_id(),
+        owner: AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    };
+    let response = suite
+        .execute_operation(MemeStateV1Operation::SetOperator { new_operator })
+        .await;
+    assert_eq!(response, MemeStateV1Response::Ok);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn set_operator_rejects_non_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite.set_chain_id(TestSuite::other_chain_id());
+    suite.set_application_creator_chain_id(TestSuite::chain_id());
+    suite
+        .execute_operation(MemeStateV1Operation::Initialize {
+            argument: TestSuite::initialize_argument(),
+        })
+        .await;
+
+    let new_operator = Account {
+        chain_id: TestSuite::chain_id(),
+        owner: AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    };
+    let response = suite
+        .execute_operation(MemeStateV1Operation::SetOperator { new_operator })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}

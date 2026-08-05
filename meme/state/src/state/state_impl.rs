@@ -49,6 +49,11 @@ impl StateInterface for MemeState {
         self.operator.get().ok_or(StateError::OperatorNotInitialized)
     }
 
+    async fn set_operator(&mut self, new_operator: Account) -> Result<(), Self::Error> {
+        self.operator.set(Some(new_operator));
+        Ok(())
+    }
+
     async fn owner(&self) -> Result<Account, Self::Error> {
         self.owner.get().ok_or(StateError::OwnerNotInitialized)
     }

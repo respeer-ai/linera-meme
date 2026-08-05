@@ -9,6 +9,7 @@ pub mod initialize_liquidity;
 pub mod mine;
 pub mod mint;
 pub mod redeem;
+pub mod set_operator;
 pub mod transfer;
 pub mod transfer_from;
 pub mod transfer_from_application;

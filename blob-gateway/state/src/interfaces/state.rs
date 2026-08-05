@@ -1,6 +1,6 @@
 use abi::blob_gateway::{state_v1::StateInstantiationArgument, BlobData};
 use async_trait::async_trait;
-use linera_sdk::linera_base_types::{ApplicationId, CryptoHash};
+use linera_sdk::linera_base_types::{Account, ApplicationId, CryptoHash};
 
 #[async_trait(?Send)]
 pub trait StateInterface {
@@ -9,6 +9,8 @@ pub trait StateInterface {
     fn instantiate(&mut self, argument: StateInstantiationArgument);
 
     async fn business_application_id(&mut self) -> Result<ApplicationId, Self::Error>;
+
+    async fn set_operator(&mut self, new_operator: Account) -> Result<(), Self::Error>;
 
     async fn handoff(
         &mut self,

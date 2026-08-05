@@ -390,3 +390,44 @@ async fn handoff_rejects_new_business_app_on_different_creator_chain() {
         })
         .await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn set_operator_success() {
+    let mut suite = TestSuite::new();
+    let new_operator = Account {
+        chain_id: TestSuite::chain_id(),
+        owner: AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    };
+
+    assert_eq!(
+        suite
+            .execute_operation(BlobGatewayStateV1Operation::SetOperator { new_operator })
+            .await,
+        BlobGatewayStateV1Response::Ok
+    );
+    assert_eq!(
+        suite.contract.state.borrow().operator.get().as_ref().copied(),
+        Some(new_operator)
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Not allowed")]
+async fn set_operator_rejects_unbound_business_app() {
+    let mut suite = TestSuite::new();
+    suite.set_authenticated_caller(TestSuite::other_business_application_id());
+    let new_operator = Account {
+        chain_id: TestSuite::chain_id(),
+        owner: AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    };
+
+    suite
+        .execute_operation(BlobGatewayStateV1Operation::SetOperator { new_operator })
+        .await;
+}

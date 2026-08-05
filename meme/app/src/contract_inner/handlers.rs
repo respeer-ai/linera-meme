@@ -30,6 +30,7 @@ use operation::{
     initialize_liquidity::InitializeLiquidityHandler,
     mine::MineHandler as OperationMineHandler, mint::MintHandler as OperationMintHandler,
     redeem::RedeemHandler as OperationRedeemHandler,
+    set_operator::SetOperatorHandler as OperationSetOperatorHandler,
     transfer::TransferHandler as OperationTransferHandler,
     transfer_from::TransferFromHandler as OperationTransferFromHandler,
     transfer_from_application::TransferFromApplicationHandler as OperationTransferFromApplicationHandler,
@@ -49,6 +50,9 @@ impl HandlerFactory {
         op: &MemeOperation,
     ) -> Box<dyn Handler<MemeMessage, MemeResponse>> {
         match op {
+            MemeOperation::SetOperator { .. } => Box::new(OperationSetOperatorHandler::new(
+                runtime, state, op,
+            )),
             MemeOperation::Transfer { .. } => {
                 Box::new(OperationTransferHandler::new(runtime, state, op))
             }

@@ -188,6 +188,7 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
         argument.enable_mining = self.runtime.borrow_mut().enable_mining();
         argument.mining_supply = self.runtime.borrow_mut().mining_supply();
         argument.now = self.runtime.borrow_mut().system_time();
+        argument.meme.total_supply = argument.meme.initial_supply;
 
         self.state
             .initialize(argument.clone())

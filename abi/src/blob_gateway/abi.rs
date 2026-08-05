@@ -39,6 +39,9 @@ pub struct BlobData {
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum BlobGatewayOperation {
+    SetOperator {
+        new_operator: Account,
+    },
     Register {
         store_type: StoreType,
         data_type: BlobDataType,

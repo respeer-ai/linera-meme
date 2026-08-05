@@ -525,3 +525,17 @@ async fn approve_holder_to_owner_fails() {
     assert!(matches!(err, StateError::InvalidOwner));
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn set_operator_updates_operator() {
+    let mut state = initialize_state();
+    let new_operator = test_account(AccountOwner::from_str(
+        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+    ).unwrap());
+
+    assert_ne!(state.operator().await.unwrap(), new_operator);
+
+    state.set_operator(new_operator).await.unwrap();
+
+    assert_eq!(state.operator().await.unwrap(), new_operator);
+}
+

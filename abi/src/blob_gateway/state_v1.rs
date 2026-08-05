@@ -23,6 +23,9 @@ pub struct StateInstantiationArgument {
 
 #[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize)]
 pub enum BlobGatewayStateV1Operation {
+    SetOperator {
+        new_operator: Account,
+    },
     Handoff {
         new_business_application_id: ApplicationId,
     },

@@ -1635,6 +1635,10 @@ fn dispatch_state_operation(
     let operation = bcs::from_bytes::<MemeStateV1Operation>(operation)
         .expect("Failed to deserialize state app operation");
     let response = match operation {
+        MemeStateV1Operation::SetOperator { new_operator } => state
+            .set_operator(new_operator)
+            .blocking_wait()
+            .map(|_| MemeStateV1Response::Ok),
         MemeStateV1Operation::Initialize { argument } => {
             state.initialize(argument).blocking_wait().map(|_| MemeStateV1Response::Ok)
         }
@@ -2007,4 +2011,51 @@ async fn message_rejected_on_non_creator_chain() {
     meme.runtime.borrow_mut().set_chain_id(other_chain_id);
 
     meme.execute_message(MemeMessage::Transfer { from, to, amount: Amount::ONE }).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_set_operator_calls_state_v1_set_operator() {
+    let (mut meme, state) = create_and_instantiate_meme(false, None).await;
+    let mut runtime_context = ContractRuntimeAdapter::new(meme.runtime.clone());
+
+    let new_operator = Account {
+        chain_id: runtime_context.chain_id(),
+        owner: AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    };
+
+    let response = meme
+        .execute_operation(MemeOperation::SetOperator { new_operator })
+        .now_or_never()
+        .expect("Execution of meme operation should not await anything");
+    assert!(matches!(response, MemeResponse::Ok));
+
+    assert_eq!(state.borrow_mut().operator().await.unwrap(), new_operator);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Only allow application creator")]
+async fn operation_set_operator_rejects_on_non_creator_chain() {
+    let (mut meme, _state) = create_and_instantiate_meme(false, None).await;
+
+    let other_chain_id = ChainId::from_str(
+        "a20ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5baa",
+    )
+    .unwrap();
+    meme.runtime.borrow_mut().set_chain_id(other_chain_id);
+
+    let new_operator = Account {
+        chain_id: meme.runtime.borrow_mut().chain_id(),
+        owner: AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    };
+
+    let _ = meme
+        .execute_operation(MemeOperation::SetOperator { new_operator })
+        .now_or_never()
+        .expect("Execution of meme operation should not await anything");
 }

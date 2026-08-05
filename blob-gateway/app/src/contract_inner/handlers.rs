@@ -12,6 +12,7 @@ use operation::{
     append_state::AppendStateHandler as OperationAppendStateHandler,
     handoff::HandoffHandler as OperationHandoffHandler,
     register::RegisterHandler as OperationRegisterHandler,
+    set_operator::SetOperatorHandler as OperationSetOperatorHandler,
 };
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
@@ -25,6 +26,9 @@ impl HandlerFactory {
         op: &BlobGatewayOperation,
     ) -> Box<dyn Handler<BlobGatewayMessage, BlobGatewayResponse>> {
         match &op {
+            BlobGatewayOperation::SetOperator { .. } => Box::new(
+                OperationSetOperatorHandler::new(runtime, state, op),
+            ),
             BlobGatewayOperation::Register { .. } => {
                 Box::new(OperationRegisterHandler::new(runtime, state, op))
             }

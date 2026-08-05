@@ -15,6 +15,7 @@ pub mod start_mining;
 pub mod swap_application_id;
 pub mod transfer_ownership;
 pub mod redeem;
+pub mod set_operator;
 pub mod transfer;
 pub mod transfer_from;
 pub mod transfer_from_application;

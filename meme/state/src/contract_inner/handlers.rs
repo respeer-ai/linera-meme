@@ -19,6 +19,7 @@ use operation::mint::MintHandler;
 use operation::owner::OwnerHandler;
 use operation::proxy_application_id::ProxyApplicationIdHandler;
 use operation::redeem::RedeemHandler;
+use operation::set_operator::SetOperatorHandler;
 use operation::start_mining::StartMiningHandler;
 use operation::swap_application_id::SwapApplicationIdHandler;
 use operation::transfer_ownership::TransferOwnershipHandler;
@@ -35,6 +36,9 @@ impl HandlerFactory {
         operation: &MemeStateV1Operation,
     ) -> Result<Box<dyn Handler<(), MemeStateV1Response>>, HandlerError> {
         match operation {
+            MemeStateV1Operation::SetOperator { .. } => Ok(Box::new(SetOperatorHandler::new(
+                runtime, state, operation,
+            ))),
             MemeStateV1Operation::Transfer { .. } => {
                 Ok(Box::new(TransferHandler::new(runtime, state, operation)))
             }

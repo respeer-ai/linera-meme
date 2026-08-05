@@ -51,6 +51,7 @@ pub struct HandoffArgument {
 
 #[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize, GraphQLMutationRoot)]
 pub enum MemeStateV1Operation {
+    SetOperator { new_operator: Account },
     Initialize { argument: InitializeArgument },
     Transfer {
         from: Account,
