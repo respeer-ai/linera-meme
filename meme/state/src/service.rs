@@ -103,3 +103,6 @@ impl QueryRoot {
         self.state.meme.get().as_ref().map(|meme| meme.total_supply)
     }
 }
+
+#[cfg(test)]
+mod service_tests;

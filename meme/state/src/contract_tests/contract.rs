@@ -4,7 +4,7 @@ use abi::meme::{
         InitializeArgument, MemeStateAbi, MemeStateV1Operation, MemeStateV1Response,
         StateInstantiationArgument,
     },
-    Liquidity, Meme, Metadata,
+    HandoffArgument, Liquidity, Meme, Metadata,
 };
 use linera_sdk::{
     linera_base_types::{
@@ -50,6 +50,13 @@ impl TestSuite {
         self.contract.execute_operation(operation).await
     }
 
+    async fn initialize(&mut self) {
+        self.execute_operation(MemeStateV1Operation::Initialize {
+            argument: Self::initialize_argument(),
+        })
+        .await;
+    }
+
     fn set_chain_id(&mut self, chain_id: ChainId) {
         self.contract.runtime.borrow_mut().set_chain_id(chain_id);
     }
@@ -61,6 +68,13 @@ impl TestSuite {
             .set_application_creator_chain_id(chain_id);
     }
 
+    fn set_authenticated_caller(&mut self, caller: ApplicationId) {
+        self.contract
+            .runtime
+            .borrow_mut()
+            .set_authenticated_caller_id(caller);
+    }
+
     fn runtime() -> ContractRuntime<MemeStateContract> {
         ContractRuntime::new()
             .with_application_parameters(())
@@ -69,6 +83,10 @@ impl TestSuite {
             .with_application_creator_chain_id(Self::chain_id())
             .with_application_description(
                 Self::business_application_id(),
+                Self::application_description(Self::chain_id()),
+            )
+            .with_application_description(
+                Self::other_business_application_id(),
                 Self::application_description(Self::chain_id()),
             )
             .with_application_description(
@@ -101,6 +119,23 @@ impl TestSuite {
         }
     }
 
+    fn other_account() -> Account {
+        Account {
+            chain_id: Self::chain_id(),
+            owner: AccountOwner::from_str(
+                "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+            )
+            .unwrap(),
+        }
+    }
+
+    fn holder() -> Account {
+        Account {
+            chain_id: Self::chain_id(),
+            owner: AccountOwner::from(Self::business_application_id()),
+        }
+    }
+
     fn chain_id() -> ChainId {
         ChainId(
             CryptoHash::from_str(
@@ -121,6 +156,10 @@ impl TestSuite {
 
     fn business_application_id() -> ApplicationId {
         Self::application_id("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+    }
+
+    fn other_business_application_id() -> ApplicationId {
+        Self::application_id("b20ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
     }
 
     fn swap_application_id() -> ApplicationId {
@@ -250,21 +289,379 @@ async fn set_operator_rejects_non_creator_chain() {
     let mut suite = TestSuite::new();
     suite.set_chain_id(TestSuite::other_chain_id());
     suite.set_application_creator_chain_id(TestSuite::chain_id());
-    suite
+    suite.initialize().await;
+
+    let new_operator = TestSuite::other_account();
+    let response = suite
+        .execute_operation(MemeStateV1Operation::SetOperator { new_operator })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn set_operator_rejects_unbound_business_app() {
+    let mut suite = TestSuite::new();
+    suite.initialize().await;
+    suite.set_authenticated_caller(TestSuite::other_business_application_id());
+
+    let new_operator = TestSuite::other_account();
+    let response = suite
+        .execute_operation(MemeStateV1Operation::SetOperator { new_operator })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn initialize_succeeds_on_creator_chain() {
+    let mut suite = TestSuite::new();
+    let response = suite
         .execute_operation(MemeStateV1Operation::Initialize {
             argument: TestSuite::initialize_argument(),
         })
         .await;
+    assert_eq!(response, MemeStateV1Response::Ok);
+}
 
-    let new_operator = Account {
-        chain_id: TestSuite::chain_id(),
-        owner: AccountOwner::from_str(
-            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
-        )
-        .unwrap(),
-    };
+#[tokio::test(flavor = "multi_thread")]
+async fn initialize_rejects_non_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite.set_chain_id(TestSuite::other_chain_id());
+    suite.set_application_creator_chain_id(TestSuite::chain_id());
+
     let response = suite
-        .execute_operation(MemeStateV1Operation::SetOperator { new_operator })
+        .execute_operation(MemeStateV1Operation::Initialize {
+            argument: TestSuite::initialize_argument(),
+        })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn initialize_rejects_unbound_business_app() {
+    let mut suite = TestSuite::new();
+    suite.set_authenticated_caller(TestSuite::other_business_application_id());
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::Initialize {
+            argument: TestSuite::initialize_argument(),
+        })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn handoff_succeeds_on_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite.initialize().await;
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::Handoff {
+            argument: HandoffArgument {
+                new_business_application_id: TestSuite::other_business_application_id(),
+                new_proxy_application_id: None,
+                new_swap_application_id: None,
+                new_ams_application_id: None,
+                new_blob_gateway_application_id: None,
+            },
+        })
+        .await;
+    assert_eq!(response, MemeStateV1Response::Ok);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn handoff_rejects_non_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite.set_chain_id(TestSuite::other_chain_id());
+    suite.set_application_creator_chain_id(TestSuite::chain_id());
+    suite.initialize().await;
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::Handoff {
+            argument: HandoffArgument {
+                new_business_application_id: TestSuite::other_business_application_id(),
+                new_proxy_application_id: None,
+                new_swap_application_id: None,
+                new_ams_application_id: None,
+                new_blob_gateway_application_id: None,
+            },
+        })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn handoff_rejects_unbound_business_app() {
+    let mut suite = TestSuite::new();
+    suite.initialize().await;
+    suite.set_authenticated_caller(TestSuite::other_business_application_id());
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::Handoff {
+            argument: HandoffArgument {
+                new_business_application_id: TestSuite::other_business_application_id(),
+                new_proxy_application_id: None,
+                new_swap_application_id: None,
+                new_ams_application_id: None,
+                new_blob_gateway_application_id: None,
+            },
+        })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn transfer_succeeds_on_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite.initialize().await;
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::Transfer {
+            from: TestSuite::holder(),
+            to: TestSuite::operator(),
+            amount: Amount::ONE,
+        })
+        .await;
+    assert_eq!(response, MemeStateV1Response::Ok);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn transfer_rejects_non_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite.set_chain_id(TestSuite::other_chain_id());
+    suite.set_application_creator_chain_id(TestSuite::chain_id());
+    suite.initialize().await;
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::Transfer {
+            from: TestSuite::holder(),
+            to: TestSuite::operator(),
+            amount: Amount::ONE,
+        })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn transfer_rejects_unbound_business_app() {
+    let mut suite = TestSuite::new();
+    suite.initialize().await;
+    suite.set_authenticated_caller(TestSuite::other_business_application_id());
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::Transfer {
+            from: TestSuite::holder(),
+            to: TestSuite::operator(),
+            amount: Amount::ONE,
+        })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn mint_succeeds_on_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite.initialize().await;
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::Mint {
+            to: TestSuite::operator(),
+            amount: Amount::ONE,
+        })
+        .await;
+    assert_eq!(response, MemeStateV1Response::Ok);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn mint_rejects_non_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite.set_chain_id(TestSuite::other_chain_id());
+    suite.set_application_creator_chain_id(TestSuite::chain_id());
+    suite.initialize().await;
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::Mint {
+            to: TestSuite::operator(),
+            amount: Amount::ONE,
+        })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn mint_rejects_unbound_business_app() {
+    let mut suite = TestSuite::new();
+    suite.initialize().await;
+    suite.set_authenticated_caller(TestSuite::other_business_application_id());
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::Mint {
+            to: TestSuite::operator(),
+            amount: Amount::ONE,
+        })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn approve_succeeds_on_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite.initialize().await;
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::Approve {
+            origin: TestSuite::holder(),
+            spender: TestSuite::other_account(),
+            amount: Amount::ONE,
+        })
+        .await;
+    assert_eq!(response, MemeStateV1Response::Ok);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn approve_rejects_non_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite.set_chain_id(TestSuite::other_chain_id());
+    suite.set_application_creator_chain_id(TestSuite::chain_id());
+    suite.initialize().await;
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::Approve {
+            origin: TestSuite::holder(),
+            spender: TestSuite::other_account(),
+            amount: Amount::ONE,
+        })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn approve_rejects_unbound_business_app() {
+    let mut suite = TestSuite::new();
+    suite.initialize().await;
+    suite.set_authenticated_caller(TestSuite::other_business_application_id());
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::Approve {
+            origin: TestSuite::holder(),
+            spender: TestSuite::other_account(),
+            amount: Amount::ONE,
+        })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn transfer_ownership_succeeds_on_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite.initialize().await;
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::TransferOwnership {
+            owner: TestSuite::operator(),
+            new_owner: TestSuite::other_account(),
+        })
+        .await;
+    assert_eq!(response, MemeStateV1Response::Ok);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn transfer_ownership_rejects_non_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite.set_chain_id(TestSuite::other_chain_id());
+    suite.set_application_creator_chain_id(TestSuite::chain_id());
+    suite.initialize().await;
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::TransferOwnership {
+            owner: TestSuite::operator(),
+            new_owner: TestSuite::other_account(),
+        })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn transfer_ownership_rejects_unbound_business_app() {
+    let mut suite = TestSuite::new();
+    suite.initialize().await;
+    suite.set_authenticated_caller(TestSuite::other_business_application_id());
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::TransferOwnership {
+            owner: TestSuite::operator(),
+            new_owner: TestSuite::other_account(),
+        })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn mining_reward_succeeds_on_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite.initialize().await;
+
+    let mining_info = suite
+        .execute_operation(MemeStateV1Operation::MiningInfo)
+        .await;
+    let MemeStateV1Response::MiningInfo(mining_info) = mining_info else {
+        panic!("Invalid mining info response");
+    };
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::MiningReward {
+            owner: TestSuite::operator(),
+            reward_amount: Amount::ONE,
+            mining_info,
+        })
+        .await;
+    assert_eq!(response, MemeStateV1Response::Ok);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn mining_reward_rejects_non_creator_chain() {
+    let mut suite = TestSuite::new();
+    suite.initialize().await;
+
+    let mining_info = suite
+        .execute_operation(MemeStateV1Operation::MiningInfo)
+        .await;
+    let MemeStateV1Response::MiningInfo(mining_info) = mining_info else {
+        panic!("Invalid mining info response");
+    };
+
+    suite.set_chain_id(TestSuite::other_chain_id());
+    suite.set_application_creator_chain_id(TestSuite::chain_id());
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::MiningReward {
+            owner: TestSuite::operator(),
+            reward_amount: Amount::ONE,
+            mining_info,
+        })
+        .await;
+    assert!(matches!(response, MemeStateV1Response::Fail(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn mining_reward_rejects_unbound_business_app() {
+    let mut suite = TestSuite::new();
+    suite.initialize().await;
+
+    let mining_info = suite
+        .execute_operation(MemeStateV1Operation::MiningInfo)
+        .await;
+    let MemeStateV1Response::MiningInfo(mining_info) = mining_info else {
+        panic!("Invalid mining info response");
+    };
+
+    suite.set_authenticated_caller(TestSuite::other_business_application_id());
+
+    let response = suite
+        .execute_operation(MemeStateV1Operation::MiningReward {
+            owner: TestSuite::operator(),
+            reward_amount: Amount::ONE,
+            mining_info,
+        })
         .await;
     assert!(matches!(response, MemeStateV1Response::Fail(_)));
 }

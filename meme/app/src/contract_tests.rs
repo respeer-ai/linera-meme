@@ -3,8 +3,8 @@ use super::{MemeContract, MemeState as BusinessState};
 use abi::{
     meme::{
         state_v1::{
-            InitializeArgument, MemeStateV1Operation, MemeStateV1Response,
-            StateInstantiationArgument,
+            InitializeArgument, MemeStateAbi as MemeStateV1Abi, MemeStateV1Operation,
+            MemeStateV1Response, StateInstantiationArgument,
         },
         InstantiationArgument, Liquidity, Meme, MemeAbi, MemeMessage, MemeOperation,
         MemeParameters, MemeResponse, Metadata, TransferFromApplicationReceipt,
@@ -18,6 +18,7 @@ use abi::{
 };
 use futures::FutureExt as _;
 use linera_sdk::{
+    abi::ContractAbi,
     bcs,
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, ChainOwnership,
@@ -1456,6 +1457,33 @@ fn crash_create_meme_config() -> CreateMemeConfig {
     }
 }
 
+fn test_meme() -> Meme {
+    let initial_supply = Amount::from_tokens(21000000);
+    Meme {
+        name: "Test Token".to_string(),
+        ticker: "LTT".to_string(),
+        decimals: 6,
+        initial_supply,
+        total_supply: initial_supply,
+        metadata: Metadata {
+            logo_store_type: StoreType::S3,
+            logo: Some(CryptoHash::new(&TestString::new("Test Logo".to_string()))),
+            description: "Test token description".to_string(),
+            twitter: None,
+            telegram: None,
+            discord: None,
+            website: None,
+            github: None,
+            live_stream: None,
+        },
+        virtual_initial_liquidity: true,
+        initial_liquidity: Some(Liquidity {
+            fungible_amount: Amount::from_tokens(11000000),
+            native_amount: Amount::from_tokens(10),
+        }),
+    }
+}
+
 async fn create_and_instantiate_meme(
     enable_mining: bool,
     mining_supply: Option<Amount>,
@@ -2058,4 +2086,200 @@ async fn operation_set_operator_rejects_on_non_creator_chain() {
         .execute_operation(MemeOperation::SetOperator { new_operator })
         .now_or_never()
         .expect("Execution of meme operation should not await anything");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid state version")]
+async fn operation_append_state_rejects_exceeded_state_version() {
+    let (mut meme, _state) = create_and_instantiate_meme(false, None).await;
+
+    let state_application_id = ApplicationId::from_str(
+        "c10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+    )
+    .unwrap();
+
+    let _ = meme
+        .execute_operation(MemeOperation::AppendState {
+            state_application_id,
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Only allow application creator")]
+async fn operation_append_state_rejects_non_creator_chain() {
+    let (mut meme, _state) = create_and_instantiate_meme(false, None).await;
+
+    let other_chain_id = ChainId::from_str(
+        "a20ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5baa",
+    )
+    .unwrap();
+    meme.runtime.borrow_mut().set_chain_id(other_chain_id);
+
+    let state_application_id = ApplicationId::from_str(
+        "c10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+    )
+    .unwrap();
+
+    let _ = meme
+        .execute_operation(MemeOperation::AppendState {
+            state_application_id,
+        })
+        .now_or_never()
+        .expect("Execution of meme operation should not await anything");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Already exists")]
+async fn operation_append_state_rejects_duplicate_state_application_id() {
+    let (mut meme, _state) = create_and_instantiate_meme(false, None).await;
+
+    let state_application_id = ApplicationId::from_str(
+        "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+    )
+    .unwrap();
+
+    let _ = meme
+        .execute_operation(MemeOperation::AppendState {
+            state_application_id,
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid state version")]
+async fn operation_append_states_rejects_exceeded_state_version() {
+    let (mut meme, _state) = create_and_instantiate_meme(false, None).await;
+
+    let state_application_id_2 = ApplicationId::from_str(
+        "c10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+    )
+    .unwrap();
+    let state_application_id_3 = ApplicationId::from_str(
+        "d10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+    )
+    .unwrap();
+
+    let _ = meme
+        .execute_operation(MemeOperation::AppendStates {
+            state_application_ids: vec![state_application_id_2, state_application_id_3],
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_handoff_calls_state_v1_handoff() {
+    let (mut meme, _state) = create_and_instantiate_meme(false, None).await;
+    let new_business_application_id = ApplicationId::from_str(
+        "c10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+    )
+    .unwrap();
+
+    meme.runtime.borrow_mut().set_call_application_handler(
+        move |authenticated, application_id, operation| {
+            assert!(authenticated);
+            assert_eq!(
+                application_id,
+                ApplicationId::from_str(
+                    "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+                )
+                .unwrap()
+            );
+            assert_eq!(
+                MemeStateV1Abi::deserialize_operation(operation).unwrap(),
+                MemeStateV1Operation::Handoff {
+                    argument: abi::meme::HandoffArgument {
+                        new_business_application_id,
+                        new_proxy_application_id: None,
+                        new_swap_application_id: None,
+                        new_ams_application_id: None,
+                        new_blob_gateway_application_id: None,
+                    },
+                }
+            );
+            MemeStateV1Abi::serialize_response(MemeStateV1Response::Ok).unwrap()
+        },
+    );
+
+    meme.execute_operation(MemeOperation::Handoff {
+        argument: abi::meme::HandoffArgument {
+            new_business_application_id,
+            new_proxy_application_id: None,
+            new_swap_application_id: None,
+            new_ams_application_id: None,
+            new_blob_gateway_application_id: None,
+        },
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Only allow application creator")]
+async fn operation_handoff_rejects_non_creator_chain() {
+    let (mut meme, _state) = create_and_instantiate_meme(false, None).await;
+
+    let other_chain_id = ChainId::from_str(
+        "a20ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5baa",
+    )
+    .unwrap();
+    meme.runtime.borrow_mut().set_chain_id(other_chain_id);
+
+    let new_business_application_id = ApplicationId::from_str(
+        "c10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+    )
+    .unwrap();
+
+    let _ = meme
+        .execute_operation(MemeOperation::Handoff {
+            argument: abi::meme::HandoffArgument {
+                new_business_application_id,
+                new_proxy_application_id: None,
+                new_swap_application_id: None,
+                new_ams_application_id: None,
+                new_blob_gateway_application_id: None,
+            },
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Not allowed")]
+async fn operation_initialize_rejects_wrong_caller() {
+    let (mut meme, _state) = create_and_instantiate_meme(false, None).await;
+
+    let chain_id = meme.runtime.borrow_mut().chain_id();
+    let application_id = meme.runtime.borrow_mut().application_id().forget_abi();
+    let swap_application_id = ApplicationId::from_str(
+        "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+    )
+    .unwrap();
+    meme.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(swap_application_id);
+
+    let _ = meme
+        .execute_operation(MemeOperation::Initialize {
+            argument: InitializeArgument {
+                owner: Account {
+                    chain_id,
+                    owner: AccountOwner::from_str(
+                        "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00",
+                    )
+                    .unwrap(),
+                },
+                holder: Account {
+                    chain_id,
+                    owner: AccountOwner::from(application_id),
+                },
+                meme: test_meme(),
+                initial_owner_balance: Amount::from_tokens(100),
+                blob_gateway_application_id: None,
+                ams_application_id: None,
+                swap_application_id: Some(swap_application_id),
+                enable_mining: false,
+                mining_supply: None,
+                now: Timestamp::now(),
+            },
+        })
+        .await;
 }
