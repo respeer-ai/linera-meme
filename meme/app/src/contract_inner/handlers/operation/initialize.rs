@@ -51,8 +51,6 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
             blob_hash: logo,
         };
 
-        log::info!("DEBUG MEME: registering meme logo ... {:?}", call);
-
         let _ = self.runtime.borrow_mut().call_application(
             blob_gateway_application_id.with_abi::<BlobGatewayAbi>(),
             &call,
@@ -90,14 +88,10 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
                 discord: argument.meme.metadata.discord.clone(),
                 website: argument.meme.metadata.website.clone(),
                 github: argument.meme.metadata.github.clone(),
-                spec: Some(
-                    serde_json::to_string(&argument.meme).expect("Failed serialize meme"),
-                ),
+                spec: Some(serde_json::to_string(&argument.meme).expect("Failed serialize meme")),
                 created_at,
             },
         };
-
-        log::info!("DEBUG MEME: registering meme ... {:?}", call);
 
         let _ = self
             .runtime
@@ -106,26 +100,16 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
     }
 
     async fn create_liquidity_pool(&mut self) -> Option<HandlerOutcome<MemeMessage, MemeResponse>> {
-        log::info!("DEBUG MEME: creating liquidity pool ...");
-
         let Ok(swap_application_id) = self.state.swap_application_id().await else {
-            log::info!("DEBUG MEME: ignore creating liquidity pool for invalid swap application id");
             return None;
         };
         let Some(swap_application_id) = swap_application_id else {
-            log::info!("DEBUG MEME: ignore creating liquidity pool for missing swap application id");
             return None;
         };
         let Some(liquidity) = self.runtime.borrow_mut().initial_liquidity() else {
-            log::info!("DEBUG MEME: ignore creating liquidity pool for invalid initial liquidity");
             return None;
         };
         if liquidity.fungible_amount <= Amount::ZERO || liquidity.native_amount <= Amount::ZERO {
-            log::info!(
-                "DEBUG MEME: ignore creating liquidity pool for fungible amount {}, native amount {}",
-                liquidity.fungible_amount,
-                liquidity.native_amount,
-            );
             return None;
         }
 
@@ -180,10 +164,10 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
         }
 
         let mut argument = self.argument.clone();
-        argument.owner = self.runtime.borrow_mut().creator();
         argument.holder = self.runtime.borrow_mut().application_account();
         argument.initial_owner_balance = Amount::from_tokens(100);
-        argument.meme.virtual_initial_liquidity = self.runtime.borrow_mut().virtual_initial_liquidity();
+        argument.meme.virtual_initial_liquidity =
+            self.runtime.borrow_mut().virtual_initial_liquidity();
         argument.meme.initial_liquidity = self.runtime.borrow_mut().initial_liquidity();
         argument.enable_mining = self.runtime.borrow_mut().enable_mining();
         argument.mining_supply = self.runtime.borrow_mut().mining_supply();
@@ -195,9 +179,13 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
             .await
             .map_err(|error| HandlerError::ProcessError(error.into()))?;
 
-        let creator = self.runtime.borrow_mut().creator();
+        // Mint the initial owner balance to the owner account on the meme chain.
+        // The owner is supplied by the caller (the user when created directly, or
+        // the proxy on behalf of the user when created through a proxy).
+        let mut initial_owner = argument.owner;
+        initial_owner.chain_id = self.runtime.borrow_mut().chain_id();
         self.state
-            .mint(creator, Amount::from_tokens(100))
+            .mint(initial_owner, Amount::from_tokens(100))
             .await
             .map_err(|error| HandlerError::ProcessError(error.into()))?;
 

@@ -13,8 +13,7 @@ use message::{
     approve::ApproveHandler as MessageApproveHandler,
     initialize_liquidity::InitializeLiquidityHandler as MessageInitializeLiquidityHandler,
     liquidity_funded::LiquidityFundedHandler as MessageLiquidityFundedHandler,
-    mint::MintHandler as MessageMintHandler,
-    redeem::RedeemHandler as MessageRedeemHandler,
+    mint::MintHandler as MessageMintHandler, redeem::RedeemHandler as MessageRedeemHandler,
     transfer::TransferHandler as MessageTransferHandler,
     transfer_from::TransferFromHandler as MessageTransferFromHandler,
     transfer_from_application::TransferFromApplicationHandler as MessageTransferFromApplicationHandler,
@@ -24,12 +23,10 @@ use message::{
 };
 use operation::{
     append_state::AppendStateHandler, append_states::AppendStatesHandler,
-    approve::ApproveHandler as OperationApproveHandler,
-    handoff::HandoffHandler,
+    approve::ApproveHandler as OperationApproveHandler, handoff::HandoffHandler,
     initialize::InitializeHandler as OperationInitializeHandler,
-    initialize_liquidity::InitializeLiquidityHandler,
-    mine::MineHandler as OperationMineHandler, mint::MintHandler as OperationMintHandler,
-    redeem::RedeemHandler as OperationRedeemHandler,
+    initialize_liquidity::InitializeLiquidityHandler, mine::MineHandler as OperationMineHandler,
+    mint::MintHandler as OperationMintHandler, redeem::RedeemHandler as OperationRedeemHandler,
     set_operator::SetOperatorHandler as OperationSetOperatorHandler,
     transfer::TransferHandler as OperationTransferHandler,
     transfer_from::TransferFromHandler as OperationTransferFromHandler,
@@ -45,14 +42,16 @@ pub struct HandlerFactory;
 
 impl HandlerFactory {
     fn new_operation_handler(
-        runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + ParametersInterface + 'static>>,
+        runtime: Rc<
+            RefCell<impl ContractRuntimeContext + AccessControl + ParametersInterface + 'static>,
+        >,
         state: impl StateInterface + PublicStateBaseInterface + 'static,
         op: &MemeOperation,
     ) -> Box<dyn Handler<MemeMessage, MemeResponse>> {
         match op {
-            MemeOperation::SetOperator { .. } => Box::new(OperationSetOperatorHandler::new(
-                runtime, state, op,
-            )),
+            MemeOperation::SetOperator { .. } => {
+                Box::new(OperationSetOperatorHandler::new(runtime, state, op))
+            }
             MemeOperation::Transfer { .. } => {
                 Box::new(OperationTransferHandler::new(runtime, state, op))
             }
@@ -73,9 +72,9 @@ impl HandlerFactory {
                 Box::new(OperationRedeemHandler::new(runtime, state, op))
             }
             MemeOperation::Mine { .. } => Box::new(OperationMineHandler::new(runtime, state, op)),
-            MemeOperation::TransferOwnership { .. } => Box::new(
-                OperationTransferOwnershipHandler::new(runtime, state, op),
-            ),
+            MemeOperation::TransferOwnership { .. } => {
+                Box::new(OperationTransferOwnershipHandler::new(runtime, state, op))
+            }
             MemeOperation::AppendState { .. } => {
                 Box::new(AppendStateHandler::new(runtime, state, op))
             }
@@ -86,9 +85,9 @@ impl HandlerFactory {
             MemeOperation::InitializeLiquidity { .. } => {
                 Box::new(InitializeLiquidityHandler::new(runtime, state, op))
             }
-            MemeOperation::TransferToCaller { .. } => Box::new(
-                OperationTransferToCallerHandler::new(runtime, state, op),
-            ),
+            MemeOperation::TransferToCaller { .. } => {
+                Box::new(OperationTransferToCallerHandler::new(runtime, state, op))
+            }
             MemeOperation::Initialize { .. } => {
                 Box::new(OperationInitializeHandler::new(runtime, state, op))
             }
@@ -96,7 +95,9 @@ impl HandlerFactory {
     }
 
     fn new_message_handler(
-        runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + ParametersInterface + 'static>>,
+        runtime: Rc<
+            RefCell<impl ContractRuntimeContext + AccessControl + ParametersInterface + 'static>,
+        >,
         state: impl StateInterface + PublicStateBaseInterface + Clone + 'static,
         msg: &MemeMessage,
     ) -> Box<dyn Handler<MemeMessage, MemeResponse>> {
@@ -121,12 +122,12 @@ impl HandlerFactory {
             }
             MemeMessage::Mint { .. } => Box::new(MessageMintHandler::new(runtime, state, msg)),
             MemeMessage::Redeem { .. } => Box::new(MessageRedeemHandler::new(runtime, state, msg)),
-            MemeMessage::TransferOwnership { .. } => Box::new(
-                MessageTransferOwnershipHandler::new(runtime, state, msg),
-            ),
-            MemeMessage::InitializeLiquidity { .. } => Box::new(
-                MessageInitializeLiquidityHandler::new(runtime, state, msg),
-            ),
+            MemeMessage::TransferOwnership { .. } => {
+                Box::new(MessageTransferOwnershipHandler::new(runtime, state, msg))
+            }
+            MemeMessage::InitializeLiquidity { .. } => {
+                Box::new(MessageInitializeLiquidityHandler::new(runtime, state, msg))
+            }
             MemeMessage::LiquidityFunded => {
                 Box::new(MessageLiquidityFundedHandler::new(runtime, state, msg))
             }
@@ -173,7 +174,9 @@ impl HandlerFactory {
     }
 
     pub async fn new(
-        runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + ParametersInterface + 'static>>,
+        runtime: Rc<
+            RefCell<impl ContractRuntimeContext + AccessControl + ParametersInterface + 'static>,
+        >,
         state: impl StateInterface + PublicStateBaseInterface + Clone + 'static,
         op: Option<&MemeOperation>,
         msg: Option<&MemeMessage>,

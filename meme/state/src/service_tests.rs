@@ -38,24 +38,18 @@ fn spender() -> Account {
 }
 
 fn business_application_id() -> ApplicationId {
-    ApplicationId::from_str(
-        "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
-    )
-    .unwrap()
+    ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+        .unwrap()
 }
 
 fn proxy_application_id() -> ApplicationId {
-    ApplicationId::from_str(
-        "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
-    )
-    .unwrap()
+    ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
+        .unwrap()
 }
 
 fn swap_application_id() -> ApplicationId {
-    ApplicationId::from_str(
-        "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5baf",
-    )
-    .unwrap()
+    ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5baf")
+        .unwrap()
 }
 
 fn test_amount() -> Amount {
@@ -95,7 +89,9 @@ async fn state() -> MemeState {
         .await
         .expect("Failed to load meme state v1");
 
-    state.business_application_id.set(Some(business_application_id()));
+    state
+        .business_application_id
+        .set(Some(business_application_id()));
     state.operator.set(Some(owner()));
     state.initial_owner_balance.set(test_amount());
     state.owner.set(Some(owner()));
@@ -191,8 +187,7 @@ async fn allowance_query_reads_allowance_map() {
     );
 
     let response = service.handle_query(request).await;
-    let expected =
-        Response::new(Value::from_json(json!({ "allowance": test_amount() })).unwrap());
+    let expected = Response::new(Value::from_json(json!({ "allowance": test_amount() })).unwrap());
 
     assert_eq!(response, expected);
 }
@@ -204,7 +199,9 @@ async fn mining_info_query_reads_register() {
     };
 
     let response = service
-        .handle_query(Request::new("{ miningInfo { miningStarted target initialTarget } }"))
+        .handle_query(Request::new(
+            "{ miningInfo { miningStarted target initialTarget } }",
+        ))
         .await;
     let expected = Response::new(
         Value::from_json(json!({
@@ -261,9 +258,8 @@ async fn initial_owner_balance_query_reads_register() {
     let response = service
         .handle_query(Request::new("{ initialOwnerBalance }"))
         .await;
-    let expected = Response::new(
-        Value::from_json(json!({ "initialOwnerBalance": test_amount() })).unwrap(),
-    );
+    let expected =
+        Response::new(Value::from_json(json!({ "initialOwnerBalance": test_amount() })).unwrap());
 
     assert_eq!(response, expected);
 }
@@ -274,7 +270,9 @@ async fn meme_query_reads_register() {
         state: Arc::new(state().await),
     };
 
-    let response = service.handle_query(Request::new("{ meme { name ticker decimals } }")).await;
+    let response = service
+        .handle_query(Request::new("{ meme { name ticker decimals } }"))
+        .await;
     let expected = Response::new(
         Value::from_json(json!({
             "meme": {

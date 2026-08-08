@@ -16,8 +16,8 @@ use futures::FutureExt as _;
 use linera_sdk::{
     bcs,
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId,
-        ChainOwnership, ModuleId,
+        Account, AccountOwner, Amount, ApplicationDescription, ApplicationId,
+        ApplicationPermissions, BlockHeight, ChainId, ChainOwnership, ModuleId,
     },
     util::BlockingWait,
     views::View,
@@ -40,9 +40,7 @@ async fn operation_initialize_liquidity() {
             .unwrap();
     let creator = Account { chain_id, owner };
 
-    let meme_1 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
+    let meme_1 = public_create_pool_test_tokens().0;
     let token_0_creator_chain_id =
         ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
             .unwrap();
@@ -84,9 +82,7 @@ async fn operation_create_pool() {
 #[tokio::test(flavor = "multi_thread")]
 async fn operation_create_pool_rejects_same_token_pair() {
     let mut swap = create_and_instantiate_swap();
-    let meme_1 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
+    let meme_1 = public_create_pool_test_tokens().0;
     let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
         token_0: meme_1,
         token_1: Some(meme_1),
@@ -571,9 +567,7 @@ async fn message_update_pool_newer_transaction_advances_state() {
 #[tokio::test(flavor = "multi_thread")]
 async fn message_create_user_pool_rejects_same_token_pair() {
     let mut swap = create_and_instantiate_swap();
-    let token_0 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
+    let token_0 = public_create_pool_test_tokens().0;
 
     let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::CreateUserPool {
         token_0,
@@ -610,9 +604,7 @@ async fn message_create_user_pool_rejects_zero_amount() {
 async fn message_create_user_pool_emits_create_pool_to_new_pool_chain() {
     let mut swap = create_and_instantiate_swap();
     let creator = authenticated_account(&swap);
-    let token_0 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
+    let token_0 = public_create_pool_test_tokens().0;
     let token_1 = None;
     let user_chain_id = swap.runtime.borrow_mut().chain_id();
     swap.runtime
@@ -718,12 +710,8 @@ async fn message_create_user_pool_refunds_open_chain_budget_for_duplicate_existi
 async fn message_pool_created_ignores_wrong_chain_receipt() {
     let mut swap = create_and_instantiate_swap();
     let creator = authenticated_account(&swap);
-    let token_0 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
-    let token_1 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
-            .unwrap();
+    let token_0 = public_create_pool_test_tokens().0;
+    let token_1 = public_create_pool_test_tokens().1;
     let pool_application = Account {
         chain_id: ChainId::from_str(
             "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea",
@@ -874,12 +862,8 @@ async fn create_pool_operation_pool_chain_created_pool_created_and_update_pool_a
 async fn message_pool_created_ignores_duplicate_receipt() {
     let mut swap = create_and_instantiate_swap();
     let creator = authenticated_account(&swap);
-    let token_0 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
-    let token_1 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
-            .unwrap();
+    let token_0 = public_create_pool_test_tokens().0;
+    let token_1 = public_create_pool_test_tokens().1;
     let pool_chain_id =
         ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
             .unwrap();
@@ -929,12 +913,8 @@ async fn message_pool_created_ignores_duplicate_receipt() {
 async fn message_pool_created_rejects_different_pool_for_existing_pair() {
     let mut swap = create_and_instantiate_swap();
     let creator = authenticated_account(&swap);
-    let token_0 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
-    let token_1 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
-            .unwrap();
+    let token_0 = public_create_pool_test_tokens().0;
+    let token_1 = public_create_pool_test_tokens().1;
     let pool_chain_id =
         ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
             .unwrap();
@@ -1007,12 +987,8 @@ async fn message_pool_created_user_bootstrap_branch_does_not_call_meme_initializ
         }
     });
     let creator = authenticated_account(&swap);
-    let token_0 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
-    let token_1 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
-            .unwrap();
+    let token_0 = public_create_pool_test_tokens().0;
+    let token_1 = public_create_pool_test_tokens().1;
     let pool_chain_id =
         ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
             .unwrap();
@@ -1066,9 +1042,7 @@ async fn message_pool_created_meme_bootstrap_branch_calls_meme_initialize_liquid
         }
     });
     let creator = authenticated_account(&swap);
-    let token_0 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
+    let token_0 = public_create_pool_test_tokens().0;
     let pool_chain_id =
         ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
             .unwrap();
@@ -1115,12 +1089,8 @@ async fn message_user_pool_created_receipt_is_app_created_only() {
         }
     });
     let creator = authenticated_account(&swap);
-    let token_0 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
-    let token_1 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
-            .unwrap();
+    let token_0 = public_create_pool_test_tokens().0;
+    let token_1 = public_create_pool_test_tokens().1;
     let pool_chain_id =
         ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
             .unwrap();
@@ -1216,12 +1186,8 @@ async fn message_user_pool_created_calls_pool_add_liquidity() {
             .unwrap(),
         ),
     };
-    let token_0 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
-    let token_1 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
-            .unwrap();
+    let token_0 = public_create_pool_test_tokens().0;
+    let token_1 = public_create_pool_test_tokens().1;
 
     swap.execute_message(SwapMessage::UserPoolCreated {
         pool_application,
@@ -1321,15 +1287,46 @@ fn assert_rejected_without_pool_side_effect<T>(
         .is_none());
 }
 
-fn public_create_pool_test_tokens() -> (ApplicationId, ApplicationId) {
-    let meme_1 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+fn meme_test_module_id() -> ModuleId {
+    ModuleId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518200").unwrap()
+}
+
+fn meme_test_descriptions() -> (ApplicationDescription, ApplicationDescription) {
+    let module_id = meme_test_module_id();
+    let creator_chain_id_1 =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
             .unwrap();
-    let meme_2 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
+    let creator_chain_id_2 =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe7")
             .unwrap();
 
-    (meme_1, meme_2)
+    let description_1 = ApplicationDescription {
+        module_id: module_id.clone(),
+        creator_chain_id: creator_chain_id_1,
+        block_height: BlockHeight(0),
+        application_index: 0,
+        parameters: vec![],
+        required_application_ids: vec![],
+    };
+    let description_2 = ApplicationDescription {
+        module_id,
+        creator_chain_id: creator_chain_id_2,
+        block_height: BlockHeight(0),
+        application_index: 1,
+        parameters: vec![],
+        required_application_ids: vec![],
+    };
+
+    (description_1, description_2)
+}
+
+fn public_create_pool_test_tokens() -> (ApplicationId, ApplicationId) {
+    let (description_1, description_2) = meme_test_descriptions();
+
+    (
+        ApplicationId::from(&description_1),
+        ApplicationId::from(&description_2),
+    )
 }
 
 fn authenticated_account(swap: &SwapContract) -> Account {
@@ -1363,12 +1360,8 @@ async fn create_pool_for_update_tests(
 async fn create_pool_for_update_tests_with_application(
     swap: &mut SwapContract,
 ) -> (ApplicationId, Option<ApplicationId>, Account) {
-    let token_0 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
-    let token_1 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
-            .unwrap();
+    let token_0 = public_create_pool_test_tokens().0;
+    let token_1 = public_create_pool_test_tokens().1;
     let creator = authenticated_account(swap);
     let pool_application = Account {
         chain_id: creator.chain_id,
@@ -1405,12 +1398,9 @@ where
         ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5baf")
             .unwrap()
             .with_abi::<SwapAbi>();
-    let meme_1 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
-    let meme_1_chain_id =
-        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
-            .unwrap();
+    let (meme_1, meme_2) = public_create_pool_test_tokens();
+    let (meme_description_1, meme_description_2) = meme_test_descriptions();
+    let meme_1_chain_id = meme_description_1.creator_chain_id;
     let chain_id =
         ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe9")
             .unwrap();
@@ -1423,6 +1413,8 @@ where
         .with_application_creator_chain_id(chain_id)
         .with_system_time(0.into())
         .with_call_application_handler(handler)
+        .with_application_description(meme_1, meme_description_1)
+        .with_application_description(meme_2, meme_description_2)
         .with_owner_balance(owner, Amount::from_tokens(10000))
         .with_owner_balance(
             AccountOwner::from(application_id.forget_abi()),

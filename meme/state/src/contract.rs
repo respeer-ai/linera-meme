@@ -44,10 +44,7 @@ impl Contract for MemeStateContract {
         self._instantiate(argument);
     }
 
-    async fn execute_operation(
-        &mut self,
-        operation: MemeStateV1Operation,
-    ) -> MemeStateV1Response {
+    async fn execute_operation(&mut self, operation: MemeStateV1Operation) -> MemeStateV1Response {
         self.on_op(&operation).await
     }
 

@@ -15,8 +15,8 @@ use abi::{
         StateInstantiationArgument as BlobGatewayStateInstantiationArgument,
     },
     meme::{
-        InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeParameters,
-        Metadata,
+        InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeAbi,
+        MemeParameters, Metadata,
     },
     proxy::{InstantiationArgument, ProxyAbi, ProxyOperation},
     store_type::StoreType,
@@ -29,7 +29,7 @@ use linera_sdk::{
         Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription, CryptoHash,
         ModuleId, TestString, TimeoutConfig,
     },
-    test::{ActiveChain, MessageAction, TestValidator},
+    test::{ActiveChain, MessageAction, QueryOutcome, TestValidator},
 };
 
 #[derive(Clone)]
@@ -47,6 +47,7 @@ pub struct TestSuite {
 
     pub proxy_bytecode_id: ModuleId<ProxyAbi, (), InstantiationArgument>,
     pub meme_bytecode_id: ModuleId,
+    pub meme_state_bytecode_id: ModuleId,
     pub proxy_application_id: Option<ApplicationId<ProxyAbi>>,
     pub swap_application_id: Option<ApplicationId<SwapAbi>>,
     pub blob_gateway_application_id: Option<ApplicationId<BlobGatewayAbi>>,
@@ -75,7 +76,8 @@ impl TestSuite {
         let operator_chain_2 = validator.new_chain().await;
         let swap_chain = validator.new_chain().await;
 
-        let meme_bytecode_id = proxy_chain.publish_bytecode_files_in("../meme").await;
+        let meme_bytecode_id = proxy_chain.publish_bytecode_files_in("../meme/app").await;
+        let meme_state_bytecode_id = proxy_chain.publish_bytecode_files_in("../meme/state").await;
 
         Self {
             validator,
@@ -90,6 +92,7 @@ impl TestSuite {
 
             proxy_bytecode_id,
             meme_bytecode_id,
+            meme_state_bytecode_id,
             proxy_application_id: None,
             swap_application_id: None,
             blob_gateway_application_id: None,
@@ -108,7 +111,7 @@ impl TestSuite {
                     (),
                     InstantiationArgument {
                         meme_bytecode_id: self.meme_bytecode_id,
-                        meme_state_bytecode_ids: vec![(1, self.meme_bytecode_id)],
+                        meme_state_bytecode_ids: vec![(1, self.meme_state_bytecode_id)],
                         operators,
                         swap_application_id: self.swap_application_id.unwrap().forget_abi(),
                     },
@@ -344,6 +347,96 @@ impl TestSuite {
             mining_supply,
         )
         .await
+    }
+
+    pub async fn create_meme_application_with_id(
+        &self,
+        chain: &ActiveChain,
+        virtual_initial_liquidity: bool,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
+    ) -> (ActiveChain, ApplicationId<MemeAbi>) {
+        self.create_meme_application_with_liquidity_and_id(
+            chain,
+            "Test Token",
+            "LTT",
+            Some(Liquidity {
+                fungible_amount: self.initial_liquidity,
+                native_amount: self.initial_native,
+            }),
+            virtual_initial_liquidity,
+            enable_mining,
+            mining_supply,
+        )
+        .await
+    }
+
+    pub async fn create_meme_application_with_liquidity_and_id(
+        &self,
+        chain: &ActiveChain,
+        name: &str,
+        ticker: &str,
+        initial_liquidity: Option<Liquidity>,
+        virtual_initial_liquidity: bool,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
+    ) -> (ActiveChain, ApplicationId<MemeAbi>) {
+        let description = self
+            .create_meme_application_with_liquidity(
+                chain,
+                name,
+                ticker,
+                initial_liquidity,
+                virtual_initial_liquidity,
+                enable_mining,
+                mining_supply,
+            )
+            .await;
+
+        let proxy_key_pair = self.proxy_chain.key_pair().copy();
+        let meme_chain = ActiveChain::new(proxy_key_pair, description, self.validator.clone());
+        self.validator.add_chain(meme_chain.clone());
+
+        let previous_last_value: Option<serde_json::Value> = self
+            .proxy_chain
+            .graphql_query(
+                self.proxy_application_id.unwrap(),
+                "query { memeApplicationIds }",
+            )
+            .await
+            .response["memeApplicationIds"]
+            .as_array()
+            .and_then(|arr| arr.last())
+            .cloned();
+
+        for _ in 0..8 {
+            self.proxy_chain.handle_received_messages().await;
+            meme_chain.handle_received_messages().await;
+
+            let QueryOutcome { response, .. } = self
+                .proxy_chain
+                .graphql_query(
+                    self.proxy_application_id.unwrap(),
+                    "query { memeApplicationIds }",
+                )
+                .await;
+            if let Some(value) = response["memeApplicationIds"]
+                .as_array()
+                .and_then(|arr| arr.last())
+                .cloned()
+            {
+                if Some(&value) != previous_last_value.as_ref() {
+                    if let Some(id) =
+                        serde_json::from_value::<Option<ApplicationId<MemeAbi>>>(value)
+                            .unwrap_or(None)
+                    {
+                        return (meme_chain, id);
+                    }
+                }
+            }
+        }
+
+        panic!("meme application id was not registered in proxy");
     }
 
     pub async fn create_meme_application_with_liquidity(

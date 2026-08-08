@@ -73,6 +73,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> PoolCreatedHa
         else {
             panic!("Invalid bootstrap policy for initial pool creation");
         };
+
         if !virtual_initial_liquidity {
             // This message may be authenticated by other user who is not the owner of swap
             // creation chain
@@ -125,8 +126,6 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
-        log::info!("DEBUG MSG:SWAP: pool created ...");
-
         if !self
             .state
             .is_pool_chain(self.pool_application.chain_id)

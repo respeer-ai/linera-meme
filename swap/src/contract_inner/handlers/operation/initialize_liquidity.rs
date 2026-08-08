@@ -94,8 +94,6 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
-        log::info!("DEBUG OP:SWAP: calling initialize liquidity ...");
-
         let caller_id = self
             .runtime
             .borrow_mut()

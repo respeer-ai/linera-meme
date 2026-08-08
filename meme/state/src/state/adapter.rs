@@ -1,6 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
-use abi::meme::{HandoffArgument, InitializeArgument, Liquidity, MiningInfo, StateInstantiationArgument};
+use abi::meme::{
+    HandoffArgument, InitializeArgument, Liquidity, MiningInfo, StateInstantiationArgument,
+};
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId};
 
@@ -83,7 +85,10 @@ impl StateInterface for StateAdapter {
         spender: Account,
         amount: Amount,
     ) -> Result<(), Self::Error> {
-        self.state.borrow_mut().approve(owner, spender, amount).await
+        self.state
+            .borrow_mut()
+            .approve(owner, spender, amount)
+            .await
     }
 
     async fn initialize(&mut self, argument: InitializeArgument) -> Result<(), Self::Error> {
@@ -99,7 +104,12 @@ impl StateInterface for StateAdapter {
     ) -> Result<(), Self::Error> {
         self.state
             .borrow_mut()
-            .initialize_liquidity(liquidity, swap_creator_chain_id, enable_mining, mining_supply)
+            .initialize_liquidity(
+                liquidity,
+                swap_creator_chain_id,
+                enable_mining,
+                mining_supply,
+            )
             .await
     }
 

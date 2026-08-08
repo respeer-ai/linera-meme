@@ -6,108 +6,86 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    meme::{
-        InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeAbi,
-        MemeParameters, Metadata,
-    },
+    meme::{MemeAbi, MemeOperation},
     policy::open_chain_fee_budget,
-    proxy::{InstantiationArgument as ProxyInstantiationArgument, ProxyAbi},
-    store_type::StoreType,
     swap::{
         pool::{Pool, PoolAbi, PoolOperation},
-        router::{
-            InstantiationArgument as SwapInstantiationArgument, Pool as PoolIndex, SwapAbi,
-            SwapOperation, SwapParameters,
-        },
+        router::{Pool as PoolIndex, SwapAbi, SwapOperation},
     },
 };
 use async_graphql::{Request, Variables};
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription, ChainId,
-        CryptoHash, ModuleId, TestString,
     },
     test::{ActiveChain, MessageAction, QueryOutcome, TestValidator},
 };
 use serde_json::json;
 use std::{collections::HashMap, str::FromStr};
 
+mod test_suite;
+use test_suite::ProxyMemeSetup;
+
 #[derive(Clone)]
 struct TestSuite {
+    setup: ProxyMemeSetup,
+
     validator: TestValidator,
 
     admin_chain: ActiveChain,
     meme_chain_0: ActiveChain,
     meme_chain_1: ActiveChain,
+    meme_user_chain_0: ActiveChain,
+    meme_user_chain_1: ActiveChain,
     user_chain: ActiveChain,
     pool_chain_meme_0: Option<ActiveChain>,
     pool_chain_meme_1: Option<ActiveChain>,
     pool_chain_user: Option<ActiveChain>,
     swap_chain: ActiveChain,
-    proxy_chain: ActiveChain,
 
-    swap_bytecode_id: ModuleId<SwapAbi, SwapParameters, SwapInstantiationArgument>,
-    proxy_bytecode_id: ModuleId<ProxyAbi, (), ProxyInstantiationArgument>,
-    meme_bytecode_id: ModuleId<MemeAbi, MemeParameters, MemeInstantiationArgument>,
     pool_application_id_meme_0: Option<ApplicationId<PoolAbi>>,
     pool_application_id_meme_1: Option<ApplicationId<PoolAbi>>,
     pool_application_id_user: Option<ApplicationId<PoolAbi>>,
     meme_application_id_0: Option<ApplicationId<MemeAbi>>,
     meme_application_id_1: Option<ApplicationId<MemeAbi>>,
     swap_application_id: Option<ApplicationId<SwapAbi>>,
-    proxy_application_id: Option<ApplicationId<ProxyAbi>>,
-
-    initial_supply: Amount,
-    initial_liquidity: Amount,
-    initial_native: Amount,
 }
 
 impl TestSuite {
     async fn new() -> Self {
-        let (validator, swap_bytecode_id) = TestValidator::with_current_module::<
-            SwapAbi,
-            SwapParameters,
-            SwapInstantiationArgument,
-        >()
-        .await;
-
-        let admin_chain = validator.get_chain(&validator.admin_chain_id());
+        let setup = ProxyMemeSetup::new().await;
+        let validator = setup.validator.clone();
+        let admin_chain = setup.admin_chain.clone();
+        let swap_application_id = setup.swap_application_id;
         let meme_chain_0 = validator.new_chain().await;
         let meme_chain_1 = validator.new_chain().await;
+        let meme_user_chain_0 = validator.new_chain().await;
+        let meme_user_chain_1 = validator.new_chain().await;
         let user_chain = validator.new_chain().await;
-        let swap_chain = validator.new_chain().await;
-        let proxy_chain = validator.new_chain().await;
-
-        let proxy_bytecode_id = swap_chain.publish_bytecode_files_in("../proxy").await;
-        let meme_bytecode_id = swap_chain.publish_bytecode_files_in("../meme").await;
+        let swap_chain = setup.swap_chain.clone();
 
         TestSuite {
+            setup,
+
             validator,
 
             admin_chain,
             meme_chain_0,
             meme_chain_1,
+            meme_user_chain_0,
+            meme_user_chain_1,
             user_chain,
             pool_chain_meme_0: None,
             pool_chain_meme_1: None,
             pool_chain_user: None,
             swap_chain,
-            proxy_chain,
 
-            swap_bytecode_id,
-            proxy_bytecode_id,
-            meme_bytecode_id,
             pool_application_id_meme_0: None,
             pool_application_id_meme_1: None,
             pool_application_id_user: None,
             meme_application_id_0: None,
             meme_application_id_1: None,
-            swap_application_id: None,
-            proxy_application_id: None,
-
-            initial_supply: Amount::from_tokens(21000000),
-            initial_liquidity: Amount::from_tokens(11000000),
-            initial_native: Amount::from_tokens(10),
+            swap_application_id: Some(swap_application_id),
         }
     }
 
@@ -151,111 +129,30 @@ impl TestSuite {
         chain.handle_received_messages().await;
     }
 
-    async fn create_swap_application(&mut self) {
-        let pool_bytecode_id = self.swap_chain.publish_bytecode_files_in("../pool").await;
-        self.swap_application_id = Some(
-            self.swap_chain
-                .create_application::<SwapAbi, SwapParameters, SwapInstantiationArgument>(
-                    self.swap_bytecode_id,
-                    SwapParameters {},
-                    SwapInstantiationArgument { pool_bytecode_id },
-                    vec![],
-                )
-                .await,
-        )
-    }
-
-    async fn create_proxy_application(&mut self) {
-        self.proxy_application_id = Some(
-            self.proxy_chain
-                .create_application::<ProxyAbi, (), ProxyInstantiationArgument>(
-                    self.proxy_bytecode_id,
-                    (),
-                    ProxyInstantiationArgument {
-                        meme_bytecode_id: self.meme_bytecode_id.forget_abi(),
-                        operators: Vec::new(),
-                        swap_application_id: self.swap_application_id.unwrap().forget_abi(),
-                    },
-                    vec![],
-                )
-                .await,
-        )
-    }
-
     async fn create_meme_applications(&mut self, virtual_initial_liquidity: bool) {
-        let instantiation_argument = MemeInstantiationArgument {
-            meme: Meme {
-                name: "Test Token".to_string(),
-                ticker: "LTT".to_string(),
-                decimals: 6,
-                initial_supply: self.initial_supply,
-                total_supply: self.initial_supply,
-                metadata: Metadata {
-                    logo_store_type: StoreType::S3,
-                    logo: Some(CryptoHash::new(&TestString::new("Test Logo".to_string()))),
-                    description: "Test token description".to_string(),
-                    twitter: None,
-                    telegram: None,
-                    discord: None,
-                    website: None,
-                    github: None,
-                    live_stream: None,
-                },
+        let (meme_chain_0, meme_application_id_0) = self
+            .setup
+            .create_meme_application(
+                &self.meme_user_chain_0,
                 virtual_initial_liquidity,
-                initial_liquidity: None,
-            },
-            blob_gateway_application_id: None,
-            ams_application_id: None,
-            proxy_application_id: Some(self.proxy_application_id.unwrap().forget_abi()),
-            swap_application_id: Some(self.swap_application_id.unwrap().forget_abi()),
-        };
-        let parameters = MemeParameters {
-            creator: self.chain_owner_account(&self.meme_chain_0),
-            initial_liquidity: Some(Liquidity {
-                fungible_amount: self.initial_liquidity,
-                native_amount: self.initial_native,
-            }),
-            virtual_initial_liquidity,
-            swap_creator_chain_id: self.swap_chain.id(),
+                false,
+                None,
+            )
+            .await;
+        self.meme_chain_0 = meme_chain_0;
+        self.meme_application_id_0 = Some(meme_application_id_0);
 
-            enable_mining: false,
-            mining_supply: None,
-        };
-
-        let meme_bytecode_id = self.meme_chain_0.publish_bytecode_files_in("../meme").await;
-        self.meme_application_id_0 = Some(
-            self.meme_chain_0
-                .create_application(
-                    meme_bytecode_id,
-                    parameters.clone(),
-                    instantiation_argument.clone(),
-                    vec![],
-                )
-                .await,
-        );
-
-        let parameters = MemeParameters {
-            creator: self.chain_owner_account(&self.meme_chain_1),
-            initial_liquidity: Some(Liquidity {
-                fungible_amount: self.initial_liquidity,
-                native_amount: self.initial_native,
-            }),
-            virtual_initial_liquidity,
-            swap_creator_chain_id: self.swap_chain.id(),
-
-            enable_mining: false,
-            mining_supply: None,
-        };
-        self.meme_application_id_1 = Some(
-            self.meme_chain_1
-                .create_application(
-                    meme_bytecode_id,
-                    parameters.clone(),
-                    instantiation_argument.clone(),
-                    vec![],
-                )
-                .await,
-        );
+        let (meme_chain_1, meme_application_id_1) = self
+            .setup
+            .create_meme_application(
+                &self.meme_user_chain_1,
+                virtual_initial_liquidity,
+                false,
+                None,
+            )
+            .await;
+        self.meme_chain_1 = meme_chain_1;
+        self.meme_application_id_1 = Some(meme_application_id_1);
     }
 
     async fn swap(
@@ -421,10 +318,10 @@ async fn meme_meme_pair_test() {
     let _ = env_logger::builder().is_test(true).try_init();
 
     let mut suite = TestSuite::new().await;
-    let meme_chain_0 = &suite.meme_chain_0.clone();
-    let meme_chain_1 = &suite.meme_chain_1.clone();
-    let user_chain = &suite.user_chain.clone();
-    let swap_chain = &suite.swap_chain.clone();
+    let mut meme_chain_0 = suite.meme_chain_0.clone();
+    let mut meme_chain_1 = suite.meme_chain_1.clone();
+    let user_chain = suite.user_chain.clone();
+    let swap_chain = suite.swap_chain.clone();
 
     let swap_key_pair = swap_chain.key_pair();
 
@@ -443,9 +340,62 @@ async fn meme_meme_pair_test() {
         )
         .await;
 
-    suite.create_swap_application().await;
-    suite.create_proxy_application().await;
     suite.create_meme_applications(true).await;
+
+    // The placeholder chains above are replaced by the proxy-created meme chains.
+    meme_chain_0 = suite.meme_chain_0.clone();
+    meme_chain_1 = suite.meme_chain_1.clone();
+
+    // Finish meme app initialization so the creator's initial owner balance is minted
+    // before we try to transfer from it.
+    for _ in 0..4 {
+        suite.setup.proxy_chain.handle_received_messages().await;
+        meme_chain_0.handle_received_messages().await;
+        meme_chain_1.handle_received_messages().await;
+    }
+
+    // Transfer tokens from the meme creator/owner to the user chain. The proxy-created
+    // meme chains sign blocks with the proxy key by default, but the creator's tokens
+    // live under the meme-user-chain owner's public key, so sign the transfer blocks
+    // with that key.
+    meme_chain_0.set_key_pair(suite.meme_user_chain_0.key_pair().copy());
+    meme_chain_1.set_key_pair(suite.meme_user_chain_1.key_pair().copy());
+
+    let user_account = suite.chain_owner_account(&user_chain);
+
+    meme_chain_0
+        .add_block(|block| {
+            block.with_operation(
+                suite.meme_application_id_0.unwrap(),
+                MemeOperation::Transfer {
+                    to: user_account.clone(),
+                    amount: Amount::ONE,
+                },
+            );
+        })
+        .await;
+
+    meme_chain_1
+        .add_block(|block| {
+            block.with_operation(
+                suite.meme_application_id_1.unwrap(),
+                MemeOperation::Transfer {
+                    to: user_account.clone(),
+                    amount: Amount::ONE,
+                },
+            );
+        })
+        .await;
+
+    // Restore the proxy signing key before handling messages; the chain description
+    // was created with the proxy's public key.
+    meme_chain_0.set_key_pair(suite.setup.proxy_chain.key_pair().copy());
+    meme_chain_1.set_key_pair(suite.setup.proxy_chain.key_pair().copy());
+
+    meme_chain_0.handle_received_messages().await;
+    user_chain.handle_received_messages().await;
+    meme_chain_1.handle_received_messages().await;
+    user_chain.handle_received_messages().await;
 
     // Check initial swap pool
     meme_chain_0.handle_received_messages().await;
@@ -532,7 +482,7 @@ async fn meme_meme_pair_test() {
         )
         .await;
 
-    let user_account = suite.chain_owner_account(user_chain);
+    let user_account = suite.chain_owner_account(&user_chain);
     let query = Request::new(
         r#"
         query ClaimableBalance($token: ApplicationId, $owner: Account!) {
@@ -833,7 +783,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(793701900258497670180725),
+        Amount::from_attos(793702900258497670180725),
     );
 
     let query = Request::new(
@@ -854,7 +804,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(1201587745967107624856252),
+        Amount::from_attos(1201588745967107624856252),
     );
 
     suite
@@ -951,7 +901,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(793700700258497670180725),
+        Amount::from_attos(793701700258497670180725),
     );
 
     let query = Request::new(
@@ -972,7 +922,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(1201585945967107624856252),
+        Amount::from_attos(1201586945967107624856252),
     );
 
     let QueryOutcome { response, .. } = pool_chain_user

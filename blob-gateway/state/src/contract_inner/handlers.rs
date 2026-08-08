@@ -21,9 +21,9 @@ impl HandlerFactory {
         operation: &BlobGatewayStateV1Operation,
     ) -> Result<Box<dyn Handler<(), BlobGatewayStateV1Response>>, HandlerError> {
         match operation {
-            BlobGatewayStateV1Operation::SetOperator { .. } => Ok(Box::new(
-                SetOperatorHandler::new(runtime, state, operation),
-            )),
+            BlobGatewayStateV1Operation::SetOperator { .. } => {
+                Ok(Box::new(SetOperatorHandler::new(runtime, state, operation)))
+            }
             BlobGatewayStateV1Operation::CreateBlob { .. } => {
                 Ok(Box::new(CreateBlobHandler::new(runtime, state, operation)))
             }

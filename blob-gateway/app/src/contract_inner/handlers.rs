@@ -26,9 +26,9 @@ impl HandlerFactory {
         op: &BlobGatewayOperation,
     ) -> Box<dyn Handler<BlobGatewayMessage, BlobGatewayResponse>> {
         match &op {
-            BlobGatewayOperation::SetOperator { .. } => Box::new(
-                OperationSetOperatorHandler::new(runtime, state, op),
-            ),
+            BlobGatewayOperation::SetOperator { .. } => {
+                Box::new(OperationSetOperatorHandler::new(runtime, state, op))
+            }
             BlobGatewayOperation::Register { .. } => {
                 Box::new(OperationRegisterHandler::new(runtime, state, op))
             }

@@ -1,4 +1,6 @@
-use abi::meme::{HandoffArgument, InitializeArgument, Liquidity, MiningInfo, StateInstantiationArgument};
+use abi::meme::{
+    HandoffArgument, InitializeArgument, Liquidity, MiningInfo, StateInstantiationArgument,
+};
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId};
 use std::collections::HashMap;
@@ -16,8 +18,7 @@ impl StateInterface for MemeState {
         self.business_application_id
             .set(Some(argument.business_application_id));
         self.operator.set(argument.operator);
-        self.proxy_application_id
-            .set(argument.proxy_application_id);
+        self.proxy_application_id.set(argument.proxy_application_id);
     }
 
     async fn business_application_id(&mut self) -> Result<ApplicationId, Self::Error> {
@@ -46,7 +47,9 @@ impl StateInterface for MemeState {
     }
 
     async fn operator(&mut self) -> Result<Account, Self::Error> {
-        self.operator.get().ok_or(StateError::OperatorNotInitialized)
+        self.operator
+            .get()
+            .ok_or(StateError::OperatorNotInitialized)
     }
 
     async fn set_operator(&mut self, new_operator: Account) -> Result<(), Self::Error> {
@@ -133,12 +136,10 @@ impl StateInterface for MemeState {
 
         self.balances.insert(&to, to_balance)?;
 
-        let mut allowances = self
-            .allowances
-            .get(&from)
-            .await?
-            .unwrap_or(HashMap::new());
-        let new_allowance = allowance.try_sub(amount).map_err(|_| StateError::InvalidAmount)?;
+        let mut allowances = self.allowances.get(&from).await?.unwrap_or(HashMap::new());
+        let new_allowance = allowance
+            .try_sub(amount)
+            .map_err(|_| StateError::InvalidAmount)?;
         allowances.insert(origin, new_allowance);
         self.allowances.insert(&from, allowances)?;
 
@@ -164,11 +165,7 @@ impl StateInterface for MemeState {
             return Err(StateError::InsufficientFunds);
         }
 
-        let mut allowances = self
-            .allowances
-            .get(&owner)
-            .await?
-            .unwrap_or(HashMap::new());
+        let mut allowances = self.allowances.get(&owner).await?.unwrap_or(HashMap::new());
         let spender_allowance = allowances
             .get(&spender)
             .copied()
@@ -196,7 +193,8 @@ impl StateInterface for MemeState {
         self.owner.set(Some(argument.owner));
         self.holder.set(Some(argument.holder));
         self.meme.set(Some(argument.meme.clone()));
-        self.initial_owner_balance.set(argument.initial_owner_balance);
+        self.initial_owner_balance
+            .set(argument.initial_owner_balance);
 
         self.balances
             .insert(&argument.holder, argument.meme.initial_supply)?;
@@ -338,6 +336,7 @@ impl MemeState {
             chain_id: swap_creator_chain_id,
             owner: AccountOwner::from(swap_application_id),
         };
-        self.approve(holder, spender, liquidity.fungible_amount).await
+        self.approve(holder, spender, liquidity.fungible_amount)
+            .await
     }
 }

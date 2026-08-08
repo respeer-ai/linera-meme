@@ -17,29 +17,22 @@ use linera_sdk::{
 use std::str::FromStr;
 
 fn test_chain_id() -> ChainId {
-    ChainId::from_str("abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65")
-        .unwrap()
+    ChainId::from_str("abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65").unwrap()
 }
 
 fn test_operator() -> AccountOwner {
-    AccountOwner::from_str(
-        "0xfd90bbb496d286ff1227b8aa2f0d8e479d2b425257940bf36c4338ab73705ac6",
-    )
-    .unwrap()
+    AccountOwner::from_str("0xfd90bbb496d286ff1227b8aa2f0d8e479d2b425257940bf36c4338ab73705ac6")
+        .unwrap()
 }
 
 fn test_business_application_id() -> ApplicationId {
-    ApplicationId::from_str(
-        "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
-    )
-    .unwrap()
+    ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+        .unwrap()
 }
 
 fn test_swap_application_id() -> ApplicationId {
-    ApplicationId::from_str(
-        "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
-    )
-    .unwrap()
+    ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
+        .unwrap()
 }
 
 fn test_account(owner: AccountOwner) -> Account {
@@ -105,10 +98,7 @@ fn initialize_state() -> MemeState {
     initialize_state_with_mining(false, None)
 }
 
-fn initialize_state_with_mining(
-    enable_mining: bool,
-    mining_supply: Option<Amount>,
-) -> MemeState {
+fn initialize_state_with_mining(enable_mining: bool, mining_supply: Option<Amount>) -> MemeState {
     let mut state = instantiate_state();
     let meme = test_meme();
     let initial_owner_balance = Amount::from_tokens(100);
@@ -182,9 +172,12 @@ async fn initialize_twice_fails() {
 #[tokio::test(flavor = "multi_thread")]
 async fn transfer_moves_balance() {
     let mut state = initialize_state();
-    let recipient = test_account(AccountOwner::from_str(
-        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
-    ).unwrap());
+    let recipient = test_account(
+        AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    );
     let amount = Amount::from_tokens(100);
 
     state
@@ -202,9 +195,12 @@ async fn transfer_moves_balance() {
 #[tokio::test(flavor = "multi_thread")]
 async fn transfer_zero_fails() {
     let mut state = initialize_state();
-    let recipient = test_account(AccountOwner::from_str(
-        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
-    ).unwrap());
+    let recipient = test_account(
+        AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    );
 
     let err = state
         .transfer(test_holder(), recipient, Amount::ZERO)
@@ -227,9 +223,12 @@ async fn transfer_self_fails() {
 #[tokio::test(flavor = "multi_thread")]
 async fn transfer_insufficient_funds_fails() {
     let mut state = initialize_state();
-    let recipient = test_account(AccountOwner::from_str(
-        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
-    ).unwrap());
+    let recipient = test_account(
+        AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    );
 
     let err = state
         .transfer(
@@ -245,9 +244,12 @@ async fn transfer_insufficient_funds_fails() {
 #[tokio::test(flavor = "multi_thread")]
 async fn approve_reserves_balance_and_allowance() {
     let mut state = initialize_state();
-    let spender = test_account(AccountOwner::from_str(
-        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
-    ).unwrap());
+    let spender = test_account(
+        AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    );
     let allowance = Amount::from_tokens(100);
 
     state
@@ -268,9 +270,12 @@ async fn approve_reserves_balance_and_allowance() {
 #[tokio::test(flavor = "multi_thread")]
 async fn approve_insufficient_funds_fails() {
     let mut state = initialize_state();
-    let spender = test_account(AccountOwner::from_str(
-        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
-    ).unwrap());
+    let spender = test_account(
+        AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    );
 
     let err = state
         .approve(
@@ -297,12 +302,18 @@ async fn approve_self_fails() {
 #[tokio::test(flavor = "multi_thread")]
 async fn transfer_from_uses_allowance() {
     let mut state = initialize_state();
-    let spender = test_account(AccountOwner::from_str(
-        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
-    ).unwrap());
-    let recipient = test_account(AccountOwner::from_str(
-        "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e08",
-    ).unwrap());
+    let spender = test_account(
+        AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    );
+    let recipient = test_account(
+        AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e08",
+        )
+        .unwrap(),
+    );
 
     state
         .approve(test_holder(), spender, Amount::from_tokens(100))
@@ -326,12 +337,18 @@ async fn transfer_from_uses_allowance() {
 #[tokio::test(flavor = "multi_thread")]
 async fn transfer_from_insufficient_allowance_fails() {
     let mut state = initialize_state();
-    let spender = test_account(AccountOwner::from_str(
-        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
-    ).unwrap());
-    let recipient = test_account(AccountOwner::from_str(
-        "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e08",
-    ).unwrap());
+    let spender = test_account(
+        AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    );
+    let recipient = test_account(
+        AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e08",
+        )
+        .unwrap(),
+    );
 
     let err = state
         .transfer_from(spender, test_holder(), recipient, Amount::ONE)
@@ -343,9 +360,12 @@ async fn transfer_from_insufficient_allowance_fails() {
 #[tokio::test(flavor = "multi_thread")]
 async fn mint_transfers_from_holder() {
     let mut state = initialize_state();
-    let recipient = test_account(AccountOwner::from_str(
-        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
-    ).unwrap());
+    let recipient = test_account(
+        AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    );
     let amount = Amount::from_tokens(100);
 
     state.mint(recipient, amount).await.unwrap();
@@ -360,9 +380,12 @@ async fn mint_transfers_from_holder() {
 #[tokio::test(flavor = "multi_thread")]
 async fn transfer_ownership_changes_owner() {
     let mut state = initialize_state();
-    let new_owner = test_account(AccountOwner::from_str(
-        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
-    ).unwrap());
+    let new_owner = test_account(
+        AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    );
 
     state
         .transfer_ownership(test_owner(), new_owner)
@@ -375,12 +398,18 @@ async fn transfer_ownership_changes_owner() {
 #[tokio::test(flavor = "multi_thread")]
 async fn transfer_ownership_wrong_owner_fails() {
     let mut state = initialize_state();
-    let fake_owner = test_account(AccountOwner::from_str(
-        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
-    ).unwrap());
-    let new_owner = test_account(AccountOwner::from_str(
-        "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e08",
-    ).unwrap());
+    let fake_owner = test_account(
+        AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    );
+    let new_owner = test_account(
+        AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e08",
+        )
+        .unwrap(),
+    );
 
     let err = state
         .transfer_ownership(fake_owner, new_owner)
@@ -407,7 +436,10 @@ async fn initialize_liquidity_reserves_allowance() {
         owner: AccountOwner::from(test_swap_application_id()),
     };
     assert_eq!(
-        state.allowance_of(test_holder(), swap_spender).await.unwrap(),
+        state
+            .allowance_of(test_holder(), swap_spender)
+            .await
+            .unwrap(),
         liquidity.fungible_amount
     );
     assert_eq!(state.initial_liquidity.get().clone().unwrap(), liquidity);
@@ -418,9 +450,12 @@ async fn mining_reward_mints_and_updates_mining_info() {
     let mut state = initialize_state_with_mining(true, None);
     let mut mining_info = state.mining_info().await.unwrap();
     let reward = mining_info.reward_amount;
-    let recipient = test_account(AccountOwner::from_str(
-        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
-    ).unwrap());
+    let recipient = test_account(
+        AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    );
 
     mining_info.mining_height = BlockHeight(1);
     state
@@ -447,18 +482,15 @@ async fn start_mining_sets_started_flag() {
 #[tokio::test(flavor = "multi_thread")]
 async fn handoff_updates_ids() {
     let mut state = initialize_state();
-    let new_business = ApplicationId::from_str(
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    )
-    .unwrap();
-    let new_proxy = ApplicationId::from_str(
-        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    )
-    .unwrap();
-    let new_swap = ApplicationId::from_str(
-        "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    )
-    .unwrap();
+    let new_business =
+        ApplicationId::from_str("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+            .unwrap();
+    let new_proxy =
+        ApplicationId::from_str("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+            .unwrap();
+    let new_swap =
+        ApplicationId::from_str("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
+            .unwrap();
 
     state
         .handoff(HandoffArgument {
@@ -471,23 +503,20 @@ async fn handoff_updates_ids() {
         .await
         .unwrap();
 
-    assert_eq!(
-        state.business_application_id().await.unwrap(),
-        new_business
-    );
-    assert_eq!(
-        state.proxy_application_id().await.unwrap(),
-        Some(new_proxy)
-    );
+    assert_eq!(state.business_application_id().await.unwrap(), new_business);
+    assert_eq!(state.proxy_application_id().await.unwrap(), Some(new_proxy));
     assert_eq!(state.swap_application_id().await.unwrap(), Some(new_swap));
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn default_balances_and_allowances_are_zero() {
     let state = initialize_state();
-    let account = test_account(AccountOwner::from_str(
-        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
-    ).unwrap());
+    let account = test_account(
+        AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    );
 
     assert_eq!(state.balance_of(account).await.unwrap(), Amount::ZERO);
     assert_eq!(
@@ -528,9 +557,12 @@ async fn approve_holder_to_owner_fails() {
 #[tokio::test(flavor = "multi_thread")]
 async fn set_operator_updates_operator() {
     let mut state = initialize_state();
-    let new_operator = test_account(AccountOwner::from_str(
-        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
-    ).unwrap());
+    let new_operator = test_account(
+        AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    );
 
     assert_ne!(state.operator().await.unwrap(), new_operator);
 
@@ -538,4 +570,3 @@ async fn set_operator_updates_operator() {
 
     assert_eq!(state.operator().await.unwrap(), new_operator);
 }
-

@@ -17,8 +17,10 @@ pub struct LiquidityFundedHandler<
     state: S,
 }
 
-impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateInterface + PublicStateBaseInterface>
-    LiquidityFundedHandler<R, S>
+impl<
+        R: ContractRuntimeContext + AccessControl + ParametersInterface,
+        S: StateInterface + PublicStateBaseInterface,
+    > LiquidityFundedHandler<R, S>
 {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &MemeMessage) -> Self {
         let MemeMessage::LiquidityFunded = msg else {
@@ -30,14 +32,14 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateInterface + PublicStateBaseInterface>
-    Handler<MemeMessage, MemeResponse> for LiquidityFundedHandler<R, S>
+impl<
+        R: ContractRuntimeContext + AccessControl + ParametersInterface,
+        S: StateInterface + PublicStateBaseInterface,
+    > Handler<MemeMessage, MemeResponse> for LiquidityFundedHandler<R, S>
 {
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<MemeMessage, MemeResponse>>, HandlerError> {
-        log::info!("DEBUG MEME:MSG liquidity funded");
-
         let virtual_liquidity = self.runtime.borrow_mut().virtual_initial_liquidity();
         // Use the state-app stored liquidity, which has been adjusted for mining supply.
         let Some(liquidity) = self

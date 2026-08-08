@@ -7,8 +7,10 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::interfaces::state::StateInterface;
 
-pub struct TransferFromApplicationHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface>
-{
+pub struct TransferFromApplicationHandler<
+    R: ContractRuntimeContext + AccessControl,
+    S: StateInterface,
+> {
     runtime: Rc<RefCell<R>>,
     state: S,
 

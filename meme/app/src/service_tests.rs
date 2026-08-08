@@ -73,12 +73,10 @@ async fn query() {
 
     // Build the state app directly; the business service will query it through the
     // mocked `query_application` handler.
-    let mut state_app_state = StateAppState::load(
-        ServiceRuntime::<MemeService>::new()
-            .root_view_storage_context(),
-    )
-    .blocking_wait()
-    .expect("Failed to load meme state v1");
+    let mut state_app_state =
+        StateAppState::load(ServiceRuntime::<MemeService>::new().root_view_storage_context())
+            .blocking_wait()
+            .expect("Failed to load meme state v1");
     state_app_state.instantiate(abi::meme::StateInstantiationArgument {
         business_application_id,
         operator: Some(owner),
@@ -107,17 +105,19 @@ async fn query() {
             .with_system_time(Timestamp::now())
             .with_application_id(business_application_id.with_abi::<MemeAbi>())
             .with_application_creator_chain_id(chain_id)
-            .with_query_application_handler(move |_application_id: ApplicationId, query: Vec<u8>| {
-                let request: Request = serde_json::from_slice(&query).unwrap();
-                if request.query.contains("totalSupply") {
-                    serde_json::to_vec(&Response::new(
-                        Value::from_json(json!({ "totalSupply": total_supply })).unwrap(),
-                    ))
-                    .unwrap()
-                } else {
-                    serde_json::to_vec(&Response::new(Value::Null)).unwrap()
-                }
-            }),
+            .with_query_application_handler(
+                move |_application_id: ApplicationId, query: Vec<u8>| {
+                    let request: Request = serde_json::from_slice(&query).unwrap();
+                    if request.query.contains("totalSupply") {
+                        serde_json::to_vec(&Response::new(
+                            Value::from_json(json!({ "totalSupply": total_supply })).unwrap(),
+                        ))
+                        .unwrap()
+                    } else {
+                        serde_json::to_vec(&Response::new(Value::Null)).unwrap()
+                    }
+                },
+            ),
     );
 
     let mut business_state = BusinessState::load(runtime.root_view_storage_context())
@@ -141,8 +141,7 @@ async fn query() {
         .expect("Query should not await anything");
 
     let expected = Response::new(
-        Value::from_json(json!({"totalSupply": instantiation_argument.meme.total_supply}))
-            .unwrap(),
+        Value::from_json(json!({"totalSupply": instantiation_argument.meme.total_supply})).unwrap(),
     );
 
     assert_eq!(response, expected);
@@ -170,10 +169,8 @@ mod extra_service_tests {
     use std::{str::FromStr, sync::Arc};
 
     fn chain_id() -> ChainId {
-        ChainId::from_str(
-            "899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46",
-        )
-        .unwrap()
+        ChainId::from_str("899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46")
+            .unwrap()
     }
 
     fn owner() -> Account {
@@ -187,17 +184,13 @@ mod extra_service_tests {
     }
 
     fn business_application_id() -> ApplicationId {
-        ApplicationId::from_str(
-            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
-        )
-        .unwrap()
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap()
     }
 
     fn state_application_id() -> ApplicationId {
-        ApplicationId::from_str(
-            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
-        )
-        .unwrap()
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
+            .unwrap()
     }
 
     fn test_amount() -> Amount {
@@ -310,7 +303,9 @@ mod extra_service_tests {
     async fn creator_chain_id_query_reads_runtime() {
         let service = service_with_runtime(runtime());
 
-        let response = service.handle_query(Request::new("{ creatorChainId }")).await;
+        let response = service
+            .handle_query(Request::new("{ creatorChainId }"))
+            .await;
         let expected =
             Response::new(Value::from_json(json!({ "creatorChainId": chain_id() })).unwrap());
 
@@ -325,8 +320,9 @@ mod extra_service_tests {
         });
         let service = service_with_runtime(runtime);
 
-        let request = Request::new("query BalanceOf($owner: Account!) { balanceOf(owner: $owner) }")
-            .variables(account_variables(owner()));
+        let request =
+            Request::new("query BalanceOf($owner: Account!) { balanceOf(owner: $owner) }")
+                .variables(account_variables(owner()));
 
         let response = service.handle_query(request).await;
         let expected =
@@ -380,8 +376,9 @@ mod extra_service_tests {
         let response = service
             .handle_query(Request::new("{ initialOwnerBalance }"))
             .await;
-        let expected =
-            Response::new(Value::from_json(json!({ "initialOwnerBalance": test_amount() })).unwrap());
+        let expected = Response::new(
+            Value::from_json(json!({ "initialOwnerBalance": test_amount() })).unwrap(),
+        );
 
         assert_eq!(response, expected);
     }
@@ -415,14 +412,14 @@ mod extra_service_tests {
     async fn mining_info_query_reads_state_application() {
         let runtime = runtime_with_state_query(|query_name| {
             assert_eq!(query_name, "miningInfo");
-            Response::new(
-                Value::from_json(json!({ "miningInfo": test_mining_info() })).unwrap(),
-            )
+            Response::new(Value::from_json(json!({ "miningInfo": test_mining_info() })).unwrap())
         });
         let service = service_with_runtime(runtime);
 
         let response = service
-            .handle_query(Request::new("{ miningInfo { miningStarted target initialTarget } }"))
+            .handle_query(Request::new(
+                "{ miningInfo { miningStarted target initialTarget } }",
+            ))
             .await;
         let expected = Response::new(
             Value::from_json(json!({
@@ -448,15 +445,13 @@ mod extra_service_tests {
         let request = Request::new(
             "mutation Mint($to: Account!, $amount: Amount!) { mint(to: $to, amount: $amount) }",
         )
-        .variables(
-            Variables::from_json(json!({
-                "to": {
-                    "chain_id": to.chain_id.to_string(),
-                    "owner": to.owner.to_string(),
-                },
-                "amount": amount,
-            })),
-        );
+        .variables(Variables::from_json(json!({
+            "to": {
+                "chain_id": to.chain_id.to_string(),
+                "owner": to.owner.to_string(),
+            },
+            "amount": amount,
+        })));
 
         let response = service.handle_query(request).await;
         let expected = Response::new(Value::from_json(json!({ "mint": [] })).unwrap());
@@ -529,4 +524,3 @@ mod extra_service_tests {
         );
     }
 }
-

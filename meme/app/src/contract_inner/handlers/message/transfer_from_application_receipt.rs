@@ -71,10 +71,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
             TransferFromApplicationReceiptPurpose::PoolClaim => {
                 assert!(self.receipt.payload.is_none(), "Invalid receipt payload");
 
-                let AccountOwner::Address32(application_description_hash) = self.caller.owner else {
+                let AccountOwner::Address32(application_description_hash) = self.caller.owner
+                else {
                     panic!("Invalid receipt caller");
                 };
-                let pool_application: ApplicationId = ApplicationId::new(application_description_hash);
+                let pool_application: ApplicationId =
+                    ApplicationId::new(application_description_hash);
                 let operation = PoolOperation::ClaimTransferReceipt {
                     receipt: ClaimTransferReceipt {
                         owner: self.receipt.owner,
@@ -95,7 +97,10 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
                     panic!("Invalid receipt payload");
                 };
 
-                assert_eq!(self.receipt.owner, payload.request.from, "Invalid receipt owner");
+                assert_eq!(
+                    self.receipt.owner, payload.request.from,
+                    "Invalid receipt owner"
+                );
                 assert_eq!(
                     Some(self.receipt.token),
                     payload.request.token,
@@ -111,10 +116,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
                     "Invalid fund type"
                 );
 
-                let AccountOwner::Address32(application_description_hash) = self.caller.owner else {
+                let AccountOwner::Address32(application_description_hash) = self.caller.owner
+                else {
                     panic!("Invalid receipt caller");
                 };
-                let pool_application: ApplicationId = ApplicationId::new(application_description_hash);
+                let pool_application: ApplicationId =
+                    ApplicationId::new(application_description_hash);
                 let operation = PoolOperation::AddLiquidityTransferReceipt {
                     receipt: AddLiquidityTransferReceipt {
                         result,
@@ -135,7 +142,10 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
                     panic!("Invalid receipt payload");
                 };
 
-                assert_eq!(self.receipt.owner, payload.request.from, "Invalid receipt owner");
+                assert_eq!(
+                    self.receipt.owner, payload.request.from,
+                    "Invalid receipt owner"
+                );
                 assert_eq!(
                     Some(self.receipt.token),
                     payload.request.token,
@@ -145,12 +155,18 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
                     self.receipt.amount, payload.request.amount_in,
                     "Invalid receipt amount"
                 );
-                assert_eq!(payload.request.fund_type, FundType::Swap, "Invalid fund type");
+                assert_eq!(
+                    payload.request.fund_type,
+                    FundType::Swap,
+                    "Invalid fund type"
+                );
 
-                let AccountOwner::Address32(application_description_hash) = self.caller.owner else {
+                let AccountOwner::Address32(application_description_hash) = self.caller.owner
+                else {
                     panic!("Invalid receipt caller");
                 };
-                let pool_application: ApplicationId = ApplicationId::new(application_description_hash);
+                let pool_application: ApplicationId =
+                    ApplicationId::new(application_description_hash);
                 let operation = PoolOperation::SwapTransferReceipt {
                     receipt: SwapTransferReceipt {
                         result,

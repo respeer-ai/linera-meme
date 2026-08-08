@@ -4,7 +4,7 @@ use crate::{
 };
 use abi::meme_token::MemeToken;
 use abi::swap::{
-    pool::{InstantiationArgument, Pool, PoolParameters},
+    pool::{BootstrapPolicy, InstantiationArgument, Pool, PoolParameters},
     transaction::{Transaction, TransactionType},
 };
 use async_trait::async_trait;
@@ -32,6 +32,23 @@ impl StateInterface for PoolState {
         self.router_application_id
             .set(Some(argument.router_application_id));
         self.transaction_id.set(1000);
+
+        if matches!(
+            parameters.bootstrap_policy,
+            BootstrapPolicy::MemeInitializeLiquidity {
+                virtual_initial_liquidity: _,
+            }
+        ) && argument.amount_0_in > Amount::ZERO
+            && argument.amount_1_in > Amount::ZERO
+        {
+            self.initialize_liquidity(
+                argument.amount_0_in,
+                argument.amount_1_in,
+                owner,
+                block_timestamp,
+            )
+            .await?;
+        }
 
         Ok(())
     }

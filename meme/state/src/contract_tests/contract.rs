@@ -8,8 +8,8 @@ use abi::meme::{
 };
 use linera_sdk::{
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationDescription, ApplicationId, BlockHeight,
-        ChainId, CryptoHash, ModuleId, TestString, Timestamp,
+        Account, AccountOwner, Amount, ApplicationDescription, ApplicationId, BlockHeight, ChainId,
+        CryptoHash, ModuleId, TestString, Timestamp,
     },
     util::BlockingWait,
     views::View,
@@ -43,10 +43,7 @@ impl TestSuite {
         Self { contract }
     }
 
-    async fn execute_operation(
-        &mut self,
-        operation: MemeStateV1Operation,
-    ) -> MemeStateV1Response {
+    async fn execute_operation(&mut self, operation: MemeStateV1Operation) -> MemeStateV1Response {
         self.contract.execute_operation(operation).await
     }
 
@@ -228,7 +225,9 @@ async fn start_mining_succeeds_on_creator_chain() {
         })
         .await;
 
-    let response = suite.execute_operation(MemeStateV1Operation::StartMining).await;
+    let response = suite
+        .execute_operation(MemeStateV1Operation::StartMining)
+        .await;
     assert_eq!(response, MemeStateV1Response::Ok);
 }
 
@@ -243,7 +242,9 @@ async fn start_mining_rejects_non_creator_chain() {
         })
         .await;
 
-    let response = suite.execute_operation(MemeStateV1Operation::StartMining).await;
+    let response = suite
+        .execute_operation(MemeStateV1Operation::StartMining)
+        .await;
     assert!(matches!(response, MemeStateV1Response::Fail(_)));
 }
 

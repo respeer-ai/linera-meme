@@ -19,10 +19,7 @@ pub struct ServiceStateAdapter<S: Service> {
 }
 
 impl<S: Service> ServiceStateAdapter<S> {
-    pub fn new(
-        runtime: Arc<ServiceRuntime<S>>,
-        state: Arc<MemeState>,
-    ) -> Result<Self, StateError> {
+    pub fn new(runtime: Arc<ServiceRuntime<S>>, state: Arc<MemeState>) -> Result<Self, StateError> {
         Ok(Self { runtime, state })
     }
 

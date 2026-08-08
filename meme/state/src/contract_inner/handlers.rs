@@ -22,10 +22,10 @@ use operation::redeem::RedeemHandler;
 use operation::set_operator::SetOperatorHandler;
 use operation::start_mining::StartMiningHandler;
 use operation::swap_application_id::SwapApplicationIdHandler;
-use operation::transfer_ownership::TransferOwnershipHandler;
 use operation::transfer::TransferHandler;
 use operation::transfer_from::TransferFromHandler;
 use operation::transfer_from_application::TransferFromApplicationHandler;
+use operation::transfer_ownership::TransferOwnershipHandler;
 
 pub struct HandlerFactory;
 
@@ -36,9 +36,9 @@ impl HandlerFactory {
         operation: &MemeStateV1Operation,
     ) -> Result<Box<dyn Handler<(), MemeStateV1Response>>, HandlerError> {
         match operation {
-            MemeStateV1Operation::SetOperator { .. } => Ok(Box::new(SetOperatorHandler::new(
-                runtime, state, operation,
-            ))),
+            MemeStateV1Operation::SetOperator { .. } => {
+                Ok(Box::new(SetOperatorHandler::new(runtime, state, operation)))
+            }
             MemeStateV1Operation::Transfer { .. } => {
                 Ok(Box::new(TransferHandler::new(runtime, state, operation)))
             }
@@ -81,18 +81,18 @@ impl HandlerFactory {
             MemeStateV1Operation::Owner => {
                 Ok(Box::new(OwnerHandler::new(runtime, state, operation)))
             }
-            MemeStateV1Operation::SwapApplicationId => Ok(Box::new(
-                SwapApplicationIdHandler::new(runtime, state, operation),
-            )),
+            MemeStateV1Operation::SwapApplicationId => Ok(Box::new(SwapApplicationIdHandler::new(
+                runtime, state, operation,
+            ))),
             MemeStateV1Operation::ProxyApplicationId => Ok(Box::new(
                 ProxyApplicationIdHandler::new(runtime, state, operation),
             )),
             MemeStateV1Operation::StartMining => {
                 Ok(Box::new(StartMiningHandler::new(runtime, state, operation)))
             }
-            MemeStateV1Operation::InitialLiquidity => Ok(Box::new(
-                InitialLiquidityHandler::new(runtime, state, operation),
-            )),
+            MemeStateV1Operation::InitialLiquidity => Ok(Box::new(InitialLiquidityHandler::new(
+                runtime, state, operation,
+            ))),
         }
     }
 

@@ -934,7 +934,9 @@ fn decode_meme_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
                 "amount": encode_option_amount(amount),
             }),
         ),
-        MemeOperation::AppendState { state_application_id } => (
+        MemeOperation::AppendState {
+            state_application_id,
+        } => (
             "append_state",
             json!({
                 "operation_type": "append_state",
@@ -942,7 +944,9 @@ fn decode_meme_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
                 "state_application_id": state_application_id.to_string(),
             }),
         ),
-        MemeOperation::AppendStates { state_application_ids } => (
+        MemeOperation::AppendStates {
+            state_application_ids,
+        } => (
             "append_states",
             json!({
                 "operation_type": "append_states",

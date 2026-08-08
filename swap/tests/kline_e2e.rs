@@ -7,29 +7,23 @@
 
 use abi::{
     hash::hash_cmp,
-    meme::{
-        InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeAbi,
-        MemeOperation, MemeParameters, Metadata, MiningBase, MiningInfo,
-    },
+    meme::{MemeAbi, MemeOperation, MiningBase, MiningInfo},
     policy::open_chain_fee_budget,
-    proxy::{InstantiationArgument as ProxyInstantiationArgument, ProxyAbi},
-    store_type::StoreType,
     swap::{
         pool::{PoolAbi, PoolOperation},
-        router::{
-            InstantiationArgument as SwapInstantiationArgument, Pool as PoolIndex, SwapAbi,
-            SwapParameters,
-        },
+        router::Pool as PoolIndex,
     },
 };
 use linera_chain::types::ConfirmedBlockCertificate;
 use linera_sdk::{
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, BlobType,
-        ChainDescription, CryptoHash, ModuleId, TestString, TimeDelta, Timestamp,
+        Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription, CryptoHash,
+        TimeDelta, Timestamp,
     },
     test::{ActiveChain, MessageAction, QueryOutcome, TestValidator},
 };
+
+mod test_suite;
 use std::{
     cmp::Ordering,
     str::FromStr,
@@ -39,6 +33,7 @@ use std::{
     },
     thread,
 };
+use test_suite::ProxyMemeSetup;
 
 #[derive(Clone)]
 struct TestSuite {
@@ -72,163 +67,35 @@ struct KlineReport {
 
 impl TestSuite {
     async fn new(enable_mining: bool, maker_chain_count: usize) -> Self {
-        let (validator, swap_bytecode_id) = TestValidator::with_current_module::<
-            SwapAbi,
-            SwapParameters,
-            SwapInstantiationArgument,
-        >()
-        .await;
+        let setup = ProxyMemeSetup::new().await;
+        let validator = setup.validator.clone();
+        let admin_chain = setup.admin_chain.clone();
+        let swap_chain = setup.swap_chain.clone();
+        let proxy_chain = setup.proxy_chain.clone();
+        let swap_application_id = setup.swap_application_id;
 
         validator.clock().set(Timestamp::from(0));
-
-        let admin_chain = validator.get_chain(&validator.admin_chain_id());
-        let mut swap_chain = validator.new_chain().await;
-        let mut proxy_chain = if enable_mining {
-            Some(validator.new_chain().await)
-        } else {
-            None
-        };
-        let meme_bytecode_id: ModuleId<MemeAbi, MemeParameters, MemeInstantiationArgument> =
-            swap_chain.publish_bytecode_files_in("../meme").await;
-
-        let pool_bytecode_id = swap_chain.publish_bytecode_files_in("../pool").await;
-        let swap_application_id = swap_chain
-            .create_application::<SwapAbi, SwapParameters, SwapInstantiationArgument>(
-                swap_bytecode_id,
-                SwapParameters {},
-                SwapInstantiationArgument { pool_bytecode_id },
-                vec![],
-            )
-            .await;
-
-        let proxy_application_id = if let Some(proxy_chain) = proxy_chain.as_mut() {
-            let proxy_bytecode_id = swap_chain.publish_bytecode_files_in("../proxy").await;
-            Some(
-                proxy_chain
-                    .create_application::<ProxyAbi, (), ProxyInstantiationArgument>(
-                        proxy_bytecode_id,
-                        (),
-                        ProxyInstantiationArgument {
-                            meme_bytecode_id: meme_bytecode_id.forget_abi(),
-                            operators: Vec::new(),
-                            swap_application_id: swap_application_id.forget_abi(),
-                        },
-                        vec![],
-                    )
-                    .await,
-            )
-        } else {
-            None
-        };
-
-        let mut meme_chain = if enable_mining {
-            let proxy_application_id = proxy_application_id.unwrap().forget_abi();
-            let swap_application_id = swap_application_id.forget_abi();
-            let permissions = ApplicationPermissions {
-                execute_operations: None,
-                mandatory_applications: vec![],
-                close_chain: vec![proxy_application_id, swap_application_id],
-                change_application_permissions: vec![proxy_application_id, swap_application_id],
-                call_service_as_oracle: Some(vec![proxy_application_id, swap_application_id]),
-                make_http_requests: Some(vec![proxy_application_id, swap_application_id]),
-            };
-            validator
-                .new_chain_with_application_permissions(permissions)
-                .await
-        } else {
-            validator.new_chain().await
-        };
 
         let mut maker_chains = Vec::with_capacity(maker_chain_count);
         for _ in 0..maker_chain_count {
             maker_chains.push(validator.new_chain().await);
         }
 
-        let initial_liquidity = Amount::from_tokens(11000000);
-        let initial_native = Amount::from_tokens(10);
-        let meme_application_id = meme_chain
-            .create_application(
-                meme_bytecode_id,
-                MemeParameters {
-                    creator: Self::chain_owner_account(&meme_chain),
-                    initial_liquidity: Some(Liquidity {
-                        fungible_amount: initial_liquidity,
-                        native_amount: initial_native,
-                    }),
-                    virtual_initial_liquidity: true,
-                    swap_creator_chain_id: swap_chain.id(),
-                    enable_mining,
-                    mining_supply: if enable_mining {
-                        Some(Amount::from_tokens(10000000))
-                    } else {
-                        None
-                    },
+        let meme_user_chain = validator.new_chain().await;
+        let (meme_chain, meme_application_id) = setup
+            .create_meme_application(
+                &meme_user_chain,
+                true,
+                enable_mining,
+                if enable_mining {
+                    Some(Amount::from_tokens(10000000))
+                } else {
+                    None
                 },
-                MemeInstantiationArgument {
-                    meme: Meme {
-                        name: "Test Token".to_string(),
-                        ticker: "LTT".to_string(),
-                        decimals: 6,
-                        initial_supply: Amount::from_tokens(21000000),
-                        total_supply: Amount::from_tokens(21000000),
-                        metadata: Metadata {
-                            logo_store_type: StoreType::S3,
-                            logo: Some(CryptoHash::new(&TestString::new("Test Logo".to_string()))),
-                            description: "Test token description".to_string(),
-                            twitter: None,
-                            telegram: None,
-                            discord: None,
-                            website: None,
-                            github: None,
-                            live_stream: None,
-                        },
-                        virtual_initial_liquidity: true,
-                        initial_liquidity: None,
-                    },
-                    blob_gateway_application_id: None,
-                    ams_application_id: None,
-                    proxy_application_id: proxy_application_id.map(|id| id.forget_abi()),
-                    swap_application_id: Some(swap_application_id.forget_abi()),
-                },
-                vec![],
             )
             .await;
 
-        if enable_mining {
-            let proxy_application_id = proxy_application_id.unwrap().forget_abi();
-            let swap_application_id = swap_application_id.forget_abi();
-            let meme_application_id_raw = meme_application_id.forget_abi();
-            let permissions = ApplicationPermissions {
-                execute_operations: None,
-                mandatory_applications: vec![],
-                close_chain: vec![
-                    proxy_application_id,
-                    swap_application_id,
-                    meme_application_id_raw,
-                ],
-                change_application_permissions: vec![
-                    proxy_application_id,
-                    swap_application_id,
-                    meme_application_id_raw,
-                ],
-                call_service_as_oracle: Some(vec![
-                    proxy_application_id,
-                    swap_application_id,
-                    meme_application_id_raw,
-                ]),
-                make_http_requests: Some(vec![
-                    proxy_application_id,
-                    swap_application_id,
-                    meme_application_id_raw,
-                ]),
-            };
-            meme_chain
-                .add_block(|block| {
-                    block.with_change_application_permissions(permissions);
-                })
-                .await;
-        }
-
+        // Drive the liquidity pool creation messages through the system.
         meme_chain.handle_received_messages().await;
         if enable_mining {
             meme_chain.handle_received_messages().await;
@@ -291,7 +158,7 @@ impl TestSuite {
             validator,
             meme_chain,
             swap_chain,
-            proxy_chain,
+            proxy_chain: Some(proxy_chain),
             pool_chain,
             maker_chains,
             meme_application_id,
@@ -303,13 +170,6 @@ impl TestSuite {
         Account {
             chain_id: chain.id(),
             owner: AccountOwner::CHAIN,
-        }
-    }
-
-    fn chain_owner_account(chain: &ActiveChain) -> Account {
-        Account {
-            chain_id: chain.id(),
-            owner: AccountOwner::from(chain.public_key()),
         }
     }
 

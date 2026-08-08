@@ -15,7 +15,10 @@ use abi::{
 use futures::FutureExt as _;
 use linera_sdk::{
     bcs,
-    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId},
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationDescription, ApplicationId, BlockHeight, ChainId,
+        ModuleId,
+    },
     util::BlockingWait,
     views::View,
     Contract, ContractRuntime,
@@ -1221,9 +1224,6 @@ async fn message_claim_fungible_moves_to_claiming() {
         move |_authenticated, application_id, operation| match bcs::from_bytes::<MemeOperation>(
             &operation,
         ) {
-            Ok(MemeOperation::CreatorChainId) => {
-                bcs::to_bytes(&MemeResponse::ChainId(mock_token_creator_chain_id())).unwrap()
-            }
             _ => {
                 *captured_for_handler.borrow_mut() = Some((application_id, operation));
                 bcs::to_bytes(&MemeResponse::Ok).unwrap()
@@ -1837,9 +1837,6 @@ async fn message_fund_result_success_funds_pool_chain_with_receipt() {
         move |_authenticated, application_id, operation| match bcs::from_bytes::<MemeOperation>(
             &operation,
         ) {
-            Ok(MemeOperation::CreatorChainId) => {
-                bcs::to_bytes(&MemeResponse::ChainId(mock_token_creator_chain_id())).unwrap()
-            }
             _ => {
                 *captured_for_handler.borrow_mut() = Some((application_id, operation));
                 bcs::to_bytes(&MemeResponse::Ok).unwrap()
@@ -1934,9 +1931,6 @@ async fn message_fund_result_fail_credits_prev_without_funding_pool_chain() {
         move |_authenticated, application_id, operation| match bcs::from_bytes::<MemeOperation>(
             &operation,
         ) {
-            Ok(MemeOperation::CreatorChainId) => {
-                bcs::to_bytes(&MemeResponse::ChainId(mock_token_creator_chain_id())).unwrap()
-            }
             _ => {
                 *captured_for_handler.borrow_mut() = Some((application_id, operation));
                 bcs::to_bytes(&MemeResponse::Ok).unwrap()
@@ -2584,9 +2578,6 @@ async fn message_fund_result_swap_success_requests_pool_chain_custody_with_recei
         move |_authenticated, application_id, operation| match bcs::from_bytes::<MemeOperation>(
             &operation,
         ) {
-            Ok(MemeOperation::CreatorChainId) => {
-                bcs::to_bytes(&MemeResponse::ChainId(mock_token_creator_chain_id())).unwrap()
-            }
             _ => {
                 *captured_for_handler.borrow_mut() = Some((application_id, operation));
                 bcs::to_bytes(&MemeResponse::Ok).unwrap()
@@ -2979,9 +2970,6 @@ async fn message_fund_result_rejects_forged_signer_without_calling_token_app() {
         move |_authenticated, application_id, operation| match bcs::from_bytes::<MemeOperation>(
             &operation,
         ) {
-            Ok(MemeOperation::CreatorChainId) => {
-                bcs::to_bytes(&MemeResponse::ChainId(mock_token_creator_chain_id())).unwrap()
-            }
             _ => {
                 *captured_for_handler.borrow_mut() = Some((application_id, operation));
                 bcs::to_bytes(&MemeResponse::Ok).unwrap()
@@ -3011,11 +2999,6 @@ fn mock_application_call(
     operation: Vec<u8>,
 ) -> Vec<u8> {
     match bcs::from_bytes::<MemeOperation>(&operation) {
-        Ok(MemeOperation::CreatorChainId) => bcs::to_bytes(&MemeResponse::ChainId(
-            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe9")
-                .unwrap(),
-        ))
-        .unwrap(),
         Ok(_) => bcs::to_bytes(&MemeResponse::Ok).unwrap(),
         Err(_) => bcs::to_bytes(&MemeResponse::Ok).unwrap(),
     }
@@ -3168,6 +3151,14 @@ async fn create_and_instantiate_pool_with_amounts(virtual_initial_liquidity: boo
     )
     .unwrap();
     let creator = Account { chain_id, owner };
+    let token_description = ApplicationDescription {
+        module_id: ModuleId::default(),
+        creator_chain_id: mock_token_creator_chain_id(),
+        block_height: BlockHeight(0),
+        application_index: 0,
+        parameters: vec![],
+        required_application_ids: vec![],
+    };
     let mut runtime = ContractRuntime::new()
         .with_application_parameters(PoolParameters {
             creator,
@@ -3181,6 +3172,8 @@ async fn create_and_instantiate_pool_with_amounts(virtual_initial_liquidity: boo
         .with_application_id(application_id)
         .with_authenticated_caller_id(router_application_id)
         .with_call_application_handler(mock_application_call)
+        .with_application_description(token_0.forget_abi(), token_description.clone())
+        .with_application_description(token_1.forget_abi(), token_description)
         .with_application_creator_chain_id(chain_id)
         .with_system_time(0.into())
         .with_authenticated_signer(owner);
@@ -3200,6 +3193,8 @@ async fn create_and_instantiate_pool_with_amounts(virtual_initial_liquidity: boo
         .instantiate(InstantiationArgument {
             pool_fee_percent_mul_100: 30,
             router_application_id,
+            amount_0_in: Amount::ZERO,
+            amount_1_in: Amount::ZERO,
         })
         .await;
 

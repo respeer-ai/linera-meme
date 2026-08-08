@@ -127,6 +127,7 @@ pub enum ProxyMessage {
     },
     CreateMemeExt {
         bytecode_id: ModuleId,
+        state_bytecode_ids: Vec<(u16, ModuleId)>,
         instantiation_argument: MemeInstantiationArgument,
         parameters: MemeParameters,
     },

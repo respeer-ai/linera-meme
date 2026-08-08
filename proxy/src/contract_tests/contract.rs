@@ -441,10 +441,17 @@ async fn msg_approve_ban_operator_second_vote_removes_operator() {
 async fn msg_create_meme_ext_rejects_creator_chain_execution() {
     let mut proxy = create_and_instantiate_proxy();
     let bytecode_id = proxy.state.borrow().meme_bytecode_id();
+    let state_bytecode_ids = proxy
+        .state
+        .borrow()
+        .meme_state_bytecode_ids()
+        .await
+        .unwrap();
 
     proxy
         .execute_message(ProxyMessage::CreateMemeExt {
             bytecode_id,
+            state_bytecode_ids,
             instantiation_argument: test_meme_instantiation_argument(),
             parameters: test_meme_parameters(),
         })
@@ -652,14 +659,12 @@ async fn msg_create_meme_ext_creates_apps_appends_states_and_initializes() {
         .borrow_mut()
         .set_authenticated_caller_id(Some(proxy_application_id));
 
-    let business_application_id = ApplicationId::from_str(
-        "c10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
-    )
-    .unwrap();
-    let state_application_id = ApplicationId::from_str(
-        "c20ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
-    )
-    .unwrap();
+    let business_application_id =
+        ApplicationId::from_str("c10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
+    let state_application_id =
+        ApplicationId::from_str("c20ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
+            .unwrap();
 
     let business_bytecode_id = proxy.state.borrow().meme_bytecode_id();
     let state_bytecode_id = proxy
@@ -754,6 +759,7 @@ async fn msg_create_meme_ext_creates_apps_appends_states_and_initializes() {
     proxy
         .execute_message(ProxyMessage::CreateMemeExt {
             bytecode_id: business_bytecode_id,
+            state_bytecode_ids: vec![(1, state_bytecode_id)],
             instantiation_argument,
             parameters,
         })

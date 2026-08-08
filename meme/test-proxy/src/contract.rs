@@ -1,10 +1,7 @@
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
 use abi::meme::{MemeAbi, MemeOperation};
-use linera_sdk::{
-    linera_base_types::{WithContractAbi},
-    Contract, ContractRuntime,
-};
+use linera_sdk::{linera_base_types::WithContractAbi, Contract, ContractRuntime};
 use meme_test_proxy::{FakeProxyAbi, FakeProxyOperation, FakeProxyResponse};
 
 pub struct FakeProxyContract {
@@ -29,10 +26,7 @@ impl Contract for FakeProxyContract {
 
     async fn instantiate(&mut self, _argument: ()) {}
 
-    async fn execute_operation(
-        &mut self,
-        operation: FakeProxyOperation,
-    ) -> FakeProxyResponse {
+    async fn execute_operation(&mut self, operation: FakeProxyOperation) -> FakeProxyResponse {
         match operation {
             FakeProxyOperation::InitializeMeme {
                 meme_app_id,

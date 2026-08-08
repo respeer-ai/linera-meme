@@ -6,17 +6,17 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::interfaces::state::StateInterface;
 
-pub struct SwapApplicationIdHandler<
-    R: ContractRuntimeContext,
-    S: StateInterface,
-> {
+pub struct SwapApplicationIdHandler<R: ContractRuntimeContext, S: StateInterface> {
     state: S,
     _runtime: Rc<RefCell<R>>,
 }
 
 impl<R: ContractRuntimeContext, S: StateInterface> SwapApplicationIdHandler<R, S> {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, _operation: &MemeStateV1Operation) -> Self {
-        Self { state, _runtime: runtime }
+        Self {
+            state,
+            _runtime: runtime,
+        }
     }
 }
 

@@ -318,6 +318,10 @@ scalar!(PoolParameters);
 pub struct InstantiationArgument {
     pub pool_fee_percent_mul_100: u16,
     pub router_application_id: ApplicationId,
+    #[serde(default)]
+    pub amount_0_in: Amount,
+    #[serde(default)]
+    pub amount_1_in: Amount,
 }
 
 // Pool won't touch anything of runtime. Before functions of Pool are called, all action which need

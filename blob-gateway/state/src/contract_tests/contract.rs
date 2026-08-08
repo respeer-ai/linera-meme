@@ -409,7 +409,14 @@ async fn set_operator_success() {
         BlobGatewayStateV1Response::Ok
     );
     assert_eq!(
-        suite.contract.state.borrow().operator.get().as_ref().copied(),
+        suite
+            .contract
+            .state
+            .borrow()
+            .operator
+            .get()
+            .as_ref()
+            .copied(),
         Some(new_operator)
     );
 }

@@ -8,15 +8,19 @@ use abi::{
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ApplicationPermissions, ModuleId};
+use linera_sdk::linera_base_types::{
+    Account, Amount, ApplicationId, ApplicationPermissions, ModuleId,
+};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
 pub struct CreateMemeExtHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
     runtime: Rc<RefCell<R>>,
+    #[allow(dead_code)]
     state: S,
 
     bytecode_id: ModuleId,
+    state_bytecode_ids: Vec<(u16, ModuleId)>,
     instantiation_argument: MemeInstantiationArgument,
     parameters: MemeParameters,
 }
@@ -25,6 +29,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeExt
     pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &ProxyMessage) -> Self {
         let ProxyMessage::CreateMemeExt {
             bytecode_id,
+            state_bytecode_ids,
             instantiation_argument,
             parameters,
         } = msg
@@ -37,6 +42,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeExt
             runtime,
 
             bytecode_id: *bytecode_id,
+            state_bytecode_ids: state_bytecode_ids.clone(),
             instantiation_argument: instantiation_argument.clone(),
             parameters: parameters.clone(),
         }
@@ -82,23 +88,18 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeExt
             .forget_abi()
     }
 
-    async fn create_meme_state_applications(
+    fn create_meme_state_applications(
         &mut self,
         business_application_id: ApplicationId,
         operator: Account,
-    ) -> Result<Vec<ApplicationId>, HandlerError> {
-        let state_bytecode_ids = self
-            .state
-            .meme_state_bytecode_ids()
-            .await
-            .map_err(|error| HandlerError::ProcessError(Box::new(error)))?;
-
-        Ok(state_bytecode_ids
+    ) -> Vec<ApplicationId> {
+        self.state_bytecode_ids
+            .clone()
             .into_iter()
             .map(|(_, bytecode_id)| {
                 self.create_meme_state_application(business_application_id, bytecode_id, operator)
             })
-            .collect())
+            .collect()
     }
 
     fn append_state_applications(
@@ -141,7 +142,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeExt
 
     fn restrict_chain_permissions(&mut self, application_id: ApplicationId) {
         let permissions = ApplicationPermissions {
-            execute_operations: Some(vec![application_id]),
+            execute_operations: None,
             mandatory_applications: vec![],
             close_chain: vec![application_id],
             change_application_permissions: vec![application_id],
@@ -170,9 +171,8 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
         let business_application_id =
             self.create_meme_application(bytecode_id, &instantiation_argument, &parameters);
 
-        let state_application_ids = self
-            .create_meme_state_applications(business_application_id, operator)
-            .await?;
+        let state_application_ids =
+            self.create_meme_state_applications(business_application_id, operator);
 
         let response =
             self.append_state_applications(business_application_id, state_application_ids);
@@ -181,8 +181,11 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
             "Failed to append meme state applications"
         );
 
-        let response =
-            self.initialize_meme_application(business_application_id, &instantiation_argument, &parameters);
+        let response = self.initialize_meme_application(
+            business_application_id,
+            &instantiation_argument,
+            &parameters,
+        );
         assert!(
             matches!(response, MemeResponse::Ok),
             "Failed to initialize meme application"

@@ -31,8 +31,8 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> TransferOwner
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
-    Handler<(), MemeStateV1Response> for TransferOwnershipHandler<R, S>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<(), MemeStateV1Response>
+    for TransferOwnershipHandler<R, S>
 {
     async fn handle(
         &mut self,

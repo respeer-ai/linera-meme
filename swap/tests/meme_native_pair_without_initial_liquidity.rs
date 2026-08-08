@@ -6,66 +6,52 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    meme::{
-        InstantiationArgument as MemeInstantiationArgument, Meme, MemeAbi, MemeParameters, Metadata,
-    },
+    meme::MemeAbi,
     policy::open_chain_fee_budget,
-    store_type::StoreType,
-    swap::router::{
-        InstantiationArgument as SwapInstantiationArgument, SwapAbi, SwapOperation, SwapParameters,
-    },
+    swap::router::{SwapAbi, SwapOperation},
 };
 use linera_sdk::{
-    linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription, CryptoHash,
-        ModuleId, TestString,
-    },
+    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription},
     test::{ActiveChain, MessageAction, QueryOutcome, TestValidator},
 };
 
+mod test_suite;
+use test_suite::ProxyMemeSetup;
+
 #[derive(Clone)]
 struct TestSuite {
-    validator: TestValidator,
+    setup: ProxyMemeSetup,
 
+    validator: TestValidator,
     admin_chain: ActiveChain,
     meme_chain: ActiveChain,
     user_chain: ActiveChain,
     swap_chain: ActiveChain,
 
-    swap_bytecode_id: ModuleId<SwapAbi, SwapParameters, SwapInstantiationArgument>,
     meme_application_id: Option<ApplicationId<MemeAbi>>,
     swap_application_id: Option<ApplicationId<SwapAbi>>,
-
-    initial_supply: Amount,
 }
 
 impl TestSuite {
     async fn new() -> Self {
-        let (validator, swap_bytecode_id) = TestValidator::with_current_module::<
-            SwapAbi,
-            SwapParameters,
-            SwapInstantiationArgument,
-        >()
-        .await;
-
-        let admin_chain = validator.get_chain(&validator.admin_chain_id());
-        let meme_chain = validator.new_chain().await;
+        let setup = ProxyMemeSetup::new().await;
+        let validator = setup.validator.clone();
+        let admin_chain = setup.admin_chain.clone();
+        let swap_application_id = setup.swap_application_id;
         let user_chain = validator.new_chain().await;
-        let swap_chain = validator.new_chain().await;
+        let swap_chain = setup.swap_chain.clone();
 
         TestSuite {
-            validator,
+            setup,
 
+            validator,
             admin_chain,
-            meme_chain,
+            meme_chain: user_chain.clone(),
             user_chain,
             swap_chain,
 
-            swap_bytecode_id,
             meme_application_id: None,
-            swap_application_id: None,
-
-            initial_supply: Amount::from_tokens(21000000),
+            swap_application_id: Some(swap_application_id),
         }
     }
 
@@ -73,13 +59,6 @@ impl TestSuite {
         Account {
             chain_id: chain.id(),
             owner: AccountOwner::CHAIN,
-        }
-    }
-
-    fn chain_owner_account(&self, chain: &ActiveChain) -> Account {
-        Account {
-            chain_id: chain.id(),
-            owner: AccountOwner::from(chain.public_key()),
         }
     }
 
@@ -102,68 +81,14 @@ impl TestSuite {
         chain.handle_received_messages().await;
     }
 
-    async fn create_swap_application(&mut self) {
-        let pool_bytecode_id = self.swap_chain.publish_bytecode_files_in("../pool").await;
-        self.swap_application_id = Some(
-            self.swap_chain
-                .create_application::<SwapAbi, SwapParameters, SwapInstantiationArgument>(
-                    self.swap_bytecode_id,
-                    SwapParameters {},
-                    SwapInstantiationArgument { pool_bytecode_id },
-                    vec![],
-                )
-                .await,
-        )
-    }
-
     async fn create_meme_application(&mut self) {
-        let instantiation_argument = MemeInstantiationArgument {
-            meme: Meme {
-                name: "Test Token".to_string(),
-                ticker: "LTT".to_string(),
-                decimals: 6,
-                initial_supply: self.initial_supply,
-                total_supply: self.initial_supply,
-                metadata: Metadata {
-                    logo_store_type: StoreType::S3,
-                    logo: Some(CryptoHash::new(&TestString::new("Test Logo".to_string()))),
-                    description: "Test token description".to_string(),
-                    twitter: None,
-                    telegram: None,
-                    discord: None,
-                    website: None,
-                    github: None,
-                    live_stream: None,
-                },
-                virtual_initial_liquidity: true,
-                initial_liquidity: None,
-            },
-            blob_gateway_application_id: None,
-            ams_application_id: None,
-            proxy_application_id: None,
-            swap_application_id: Some(self.swap_application_id.unwrap().forget_abi()),
-        };
-        let parameters = MemeParameters {
-            creator: self.chain_owner_account(&self.meme_chain),
-            initial_liquidity: None,
-            virtual_initial_liquidity: true,
-            swap_creator_chain_id: self.swap_chain.id(),
-
-            enable_mining: false,
-            mining_supply: None,
-        };
-
-        let meme_bytecode_id = self.meme_chain.publish_bytecode_files_in("../meme").await;
-        self.meme_application_id = Some(
-            self.meme_chain
-                .create_application(
-                    meme_bytecode_id,
-                    parameters.clone(),
-                    instantiation_argument.clone(),
-                    vec![],
-                )
-                .await,
-        );
+        let meme_user_chain = self.validator.new_chain().await;
+        let (meme_chain, meme_application_id) = self
+            .setup
+            .create_meme_application(&meme_user_chain, true, false, None)
+            .await;
+        self.meme_chain = meme_chain;
+        self.meme_application_id = Some(meme_application_id);
     }
 
     async fn create_pool(
@@ -235,7 +160,6 @@ async fn meme_native_pair_without_initial_liquidity_test() {
         )
         .await;
 
-    suite.create_swap_application().await;
     suite.create_meme_application().await;
 
     // Check initial swap pool

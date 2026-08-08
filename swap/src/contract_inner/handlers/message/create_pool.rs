@@ -73,11 +73,16 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
-        log::info!("DEBUG MSG:SWAP: creating pool ...");
-
         // Run on pool chain
         let application_id = self.runtime.borrow_mut().application_id();
         let chain_id = self.runtime.borrow_mut().chain_id();
+
+        let (amount_0_in, amount_1_in) = match &self.bootstrap_policy {
+            BootstrapPolicy::MemeInitializeLiquidity {
+                virtual_initial_liquidity: _,
+            } => (self.amount_0, self.amount_1),
+            BootstrapPolicy::UserCreatePool => (Amount::ZERO, Amount::ZERO),
+        };
 
         let pool_application_id = self
             .runtime
@@ -93,6 +98,8 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
                 &PoolInstantiationArgument {
                     pool_fee_percent_mul_100: 30,
                     router_application_id: application_id,
+                    amount_0_in,
+                    amount_1_in,
                 },
             )
             .forget_abi();

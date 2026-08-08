@@ -98,6 +98,15 @@ impl QueryRoot {
         self.runtime.application_creator_chain_id()
     }
 
+    async fn initial_owner(&self) -> String {
+        self.state_adapter()
+            .expect("Failed to create meme service state adapter")
+            .owner()
+            .await
+            .expect("Failed to read initial owner from state")
+            .to_string()
+    }
+
     async fn meme(&self) -> Option<Meme> {
         self.state_adapter()
             .expect("Failed to create meme service state adapter")

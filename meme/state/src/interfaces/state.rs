@@ -1,4 +1,6 @@
-use abi::meme::{HandoffArgument, InitializeArgument, Liquidity, MiningInfo, StateInstantiationArgument};
+use abi::meme::{
+    HandoffArgument, InitializeArgument, Liquidity, MiningInfo, StateInstantiationArgument,
+};
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId};
 

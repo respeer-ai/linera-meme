@@ -114,8 +114,14 @@ impl TestSuite {
     }
 
     pub async fn create_swap_application(&mut self) {
-        let pool_bytecode_id = self.swap_chain.publish_bytecode_files_in("../../pool").await;
-        let swap_bytecode_id = self.swap_chain.publish_bytecode_files_in("../../swap").await;
+        let pool_bytecode_id = self
+            .swap_chain
+            .publish_bytecode_files_in("../../pool")
+            .await;
+        let swap_bytecode_id = self
+            .swap_chain
+            .publish_bytecode_files_in("../../swap")
+            .await;
 
         self.swap_application_id = Some(
             self.swap_chain
@@ -205,17 +211,15 @@ impl TestSuite {
 
         self.state_application_id = Some(
             self.meme_chain
-                .create_application::<
-                    abi::meme::MemeStateAbi,
-                    (),
-                    StateInstantiationArgument,
-                >(
+                .create_application::<abi::meme::MemeStateAbi, (), StateInstantiationArgument>(
                     state_bytecode_id,
                     (),
                     StateInstantiationArgument {
                         business_application_id: self.meme_application_id.unwrap().forget_abi(),
                         operator: Some(operator),
-                        proxy_application_id: Some(self.fake_proxy_application_id.unwrap().forget_abi()),
+                        proxy_application_id: Some(
+                            self.fake_proxy_application_id.unwrap().forget_abi(),
+                        ),
                     },
                     vec![],
                 )
@@ -446,9 +450,14 @@ async fn meme_work_flow_no_mining_test() {
             .try_sub(initial_owner_balance)
             .unwrap(),
     );
-    assert_eq!(suite.balance_of(meme_owner_account).await, initial_owner_balance);
     assert_eq!(
-        suite.allowance_of(meme_application_account, swap_application_account).await,
+        suite.balance_of(meme_owner_account).await,
+        initial_owner_balance
+    );
+    assert_eq!(
+        suite
+            .allowance_of(meme_application_account, swap_application_account)
+            .await,
         suite.initial_liquidity,
     );
 
@@ -457,16 +466,24 @@ async fn meme_work_flow_no_mining_test() {
 
     let amount = Amount::from_tokens(1);
 
-    suite.transfer(&meme_chain, user_owner_account, amount).await;
+    suite
+        .transfer(&meme_chain, user_owner_account, amount)
+        .await;
     assert_eq!(suite.balance_of(user_owner_account).await, amount);
 
     suite.approve(&meme_chain, user_owner_account, amount).await;
     assert_eq!(
         suite.balance_of(meme_owner_account).await,
-        initial_owner_balance.try_sub(amount).unwrap().try_sub(amount).unwrap(),
+        initial_owner_balance
+            .try_sub(amount)
+            .unwrap()
+            .try_sub(amount)
+            .unwrap(),
     );
     assert_eq!(
-        suite.allowance_of(meme_owner_account, user_owner_account).await,
+        suite
+            .allowance_of(meme_owner_account, user_owner_account)
+            .await,
         amount,
     );
 
@@ -475,11 +492,20 @@ async fn meme_work_flow_no_mining_test() {
         .await;
     assert_eq!(
         suite.balance_of(meme_owner_account).await,
-        initial_owner_balance.try_sub(amount).unwrap().try_sub(amount).unwrap(),
+        initial_owner_balance
+            .try_sub(amount)
+            .unwrap()
+            .try_sub(amount)
+            .unwrap(),
     );
-    assert_eq!(suite.balance_of(user_owner_account).await, amount.try_mul(2).unwrap());
     assert_eq!(
-        suite.allowance_of(meme_owner_account, user_owner_account).await,
+        suite.balance_of(user_owner_account).await,
+        amount.try_mul(2).unwrap()
+    );
+    assert_eq!(
+        suite
+            .allowance_of(meme_owner_account, user_owner_account)
+            .await,
         Amount::ZERO,
     );
 
@@ -487,7 +513,10 @@ async fn meme_work_flow_no_mining_test() {
     swap_chain.handle_received_messages().await;
 
     suite.mint(&meme_chain, user_owner_account, amount).await;
-    assert_eq!(suite.balance_of(user_owner_account).await, amount.try_mul(3).unwrap());
+    assert_eq!(
+        suite.balance_of(user_owner_account).await,
+        amount.try_mul(3).unwrap()
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -546,9 +575,14 @@ async fn meme_work_flow_enable_mining_part_supply_test() {
             .try_sub(initial_owner_balance)
             .unwrap(),
     );
-    assert_eq!(suite.balance_of(meme_owner_account).await, initial_owner_balance);
     assert_eq!(
-        suite.allowance_of(meme_application_account, swap_application_account).await,
+        suite.balance_of(meme_owner_account).await,
+        initial_owner_balance
+    );
+    assert_eq!(
+        suite
+            .allowance_of(meme_application_account, swap_application_account)
+            .await,
         suite.initial_liquidity,
     );
 
@@ -557,16 +591,24 @@ async fn meme_work_flow_enable_mining_part_supply_test() {
 
     let amount = Amount::from_tokens(1);
 
-    suite.transfer(&meme_chain, user_owner_account, amount).await;
+    suite
+        .transfer(&meme_chain, user_owner_account, amount)
+        .await;
     assert_eq!(suite.balance_of(user_owner_account).await, amount);
 
     suite.approve(&meme_chain, user_owner_account, amount).await;
     assert_eq!(
         suite.balance_of(meme_owner_account).await,
-        initial_owner_balance.try_sub(amount).unwrap().try_sub(amount).unwrap(),
+        initial_owner_balance
+            .try_sub(amount)
+            .unwrap()
+            .try_sub(amount)
+            .unwrap(),
     );
     assert_eq!(
-        suite.allowance_of(meme_owner_account, user_owner_account).await,
+        suite
+            .allowance_of(meme_owner_account, user_owner_account)
+            .await,
         amount,
     );
 
@@ -575,14 +617,20 @@ async fn meme_work_flow_enable_mining_part_supply_test() {
         .await;
     assert_eq!(
         suite.balance_of(meme_owner_account).await,
-        initial_owner_balance.try_sub(amount).unwrap().try_sub(amount).unwrap(),
+        initial_owner_balance
+            .try_sub(amount)
+            .unwrap()
+            .try_sub(amount)
+            .unwrap(),
     );
     assert_eq!(
         suite.balance_of(user_owner_account).await,
         amount.try_mul(2).unwrap(),
     );
     assert_eq!(
-        suite.allowance_of(meme_owner_account, user_owner_account).await,
+        suite
+            .allowance_of(meme_owner_account, user_owner_account)
+            .await,
         Amount::ZERO,
     );
 
@@ -590,7 +638,10 @@ async fn meme_work_flow_enable_mining_part_supply_test() {
     swap_chain.handle_received_messages().await;
 
     suite.mint(&meme_chain, user_owner_account, amount).await;
-    assert_eq!(suite.balance_of(user_owner_account).await, amount.try_mul(3).unwrap());
+    assert_eq!(
+        suite.balance_of(user_owner_account).await,
+        amount.try_mul(3).unwrap()
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -642,9 +693,14 @@ async fn meme_work_flow_enable_mining_full_supply_test() {
         suite.balance_of(meme_application_account).await,
         suite.initial_supply.try_sub(initial_owner_balance).unwrap(),
     );
-    assert_eq!(suite.balance_of(meme_owner_account).await, initial_owner_balance);
     assert_eq!(
-        suite.allowance_of(meme_application_account, swap_application_account).await,
+        suite.balance_of(meme_owner_account).await,
+        initial_owner_balance
+    );
+    assert_eq!(
+        suite
+            .allowance_of(meme_application_account, swap_application_account)
+            .await,
         Amount::ZERO,
     );
 
@@ -653,16 +709,24 @@ async fn meme_work_flow_enable_mining_full_supply_test() {
 
     let amount = Amount::from_tokens(1);
 
-    suite.transfer(&meme_chain, user_owner_account, amount).await;
+    suite
+        .transfer(&meme_chain, user_owner_account, amount)
+        .await;
     assert_eq!(suite.balance_of(user_owner_account).await, amount);
 
     suite.approve(&meme_chain, user_owner_account, amount).await;
     assert_eq!(
         suite.balance_of(meme_owner_account).await,
-        initial_owner_balance.try_sub(amount).unwrap().try_sub(amount).unwrap(),
+        initial_owner_balance
+            .try_sub(amount)
+            .unwrap()
+            .try_sub(amount)
+            .unwrap(),
     );
     assert_eq!(
-        suite.allowance_of(meme_owner_account, user_owner_account).await,
+        suite
+            .allowance_of(meme_owner_account, user_owner_account)
+            .await,
         amount,
     );
 
@@ -671,14 +735,20 @@ async fn meme_work_flow_enable_mining_full_supply_test() {
         .await;
     assert_eq!(
         suite.balance_of(meme_owner_account).await,
-        initial_owner_balance.try_sub(amount).unwrap().try_sub(amount).unwrap(),
+        initial_owner_balance
+            .try_sub(amount)
+            .unwrap()
+            .try_sub(amount)
+            .unwrap(),
     );
     assert_eq!(
         suite.balance_of(user_owner_account).await,
         amount.try_mul(2).unwrap(),
     );
     assert_eq!(
-        suite.allowance_of(meme_owner_account, user_owner_account).await,
+        suite
+            .allowance_of(meme_owner_account, user_owner_account)
+            .await,
         Amount::ZERO,
     );
 
@@ -686,7 +756,10 @@ async fn meme_work_flow_enable_mining_full_supply_test() {
     swap_chain.handle_received_messages().await;
 
     suite.mint(&meme_chain, user_owner_account, amount).await;
-    assert_eq!(suite.balance_of(user_owner_account).await, amount.try_mul(3).unwrap());
+    assert_eq!(
+        suite.balance_of(user_owner_account).await,
+        amount.try_mul(3).unwrap()
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -707,7 +780,9 @@ async fn transfer_insufficient_funds_test() {
 
     let user_owner_account = suite.chain_owner_account(&user_chain);
     let amount = Amount::from_tokens(101);
-    suite.transfer(&meme_chain, user_owner_account, amount).await;
+    suite
+        .transfer(&meme_chain, user_owner_account, amount)
+        .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -794,7 +869,8 @@ async fn append_state_and_upgrade_handoff_test() {
         .await;
 
     // Append the existing state app to v2 as well.
-    suite.meme_chain
+    suite
+        .meme_chain
         .add_block(|block| {
             block.with_operation(
                 v2_application_id,
@@ -807,7 +883,8 @@ async fn append_state_and_upgrade_handoff_test() {
     suite.meme_chain.handle_received_messages().await;
 
     // Handoff: point the state app to the new business app id.
-    suite.meme_chain
+    suite
+        .meme_chain
         .add_block(|block| {
             block.with_operation(
                 suite.meme_application_id.unwrap(),

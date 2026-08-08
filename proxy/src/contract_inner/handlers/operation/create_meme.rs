@@ -88,8 +88,6 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<ProxyMessage, ProxyResponse>>, HandlerError> {
-        log::info!("DEBUG PROXY:OP creating meme ...");
-
         self.meme_instantiation_argument.proxy_application_id =
             Some(self.runtime.borrow_mut().application_id().forget_abi());
         self.meme_instantiation_argument

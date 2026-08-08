@@ -138,6 +138,11 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeHan
         self.fund_meme_chain_initial_liquidity(chain_id, parameters.clone());
 
         let bytecode_id = self.state.meme_bytecode_id();
+        let state_bytecode_ids = self
+            .state
+            .meme_state_bytecode_ids()
+            .await
+            .map_err(|error| HandlerError::ProcessError(Box::new(error)))?;
 
         let destination = chain_id;
         let mut outcome = HandlerOutcome::new();
@@ -146,6 +151,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeHan
             destination,
             ProxyMessage::CreateMemeExt {
                 bytecode_id,
+                state_bytecode_ids,
                 instantiation_argument,
                 parameters,
             },

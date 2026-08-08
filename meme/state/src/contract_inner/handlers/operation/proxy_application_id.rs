@@ -34,7 +34,9 @@ impl<R: ContractRuntimeContext, S: StateInterface> Handler<(), MemeStateV1Respon
             .map_err(|error| HandlerError::ProcessError(error.into()))?;
 
         let mut outcome = HandlerOutcome::new();
-        outcome.with_response(MemeStateV1Response::ProxyApplicationId(proxy_application_id));
+        outcome.with_response(MemeStateV1Response::ProxyApplicationId(
+            proxy_application_id,
+        ));
         Ok(Some(outcome))
     }
 }

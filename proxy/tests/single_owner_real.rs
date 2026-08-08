@@ -50,10 +50,8 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     let proxy_owner = suite.chain_owner_account(proxy_chain);
     let operator_1 = suite.chain_owner_account(operator_chain_1);
     let operator_2 = suite.chain_owner_account(operator_chain_2);
-    let meme_user_key_pair = meme_user_chain.key_pair();
     let swap_key_pair = swap_chain.key_pair();
     let meme_miner_owner = suite.chain_owner_account(meme_miner_chain);
-    let meme_user_owner = suite.chain_owner_account(meme_user_chain);
 
     suite.create_swap_application().await;
     suite
@@ -135,7 +133,7 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     assert_eq!(meme_application.is_none(), true);
 
     let meme_chain = ActiveChain::new(
-        meme_user_key_pair.copy(),
+        proxy_chain.key_pair().copy(),
         description,
         suite.clone().validator,
     );
@@ -170,6 +168,19 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     let initial_owner_balance =
         Amount::from_str(response["initialOwnerBalance"].as_str().unwrap()).unwrap();
 
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(
+            meme_application.unwrap().with_abi::<MemeAbi>(),
+            "query { initialOwner }",
+        )
+        .await;
+    let initial_owner_account =
+        Account::from_str(response["initialOwner"].as_str().unwrap()).unwrap();
+    let initial_owner = Account {
+        chain_id: meme_chain.id(),
+        owner: initial_owner_account.owner,
+    };
+
     let query = Request::new(
         r#"
         query Balance($owner: Account!) {
@@ -179,8 +190,8 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     )
     .variables(Variables::from_json(json!({
         "owner": {
-            "chain_id": meme_user_owner.chain_id.to_string(),
-            "owner": meme_user_owner.owner.to_string(),
+            "chain_id": initial_owner.chain_id.to_string(),
+            "owner": initial_owner.owner.to_string(),
         }
     })));
     let QueryOutcome { response, .. } = meme_chain
@@ -264,8 +275,8 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     )
     .variables(Variables::from_json(json!({
         "owner": {
-            "chain_id": meme_user_owner.chain_id.to_string(),
-            "owner": meme_user_owner.owner.to_string(),
+            "chain_id": initial_owner_account.chain_id.to_string(),
+            "owner": initial_owner_account.owner.to_string(),
         }
     })));
     let QueryOutcome { response, .. } = pool_chain.graphql_query(pool_application_id, query).await;
