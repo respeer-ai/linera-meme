@@ -177,7 +177,7 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     let initial_owner_account =
         Account::from_str(response["initialOwner"].as_str().unwrap()).unwrap();
     let initial_owner = Account {
-        chain_id: meme_chain.id(),
+        chain_id: meme_user_chain.id(),
         owner: initial_owner_account.owner,
     };
 
