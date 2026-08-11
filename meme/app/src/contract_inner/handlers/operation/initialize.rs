@@ -179,13 +179,11 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
             .await
             .map_err(|error| HandlerError::ProcessError(error.into()))?;
 
-        // Mint the initial owner balance to the owner account on the meme chain.
-        // The owner is supplied by the caller (the user when created directly, or
-        // the proxy on behalf of the user when created through a proxy).
-        let mut initial_owner = argument.owner;
-        initial_owner.chain_id = self.runtime.borrow_mut().chain_id();
+        // Mint the initial owner balance to the owner account supplied by the caller.
+        // The owner is the user when created directly, or the proxy on behalf of the
+        // user when created through a proxy. Preserve the caller's chain_id.
         self.state
-            .mint(initial_owner, Amount::from_tokens(100))
+            .mint(argument.owner, Amount::from_tokens(100))
             .await
             .map_err(|error| HandlerError::ProcessError(error.into()))?;
 

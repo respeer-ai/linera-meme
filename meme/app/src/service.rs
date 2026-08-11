@@ -116,13 +116,11 @@ impl QueryRoot {
     }
 
     async fn mining_info(&self) -> Option<MiningInfo> {
-        Some(
-            self.state_adapter()
-                .expect("Failed to create meme service state adapter")
-                .mining_info()
-                .await
-                .expect("Failed to read mining info from state"),
-        )
+        self.state_adapter()
+            .expect("Failed to create meme service state adapter")
+            .mining_info()
+            .await
+            .expect("Failed to read mining info from state")
     }
 }
 

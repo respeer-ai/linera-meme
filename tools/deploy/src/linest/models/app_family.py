@@ -39,6 +39,7 @@ class VersionRecord:
     handed_off_from: str | None = None
     business_module_id: str | None = None
     state_module_ids: list[str] = field(default_factory=list)
+    state_crate_version: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the version record to a dictionary."""
@@ -55,6 +56,8 @@ class VersionRecord:
             data["business_module_id"] = self.business_module_id
         if self.state_module_ids:
             data["state_module_ids"] = list(self.state_module_ids)
+        if self.state_crate_version is not None:
+            data["state_crate_version"] = self.state_crate_version
         return data
 
     @classmethod
@@ -68,6 +71,7 @@ class VersionRecord:
             handed_off_from=data.get("handed_off_from"),
             business_module_id=data.get("business_module_id"),
             state_module_ids=list(data.get("state_module_ids", [])),
+            state_crate_version=data.get("state_crate_version"),
         )
 
 
@@ -164,6 +168,7 @@ class AppFamily:
         status: str = "planned",
         business_module_id: str | None = None,
         state_module_ids: list[str] | None = None,
+        state_crate_version: int | None = None,
     ) -> None:
         """Add a new version record to the family."""
         if version in self.versions:
@@ -174,6 +179,7 @@ class AppFamily:
             status=status,
             business_module_id=business_module_id,
             state_module_ids=list(state_module_ids or []),
+            state_crate_version=state_crate_version,
         )
 
     def get_version(self, version: int) -> VersionRecord:

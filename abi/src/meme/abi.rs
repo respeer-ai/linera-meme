@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 #[derive(Default, Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
+#[serde(rename_all = "camelCase")]
 pub struct InstantiationArgument {
     pub meme: Meme,
     pub blob_gateway_application_id: Option<ApplicationId>,

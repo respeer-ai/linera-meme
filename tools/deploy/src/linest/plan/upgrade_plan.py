@@ -124,6 +124,7 @@ class UpgradePlan:
                 state_contract_bytecode_path=self.state_contract_bytecode_path,
                 state_service_bytecode_path=self.state_service_bytecode_path,
                 previous_version=previous_version,
+                repo_dir=self.repo_dir,
             )
         )
 

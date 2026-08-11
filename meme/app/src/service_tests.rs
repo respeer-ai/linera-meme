@@ -241,22 +241,22 @@ mod extra_service_tests {
             .with_query_application_handler(move |application_id, query| {
                 assert_eq!(application_id, state_application_id());
                 let request: Request = serde_json::from_slice(&query).unwrap();
-                let query_name = if request.query.contains("totalSupply") {
+                let query_name = if request.query.contains("meme {") {
+                    "meme"
+                } else if request.query.contains("miningInfo {") {
+                    "miningInfo"
+                } else if request.query.contains("totalSupply") {
                     "totalSupply"
                 } else if request.query.contains("balance") {
                     "balance"
                 } else if request.query.contains("allowance") {
                     "allowance"
-                } else if request.query.contains("miningInfo") {
-                    "miningInfo"
                 } else if request.query.contains("proxyApplicationId") {
                     "proxyApplicationId"
                 } else if request.query.contains("swapApplicationId") {
                     "swapApplicationId"
                 } else if request.query.contains("initialOwnerBalance") {
                     "initialOwnerBalance"
-                } else if request.query.contains("meme") {
-                    "meme"
                 } else {
                     panic!("Unexpected state app query: {}", request.query)
                 };

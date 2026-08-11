@@ -39,9 +39,6 @@ pub struct BlobData {
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum BlobGatewayOperation {
-    SetOperator {
-        new_operator: Account,
-    },
     Register {
         store_type: StoreType,
         data_type: BlobDataType,
@@ -52,6 +49,9 @@ pub enum BlobGatewayOperation {
     },
     Handoff {
         new_business_application_id: ApplicationId,
+    },
+    SetOperator {
+        new_operator: Account,
     },
 }
 

@@ -76,9 +76,11 @@ impl<S: Service> ServiceStateAdapter<S> {
         Ok(decode_response_field(response, "allowance")?)
     }
 
-    pub async fn mining_info(&self) -> Result<MiningInfo, StateError> {
+    pub async fn mining_info(&self) -> Result<Option<MiningInfo>, StateError> {
         let state_application_id = self.state_application_id().await?;
-        let request = Request::new("query { miningInfo }");
+        let request = Request::new(
+            "query { miningInfo { initialTarget target blockDuration targetBlockDuration targetAdjustmentBlocks emptyBlockRewardPercent cumulativeBlocks lastTargetAdjustedAt initialRewardAmount halvingCycle nextHalvingAt rewardAmount miningHeight miningExecutions previousNonce miningStarted } }",
+        );
         let response = self
             .runtime
             .query_application(state_application_id.with_abi::<MemeStateV1Abi>(), &request);
@@ -114,7 +116,9 @@ impl<S: Service> ServiceStateAdapter<S> {
 
     pub async fn meme(&self) -> Result<Option<Meme>, StateError> {
         let state_application_id = self.state_application_id().await?;
-        let request = Request::new("query { meme }");
+        let request = Request::new(
+            "query { meme { initialSupply totalSupply name ticker decimals metadata { logoStoreType logo description twitter telegram discord website github liveStream } virtualInitialLiquidity initialLiquidity } }",
+        );
         let response = self
             .runtime
             .query_application(state_application_id.with_abi::<MemeStateV1Abi>(), &request);

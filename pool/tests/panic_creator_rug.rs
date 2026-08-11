@@ -26,6 +26,7 @@ struct TestSuite {
 
     validator: TestValidator,
     meme_chain: ActiveChain,
+    user_chain: ActiveChain,
     pool_chain: Option<ActiveChain>,
     swap_chain: ActiveChain,
 
@@ -39,6 +40,7 @@ impl TestSuite {
         let setup = ProxyMemeSetup::new().await;
         let validator = setup.validator.clone();
         let meme_chain = validator.new_chain().await;
+        let user_chain = validator.new_chain().await;
         let swap_chain = setup.swap_chain.clone();
         let swap_application_id = Some(setup.swap_application_id);
 
@@ -47,6 +49,7 @@ impl TestSuite {
 
             validator,
             meme_chain,
+            user_chain,
             pool_chain: None,
             swap_chain,
 
@@ -178,6 +181,6 @@ async fn meme_panic_sell_meme_virtual_initial_liquidity_test() {
     suite.pool_application_id = Some(pool_application_id.with_abi::<PoolAbi>());
 
     suite
-        .swap(&meme_chain, false, Amount::from_tokens(100))
+        .swap(&suite.user_chain, false, Amount::from_tokens(100))
         .await;
 }

@@ -40,6 +40,8 @@ Authority: High
 - `abi/src/<family>.rs` MUST contain only `pub mod` declarations and `pub use` re-exports; it MUST NOT define operation enums, messages, or responses directly
 - Business and state apps MUST be split into separate crates under `<family>/app/` and `<family>/state/`, named `<family>-app` and `<family>-state` respectively, matching the structure of `ams/app`, `ams/state`, `blob-gateway/app`, and `blob-gateway/state`
 - This crate and ABI layout is a design constraint to avoid the `self::` re-export bug in `linera bcs-serialize-application-operation`, which fails to compile the temporary serializer crate when the operation enum is referenced through `self::` re-exports
+- Operation and message enum variants under `abi/src/` MUST be appended at the end; deleting, reordering, or inserting variants at the beginning or middle is forbidden because BCS uses variant indices for serialization and deployed bytecode relies on stable indices
+- Deprecated variants MUST be kept in place and marked with a `#[deprecated]` attribute or a `/// Deprecated:` doc comment; they MUST NOT be removed until all deployed bytecode that could deserialize their index has been upgraded past them; if a variant was already removed and must be reintroduced for compatibility, it MUST be appended at the end so it does not shift existing variant indices
 - For newly created or actively refactored Python modules, keep each file at or below 1000 lines
 - For newly created or actively refactored Python modules, define only one top-level object per file
 - Organize new Python code in an object-oriented way; do not keep expanding helper-function clusters in large legacy modules

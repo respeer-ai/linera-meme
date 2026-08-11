@@ -23,9 +23,6 @@ pub struct StateInstantiationArgument {
 
 #[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize)]
 pub enum BlobGatewayStateV1Operation {
-    SetOperator {
-        new_operator: Account,
-    },
     Handoff {
         new_business_application_id: ApplicationId,
     },
@@ -36,6 +33,9 @@ pub enum BlobGatewayStateV1Operation {
         blob_hash: CryptoHash,
     },
     Blobs,
+    SetOperator {
+        new_operator: Account,
+    },
 }
 
 #[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize)]

@@ -146,9 +146,11 @@ async fn meme_native_pair_no_mining_virtual_liquidity_test() {
     let pool_chain = ActiveChain::new(swap_key_pair.copy(), description, suite.clone().validator);
     suite.validator.add_chain(pool_chain.clone());
 
-    pool_chain.handle_received_messages().await;
-    swap_chain.handle_received_messages().await;
-    meme_chain.handle_received_messages().await;
+    for _ in 0..4 {
+        pool_chain.handle_received_messages().await;
+        swap_chain.handle_received_messages().await;
+        meme_chain.handle_received_messages().await;
+    }
 
     // Proxy-spawned meme chains start with open_chain_fee_budget(), while the swap chain keeps
     // the validator.new_chain() baseline.
@@ -166,6 +168,10 @@ async fn meme_native_pair_no_mining_virtual_liquidity_test() {
                 token0
                 token1
                 poolApplication
+                token0Price
+                token1Price
+                reserve0
+                reserve1
                 createdAt
             }}",
         )
@@ -174,6 +180,23 @@ async fn meme_native_pair_no_mining_virtual_liquidity_test() {
 
     let pool: Pool =
         serde_json::from_value(response["pools"].as_array().unwrap()[0].clone()).unwrap();
+
+    assert!(
+        pool.reserve_0.is_some(),
+        "router reserve0 should be populated after pool initialization"
+    );
+    assert!(
+        pool.reserve_1.is_some(),
+        "router reserve1 should be populated after pool initialization"
+    );
+    assert!(
+        pool.token_0_price.is_some(),
+        "router token0Price should be populated after pool initialization"
+    );
+    assert!(
+        pool.token_1_price.is_some(),
+        "router token1Price should be populated after pool initialization"
+    );
 
     let query = Request::new(
         r#"
@@ -311,9 +334,11 @@ async fn meme_native_pair_no_mining_real_liquidity_test() {
     // Open chain fee is already funded
     assert_eq!(pool_chain.chain_balance().await, open_chain_fee_budget());
 
-    pool_chain.handle_received_messages().await;
-    swap_chain.handle_received_messages().await;
-    meme_chain.handle_received_messages().await;
+    for _ in 0..4 {
+        pool_chain.handle_received_messages().await;
+        swap_chain.handle_received_messages().await;
+        meme_chain.handle_received_messages().await;
+    }
 
     // Now the open chain funds should be transferred to pool
     assert_eq!(meme_chain.chain_balance().await, open_chain_fee_budget());
@@ -329,6 +354,10 @@ async fn meme_native_pair_no_mining_real_liquidity_test() {
                 token0
                 token1
                 poolApplication
+                token0Price
+                token1Price
+                reserve0
+                reserve1
                 createdAt
             }}",
         )
@@ -338,13 +367,21 @@ async fn meme_native_pair_no_mining_real_liquidity_test() {
     let pool: Pool =
         serde_json::from_value(response["pools"].as_array().unwrap()[0].clone()).unwrap();
 
-    // Here pool application is still be zero
-    assert_eq!(
-        pool_chain
-            .owner_balance(&pool.pool_application.owner)
-            .await
-            .is_none(),
-        true
+    assert!(
+        pool.reserve_0.is_some(),
+        "router reserve0 should be populated after pool initialization"
+    );
+    assert!(
+        pool.reserve_1.is_some(),
+        "router reserve1 should be populated after pool initialization"
+    );
+    assert!(
+        pool.token_0_price.is_some(),
+        "router token0Price should be populated after pool initialization"
+    );
+    assert!(
+        pool.token_1_price.is_some(),
+        "router token1Price should be populated after pool initialization"
     );
 
     pool_chain.handle_received_messages().await;

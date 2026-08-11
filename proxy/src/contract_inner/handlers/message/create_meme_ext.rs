@@ -142,7 +142,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeExt
 
     fn restrict_chain_permissions(&mut self, application_id: ApplicationId) {
         let permissions = ApplicationPermissions {
-            execute_operations: None,
+            execute_operations: Some(vec![application_id]),
             mandatory_applications: vec![],
             close_chain: vec![application_id],
             change_application_permissions: vec![application_id],
