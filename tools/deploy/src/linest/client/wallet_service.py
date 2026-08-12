@@ -83,11 +83,16 @@ class WalletService:
         return self.url
 
     def _wait_ready(self, command: list[str]) -> None:
-        """Poll the service health endpoint until it responds."""
-        deadline = time.time() + 60
-        payload = {"query": "query { chains { list } }"}
+        """Poll the service health endpoint until it responds.
 
-        while time.time() < deadline:
+        This waits indefinitely so that wallets with many chains (e.g. after
+        several local deployments or upgrades) can finish initialization before
+        downstream steps depend on the service.
+        """
+        payload = {"query": "query { chains { list } }"}
+        attempt = 0
+
+        while True:
             if self._process is None:
                 raise LineraCliError("Wallet service process disappeared")
 
@@ -111,10 +116,15 @@ class WalletService:
             except Exception:
                 pass
 
-            time.sleep(1)
+            attempt += 1
+            if attempt % 10 == 0:
+                print(
+                    f"Waiting for query service to become ready "
+                    f"(attempt {attempt}, url={self.url})...",
+                    flush=True,
+                )
 
-        self.stop()
-        raise LineraCliError("Wallet service did not become ready within 60s")
+            time.sleep(1)
 
     def stop(self) -> None:
         """Terminate the service process."""

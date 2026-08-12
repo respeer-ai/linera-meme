@@ -567,19 +567,28 @@ function run_named_service() {
 }
 
 function wait_query_service_ready() {
+    local bootstrap_pid=$1
     payload='{"query":"query Chains { chains { list } }"}'
 
-    for attempt in $(seq 1 120); do
+    attempt=0
+    while true; do
+        if ! kill -0 "$bootstrap_pid" 2>/dev/null; then
+            log_step "linest bootstrap process exited; aborting query service wait"
+            exit 1
+        fi
+
         resp=$(curl --noproxy '*' -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$payload" 2>&1 || true)
         if echo "$resp" | grep -q '"data"'; then
             return 0
         fi
+
+        attempt=$((attempt + 1))
+        if [ $((attempt % 10)) -eq 0 ]; then
+            log_step "Waiting for query service on localhost:24080 to become ready (attempt $attempt)"
+        fi
+
         sleep 2
     done
-
-    echo "query-service GraphQL readiness check failed"
-    echo "$resp"
-    exit 1
 }
 
 function import_query_chain() {
@@ -629,8 +638,9 @@ env $(linera_env_args) "$LINEST_BIN" \
     --operator-wallet-dir "$WALLET_DIR/operator/0" \
     --query-wallet-dir "$WALLET_DIR/query/0" \
     --query-service-port 24080 > "$RUN_LOCAL_LOG_DIR/linest_bootstrap.log" 2>&1 &
+linest_bootstrap_pid=$!
 
-wait_query_service_ready
+wait_query_service_ready "$linest_bootstrap_pid"
 
 # Deploy blob-gateway business app and typed state app via linest.
 # Ensure the blob-gateway wallet tree exists. If it was wiped externally,
