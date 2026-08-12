@@ -126,24 +126,14 @@ impl TestSuite {
     async fn create_meme_applications(&mut self, virtual_initial_liquidity: bool) {
         let (meme_chain_0, meme_application_id_0) = self
             .setup
-            .create_meme_application(
-                &self.user_chain,
-                virtual_initial_liquidity,
-                false,
-                None,
-            )
+            .create_meme_application(&self.user_chain, virtual_initial_liquidity, false, None)
             .await;
         self.meme_chain_0 = meme_chain_0;
         self.meme_application_id_0 = Some(meme_application_id_0);
 
         let (meme_chain_1, meme_application_id_1) = self
             .setup
-            .create_meme_application(
-                &self.user_chain,
-                virtual_initial_liquidity,
-                false,
-                None,
-            )
+            .create_meme_application(&self.user_chain, virtual_initial_liquidity, false, None)
             .await;
         self.meme_chain_1 = meme_chain_1;
         self.meme_application_id_1 = Some(meme_application_id_1);

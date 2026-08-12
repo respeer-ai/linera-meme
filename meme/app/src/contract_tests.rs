@@ -1,14 +1,16 @@
 use super::{MemeContract, MemeState as BusinessState};
 
 use abi::{
+    hash::hash_cmp,
     meme::{
         state_v1::{
             InitializeArgument, MemeStateAbi as MemeStateV1Abi, MemeStateV1Operation,
             MemeStateV1Response, StateInstantiationArgument,
         },
         InstantiationArgument, Liquidity, Meme, MemeAbi, MemeMessage, MemeOperation,
-        MemeParameters, MemeResponse, Metadata, TransferFromApplicationReceipt,
-        TransferFromApplicationReceiptPayload, TransferFromApplicationReceiptPurpose,
+        MemeParameters, MemeResponse, Metadata, MiningBase, MiningInfo,
+        TransferFromApplicationReceipt, TransferFromApplicationReceiptPayload,
+        TransferFromApplicationReceiptPurpose,
     },
     store_type::StoreType,
     swap::pool::{
@@ -2295,4 +2297,145 @@ async fn operation_initialize_rejects_wrong_caller() {
             },
         })
         .await;
+}
+
+fn find_valid_nonce(
+    height: BlockHeight,
+    mining_info: &MiningInfo,
+    chain_id: ChainId,
+    signer: AccountOwner,
+) -> CryptoHash {
+    let previous_nonce = mining_info.previous_nonce;
+    let target = mining_info.target;
+    let mut seed = 0u64;
+    loop {
+        let mut nonce_bytes = [0u8; 32];
+        nonce_bytes[24..].copy_from_slice(&seed.to_be_bytes());
+        let nonce = CryptoHash::from(nonce_bytes);
+        let hash = CryptoHash::new(&MiningBase {
+            nonce,
+            height,
+            chain_id,
+            signer,
+            previous_nonce,
+        });
+        if hash_cmp(hash, target) != std::cmp::Ordering::Greater {
+            return nonce;
+        }
+        seed += 1;
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_mine_multiple_rounds_updates_state() {
+    let (mut meme, state) =
+        create_and_instantiate_meme(true, Some(Amount::from_tokens(10000000))).await;
+    let chain_id = meme.runtime.borrow_mut().chain_id();
+    let signer = meme
+        .runtime
+        .borrow_mut()
+        .authenticated_signer()
+        .expect("Authenticated signer should be set");
+    let owner = Account {
+        chain_id,
+        owner: signer,
+    };
+
+    let rounds = 3;
+    let mut total_reward = Amount::ZERO;
+
+    for i in 0..rounds {
+        let mining_info = state
+            .borrow_mut()
+            .mining_info
+            .get()
+            .clone()
+            .expect("Mining info should be initialized");
+        assert_eq!(mining_info.cumulative_blocks, i as u16);
+
+        let block_height = meme.runtime.borrow_mut().block_height();
+        let nonce = find_valid_nonce(block_height, &mining_info, chain_id, signer);
+        let _ = meme
+            .execute_operation(MemeOperation::Mine { nonce })
+            .now_or_never()
+            .expect("Execution of meme operation should not await anything");
+
+        let mining_info_after = state
+            .borrow_mut()
+            .mining_info
+            .get()
+            .clone()
+            .expect("Mining info should be initialized");
+        assert_eq!(mining_info_after.cumulative_blocks, i as u16 + 1);
+        assert_ne!(mining_info_after.previous_nonce, mining_info.previous_nonce);
+        total_reward = total_reward
+            .try_add(mining_info_after.reward_amount)
+            .expect("reward overflow");
+
+        // Advance the block height so the next mine sees a fresh height.
+        meme.runtime
+            .borrow_mut()
+            .set_block_height(block_height.saturating_add(BlockHeight(2)));
+    }
+
+    let balance_after = state.borrow_mut().balance_of(owner).await.unwrap();
+    let initial_balance = Amount::from_tokens(100);
+    assert_eq!(
+        balance_after,
+        initial_balance
+            .try_add(total_reward)
+            .expect("balance overflow"),
+        "total mining reward over multiple rounds should be credited to the block proposer"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_mine_adjusts_target_after_adjustment_interval() {
+    let (mut meme, state) =
+        create_and_instantiate_meme(true, Some(Amount::from_tokens(10000000))).await;
+    let chain_id = meme.runtime.borrow_mut().chain_id();
+    let signer = meme
+        .runtime
+        .borrow_mut()
+        .authenticated_signer()
+        .expect("Authenticated signer should be set");
+
+    // Set the state just before the target adjustment threshold.
+    let mut mining_info = state
+        .borrow_mut()
+        .mining_info
+        .get()
+        .clone()
+        .expect("Mining info should be initialized");
+    mining_info.cumulative_blocks = mining_info.target_adjustment_blocks - 1;
+    state
+        .borrow_mut()
+        .mining_info
+        .set(Some(mining_info.clone()));
+
+    // Mine much faster than the target duration to trigger a difficulty increase.
+    let fast_elapsed = linera_sdk::linera_base_types::TimeDelta::from_secs(60);
+    let new_time = mining_info
+        .last_target_adjusted_at
+        .saturating_add(fast_elapsed);
+    meme.runtime.borrow_mut().set_system_time(new_time);
+
+    let block_height = meme.runtime.borrow_mut().block_height();
+    let nonce = find_valid_nonce(block_height, &mining_info, chain_id, signer);
+    let _ = meme
+        .execute_operation(MemeOperation::Mine { nonce })
+        .now_or_never()
+        .expect("Execution of meme operation should not await anything");
+
+    let mining_info_after = state
+        .borrow_mut()
+        .mining_info
+        .get()
+        .clone()
+        .expect("Mining info should be initialized");
+    assert_eq!(mining_info_after.cumulative_blocks, 0);
+    assert!(
+        mining_info_after.target < mining_info.target,
+        "target should decrease (difficulty increase) when blocks are mined too fast"
+    );
 }

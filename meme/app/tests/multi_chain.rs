@@ -243,6 +243,14 @@ impl TestSuite {
     }
 
     pub async fn initialize_meme(&self) {
+        self.initialize_meme_with_config(false, None).await;
+    }
+
+    async fn initialize_meme_with_config(
+        &self,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
+    ) {
         let argument = InitializeArgument {
             owner: self.chain_owner_account(&self.meme_chain),
             holder: self.application_account(
@@ -276,8 +284,8 @@ impl TestSuite {
             blob_gateway_application_id: None,
             ams_application_id: None,
             swap_application_id: Some(self.swap_application_id.unwrap()),
-            enable_mining: false,
-            mining_supply: None,
+            enable_mining,
+            mining_supply,
             now: Default::default(),
         };
 
@@ -292,6 +300,7 @@ impl TestSuite {
                 );
             })
             .await;
+
         self.meme_chain.handle_received_messages().await;
     }
 

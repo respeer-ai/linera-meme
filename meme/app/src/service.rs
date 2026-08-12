@@ -7,8 +7,8 @@ use linera_sdk::{
     views::View,
     Service, ServiceRuntime,
 };
-use std::collections::HashMap;
 use meme_app::state::{adapter::ServiceStateAdapter, MemeState};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 pub struct MemeService {

@@ -8,8 +8,8 @@ use linera_sdk::{
     linera_base_types::{Account, Amount, ApplicationId},
     Service, ServiceRuntime,
 };
-use std::collections::HashMap;
 use serde_json::json;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::StateError;
