@@ -7,6 +7,7 @@ use linera_sdk::{
     views::View,
     Service, ServiceRuntime,
 };
+use std::collections::HashMap;
 use meme_state::state::MemeState;
 use std::sync::Arc;
 
@@ -54,6 +55,16 @@ struct QueryRoot {
 impl QueryRoot {
     async fn health(&self) -> bool {
         true
+    }
+
+    async fn balances(&self) -> HashMap<Account, Amount> {
+        self.state
+            .balances
+            .index_values()
+            .await
+            .expect("Failed to read balances from state")
+            .into_iter()
+            .collect()
     }
 
     async fn balance(&self, owner: Account) -> Amount {

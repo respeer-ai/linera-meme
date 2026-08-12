@@ -8,6 +8,7 @@ use linera_sdk::{
     linera_base_types::{Account, Amount, ApplicationId},
     Service, ServiceRuntime,
 };
+use std::collections::HashMap;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -34,6 +35,15 @@ impl<S: Service> ServiceStateAdapter<S> {
             .runtime
             .query_application(state_application_id.with_abi::<MemeStateV1Abi>(), &request);
         Ok(decode_response_field(response, "owner")?)
+    }
+
+    pub async fn balances(&self) -> Result<HashMap<Account, Amount>, StateError> {
+        let state_application_id = self.state_application_id().await?;
+        let request = Request::new("query { balances }");
+        let response = self
+            .runtime
+            .query_application(state_application_id.with_abi::<MemeStateV1Abi>(), &request);
+        Ok(decode_response_field(response, "balances")?)
     }
 
     pub async fn balance_of(&self, owner: Account) -> Result<Amount, StateError> {

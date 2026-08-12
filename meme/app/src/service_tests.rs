@@ -157,8 +157,8 @@ mod extra_service_tests {
     use async_graphql::{Request, Response, Value, Variables};
     use linera_sdk::{
         linera_base_types::{
-            Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, TestString,
-            Timestamp,
+            Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, CryptoHash,
+            TestString, Timestamp,
         },
         util::BlockingWait,
         views::View,
@@ -228,7 +228,8 @@ mod extra_service_tests {
         Arc::new(
             ServiceRuntime::<MemeService>::new()
                 .with_application_id(business_application_id().with_abi::<MemeAbi>())
-                .with_application_creator_chain_id(chain_id()),
+                .with_application_creator_chain_id(chain_id())
+                .with_next_block_height(BlockHeight(1)),
         )
     }
 
@@ -238,6 +239,7 @@ mod extra_service_tests {
         let runtime = ServiceRuntime::<MemeService>::new()
             .with_application_id(business_application_id().with_abi::<MemeAbi>())
             .with_application_creator_chain_id(chain_id())
+            .with_next_block_height(BlockHeight(1))
             .with_query_application_handler(move |application_id, query| {
                 assert_eq!(application_id, state_application_id());
                 let request: Request = serde_json::from_slice(&query).unwrap();

@@ -7,6 +7,7 @@ use linera_sdk::{
     views::View,
     Service, ServiceRuntime,
 };
+use std::collections::HashMap;
 use meme_app::state::{adapter::ServiceStateAdapter, MemeState};
 use std::sync::Arc;
 
@@ -70,6 +71,14 @@ impl QueryRoot {
             .expect("Failed to read total supply from state")
     }
 
+    async fn balances(&self) -> HashMap<Account, Amount> {
+        self.state_adapter()
+            .expect("Failed to create meme service state adapter")
+            .balances()
+            .await
+            .expect("Failed to read balances from state")
+    }
+
     async fn balance_of(&self, owner: Account) -> Amount {
         self.state_adapter()
             .expect("Failed to create meme service state adapter")
@@ -116,11 +125,15 @@ impl QueryRoot {
     }
 
     async fn mining_info(&self) -> Option<MiningInfo> {
-        self.state_adapter()
+        let mut mining_info = self
+            .state_adapter()
             .expect("Failed to create meme service state adapter")
             .mining_info()
             .await
-            .expect("Failed to read mining info from state")
+            .expect("Failed to read mining info from state")?;
+        // Next block height in service is block height in contract.
+        mining_info.mining_height = self.runtime.next_block_height();
+        Some(mining_info)
     }
 }
 
