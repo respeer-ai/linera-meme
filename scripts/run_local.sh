@@ -597,12 +597,16 @@ function run_named_service() {
     port=$4
     shift 4
 
+    # Clean up any previous service listening on this port before starting.
+    pkill -f "linera.*service --port $port" 2>/dev/null || true
+
     env $(linera_env_args) "$@" \
         linera "${LINERA_SERVICE_EXTRA_ARGS[@]}" \
                --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
                --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
                --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
                service --port $port > "${service_name}_${port}.log" 2>&1 &
+    echo $! >> "$RUN_LOCAL_PID_FILE"
 }
 
 function wait_query_service_ready() {
