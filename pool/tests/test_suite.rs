@@ -12,7 +12,11 @@ use abi::{
         MemeParameters, Metadata,
     },
     policy::open_chain_fee_budget,
-    proxy::{InstantiationArgument as ProxyInstantiationArgument, ProxyAbi, ProxyOperation},
+    proxy::{
+        state_v1::{ProxyStateAbi, StateInstantiationArgument},
+        InitializeArgument, InstantiationArgument as ProxyInstantiationArgument, ProxyAbi,
+        ProxyOperation, StateBytecodeId,
+    },
     store_type::StoreType,
     swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi, SwapParameters},
 };
@@ -61,9 +65,10 @@ impl ProxyMemeSetup {
         let mut proxy_chain = validator.new_chain().await;
 
         let swap_bytecode_id = swap_chain.publish_bytecode_files_in("../swap").await;
-        let proxy_bytecode_id = proxy_chain.publish_bytecode_files_in("../proxy").await;
+        let proxy_bytecode_id = proxy_chain.publish_bytecode_files_in("../proxy/app").await;
         let meme_bytecode_id = proxy_chain.publish_bytecode_files_in("../meme/app").await;
         let meme_state_bytecode_id = proxy_chain.publish_bytecode_files_in("../meme/state").await;
+        let proxy_state_bytecode_id = proxy_chain.publish_bytecode_files_in("../proxy/state").await;
 
         let swap_application_id = swap_chain
             .create_application::<SwapAbi, SwapParameters, SwapInstantiationArgument>(
@@ -80,15 +85,59 @@ impl ProxyMemeSetup {
             .create_application::<ProxyAbi, (), ProxyInstantiationArgument>(
                 proxy_bytecode_id,
                 (),
-                ProxyInstantiationArgument {
-                    meme_bytecode_id,
-                    meme_state_bytecode_ids: vec![(1, meme_state_bytecode_id)],
-                    operators: Vec::new(),
-                    swap_application_id: swap_application_id.forget_abi(),
+                ProxyInstantiationArgument {},
+                vec![],
+            )
+            .await;
+
+        let operator = Account {
+            chain_id: proxy_chain.id(),
+            owner: AccountOwner::from(proxy_chain.public_key()),
+        };
+        let proxy_state_application_id = proxy_chain
+            .create_application::<ProxyStateAbi, (), StateInstantiationArgument>(
+                proxy_state_bytecode_id,
+                (),
+                StateInstantiationArgument {
+                    business_application_id: proxy_application_id.forget_abi(),
+                    operator: Some(operator),
                 },
                 vec![],
             )
             .await;
+
+        proxy_chain
+            .add_block(|block| {
+                block.with_operation(
+                    proxy_application_id,
+                    ProxyOperation::AppendState {
+                        state_application_id: proxy_state_application_id.forget_abi(),
+                    },
+                );
+            })
+            .await;
+        proxy_chain.handle_received_messages().await;
+
+        proxy_chain
+            .add_block(|block| {
+                block.with_operation(
+                    proxy_application_id,
+                    ProxyOperation::Initialize {
+                        argument: InitializeArgument {
+                            initial_operators: vec![],
+                            genesis_miner_owners: vec![operator],
+                            swap_application_id: swap_application_id.forget_abi(),
+                            meme_bytecode_id,
+                            meme_state_bytecode_ids: vec![StateBytecodeId {
+                                version: 1,
+                                module_id: meme_state_bytecode_id,
+                            }],
+                        },
+                    },
+                );
+            })
+            .await;
+        proxy_chain.handle_received_messages().await;
 
         Self {
             validator,

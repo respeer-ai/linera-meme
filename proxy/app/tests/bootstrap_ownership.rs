@@ -1,0 +1,325 @@
+// Copyright (c) Zefchain Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+#![cfg(not(target_arch = "wasm32"))]
+
+use abi::{
+    ams::{
+        AmsOperation, AmsStateAbi, InstantiationArgument as AmsInstantiationArgument, Metadata,
+        StateInstantiationArgument as AmsStateInstantiationArgument, MEME,
+    },
+    blob_gateway::{
+        BlobDataType, BlobGatewayOperation, BlobGatewayStateAbi,
+        StateInstantiationArgument as BlobGatewayStateInstantiationArgument,
+    },
+    policy::open_chain_fee_budget,
+    proxy::{
+        state_v1::{ProxyStateAbi, StateInstantiationArgument},
+        InitializeArgument, ProxyOperation, StateBytecodeId,
+    },
+    store_type::StoreType,
+    swap::router::SwapOperation,
+};
+use linera_sdk::{
+    linera_base_types::{
+        Account, AccountOwner, AccountSecretKey, Amount, CryptoHash, Ed25519SecretKey, ModuleId,
+        TestString,
+    },
+    test::QueryOutcome,
+};
+
+mod suite;
+use crate::suite::TestSuite;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn bootstrap_multi_owner_single_leader_apps_process_frontend_protocol_operations_test() {
+    let _ = env_logger::builder().is_test(true).try_init();
+
+    let mut suite = TestSuite::new().await;
+
+    let mut blob_gateway_chain = suite.proxy_chain.clone();
+    let mut ams_chain = suite.operator_chain_1.clone();
+    let mut swap_chain = suite.swap_chain.clone();
+    let mut proxy_chain = suite.operator_chain_2.clone();
+    suite.proxy_chain = proxy_chain.clone();
+    let meme_user_chain = suite.meme_user_chain.clone();
+
+    let blob_owner_0 = AccountSecretKey::Ed25519(Ed25519SecretKey::generate());
+    let blob_owner_1 = AccountSecretKey::Ed25519(Ed25519SecretKey::generate());
+    let ams_owner_0 = AccountSecretKey::Ed25519(Ed25519SecretKey::generate());
+    let ams_owner_1 = AccountSecretKey::Ed25519(Ed25519SecretKey::generate());
+    let swap_owner_0 = AccountSecretKey::Ed25519(Ed25519SecretKey::generate());
+    let swap_owner_1 = AccountSecretKey::Ed25519(Ed25519SecretKey::generate());
+    let proxy_owner_0 = AccountSecretKey::Ed25519(Ed25519SecretKey::generate());
+    let proxy_owner_1 = AccountSecretKey::Ed25519(Ed25519SecretKey::generate());
+
+    suite
+        .change_ownership(
+            &blob_gateway_chain,
+            vec![blob_owner_0.public().into(), blob_owner_1.public().into()],
+        )
+        .await;
+    suite
+        .change_ownership(
+            &ams_chain,
+            vec![ams_owner_0.public().into(), ams_owner_1.public().into()],
+        )
+        .await;
+    suite
+        .change_ownership(
+            &swap_chain,
+            vec![swap_owner_0.public().into(), swap_owner_1.public().into()],
+        )
+        .await;
+    suite
+        .change_ownership(
+            &proxy_chain,
+            vec![proxy_owner_0.public().into(), proxy_owner_1.public().into()],
+        )
+        .await;
+
+    let blob_bytecode_id = blob_gateway_chain
+        .publish_bytecode_files_in("../../blob-gateway/app")
+        .await;
+    let blob_gateway_application_id = blob_gateway_chain
+        .create_application::<abi::blob_gateway::BlobGatewayAbi, (), ()>(
+            blob_bytecode_id,
+            (),
+            (),
+            vec![],
+        )
+        .await;
+
+    let blob_gateway_operator = suite.chain_owner_account(&blob_gateway_chain);
+    let blob_state_bytecode_id = blob_gateway_chain
+        .publish_bytecode_files_in("../../blob-gateway/state")
+        .await;
+    let blob_state_application_id = blob_gateway_chain
+        .create_application::<BlobGatewayStateAbi, (), BlobGatewayStateInstantiationArgument>(
+            blob_state_bytecode_id,
+            (),
+            BlobGatewayStateInstantiationArgument {
+                business_application_id: blob_gateway_application_id.forget_abi(),
+                operator: Some(blob_gateway_operator),
+            },
+            vec![],
+        )
+        .await;
+
+    blob_gateway_chain
+        .add_block(|block| {
+            block.with_operation(
+                blob_gateway_application_id,
+                BlobGatewayOperation::AppendState {
+                    state_application_id: blob_state_application_id.forget_abi(),
+                },
+            );
+        })
+        .await;
+    blob_gateway_chain.handle_received_messages().await;
+
+    let ams_bytecode_id = ams_chain.publish_bytecode_files_in("../../ams/app").await;
+    let ams_operator = suite.chain_owner_account(&ams_chain);
+    let ams_application_id = ams_chain
+        .create_application::<abi::ams::AmsAbi, (), AmsInstantiationArgument>(
+            ams_bytecode_id,
+            (),
+            AmsInstantiationArgument {},
+            vec![],
+        )
+        .await;
+
+    let ams_state_bytecode_id = ams_chain.publish_bytecode_files_in("../../ams/state").await;
+    let ams_state_application_id = ams_chain
+        .create_application::<AmsStateAbi, (), AmsStateInstantiationArgument>(
+            ams_state_bytecode_id,
+            (),
+            AmsStateInstantiationArgument {
+                business_application_id: ams_application_id.forget_abi(),
+                operator: Some(ams_operator),
+            },
+            vec![],
+        )
+        .await;
+
+    ams_chain
+        .add_block(|block| {
+            block.with_operation(
+                ams_application_id,
+                AmsOperation::AppendState {
+                    state_application_id: ams_state_application_id.forget_abi(),
+                },
+            );
+        })
+        .await;
+    ams_chain.handle_received_messages().await;
+
+    let pool_bytecode_id = swap_chain.publish_bytecode_files_in("../../pool").await;
+    let swap_bytecode_id = swap_chain.publish_bytecode_files_in("../../swap").await;
+    let swap_application_id = swap_chain
+        .create_application::<abi::swap::router::SwapAbi, abi::swap::router::SwapParameters, abi::swap::router::InstantiationArgument>(
+            swap_bytecode_id,
+            abi::swap::router::SwapParameters {},
+            abi::swap::router::InstantiationArgument { pool_bytecode_id },
+            vec![],
+        )
+        .await;
+    suite.swap_application_id = Some(swap_application_id);
+
+    let meme_bytecode_id: ModuleId<
+        abi::meme::MemeAbi,
+        abi::meme::MemeParameters,
+        abi::meme::InstantiationArgument,
+    > = proxy_chain.publish_bytecode_files_in("../../meme/app").await;
+    let meme_state_bytecode_id = proxy_chain.publish_bytecode_files_in("../../meme/state").await;
+    let proxy_state_bytecode_id: ModuleId<
+        ProxyStateAbi,
+        (),
+        StateInstantiationArgument,
+    > = proxy_chain.publish_bytecode_files_in("../state").await;
+    let proxy_bytecode_id = proxy_chain.publish_bytecode_files_in(".").await;
+    let proxy_application_id = proxy_chain
+        .create_application::<abi::proxy::ProxyAbi, (), abi::proxy::InstantiationArgument>(
+            proxy_bytecode_id,
+            (),
+            abi::proxy::InstantiationArgument {},
+            vec![],
+        )
+        .await;
+
+    let proxy_state_operator = Account {
+        chain_id: proxy_chain.id(),
+        owner: AccountOwner::from(proxy_chain.public_key()),
+    };
+    let proxy_state_application_id = proxy_chain
+        .create_application::<ProxyStateAbi, (), StateInstantiationArgument>(
+            proxy_state_bytecode_id,
+            (),
+            StateInstantiationArgument {
+                business_application_id: proxy_application_id.forget_abi(),
+                operator: Some(proxy_state_operator),
+            },
+            vec![],
+        )
+        .await;
+
+    proxy_chain
+        .add_block(|block| {
+            block.with_operation(
+                proxy_application_id,
+                ProxyOperation::AppendState {
+                    state_application_id: proxy_state_application_id.forget_abi(),
+                },
+            );
+        })
+        .await;
+    proxy_chain.handle_received_messages().await;
+
+    proxy_chain
+        .add_block(|block| {
+            block.with_operation(
+                proxy_application_id,
+                ProxyOperation::Initialize {
+                    argument: InitializeArgument {
+                        initial_operators: vec![],
+                        genesis_miner_owners: vec![proxy_state_operator],
+                        swap_application_id: swap_application_id.forget_abi(),
+                        meme_bytecode_id: meme_bytecode_id.forget_abi(),
+                        meme_state_bytecode_ids: vec![StateBytecodeId {
+                            version: 1,
+                            module_id: meme_state_bytecode_id,
+                        }],
+                    },
+                },
+            );
+        })
+        .await;
+    proxy_chain.handle_received_messages().await;
+
+    suite.proxy_application_id = Some(proxy_application_id);
+    suite.proxy_state_application_id = Some(proxy_state_application_id);
+
+    let blob_hash = CryptoHash::new(&TestString::new("bootstrap blob".to_string()));
+    blob_gateway_chain
+        .add_block(|block| {
+            block.with_operation(
+                blob_gateway_application_id,
+                BlobGatewayOperation::Register {
+                    store_type: StoreType::Blob,
+                    data_type: BlobDataType::Image,
+                    blob_hash,
+                },
+            );
+        })
+        .await;
+    blob_gateway_chain.handle_received_messages().await;
+    let QueryOutcome { response, .. } = blob_gateway_chain
+        .graphql_query(blob_gateway_application_id, "query { blobs { blobHash } }")
+        .await;
+    assert_eq!(response["blobs"].as_array().unwrap().len(), 1);
+
+    let metadata = Metadata {
+        creator: suite.chain_owner_account(&ams_chain),
+        application_name: "Bootstrap Meme".to_string(),
+        application_id: proxy_application_id.forget_abi(),
+        application_type: MEME.to_string(),
+        key_words: vec!["bootstrap".to_string()],
+        logo_store_type: StoreType::Blob,
+        logo: blob_hash,
+        description: "bootstrap ownership app operation".to_string(),
+        twitter: None,
+        telegram: None,
+        discord: None,
+        website: None,
+        github: None,
+        spec: None,
+        created_at: 0.into(),
+    };
+    ams_chain
+        .add_block(|block| {
+            block.with_operation(ams_application_id, AmsOperation::Register { metadata });
+        })
+        .await;
+    ams_chain.handle_received_messages().await;
+    let QueryOutcome { response, .. } = ams_chain
+        .graphql_query(ams_application_id, "query { applications(limit: 10) }")
+        .await;
+    assert_eq!(response["applications"].as_array().unwrap().len(), 1);
+
+    suite
+        .fund_chain(
+            &meme_user_chain,
+            open_chain_fee_budget()
+                .try_mul(2)
+                .unwrap()
+                .try_add(Amount::from_tokens(1))
+                .unwrap(),
+        )
+        .await;
+
+    let (meme_chain, meme_application_id) = suite
+        .create_meme_application_with_id(&meme_user_chain, true, false, None)
+        .await;
+    meme_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+
+    meme_user_chain
+        .add_block(|block| {
+            block.with_operation(
+                swap_application_id,
+                SwapOperation::CreatePool {
+                    token_0: meme_application_id.forget_abi(),
+                    token_1: None,
+                    amount_0: Amount::ONE,
+                    amount_1: Amount::ONE,
+                    to: None,
+                },
+            );
+        })
+        .await;
+    let pool_creation = swap_chain.handle_received_messages().await;
+    assert!(
+        pool_creation.is_some(),
+        "swap app must process CreatePool after bootstrap ownership change"
+    );
+}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -77,6 +78,7 @@ class DeployCommand:
         wallet_owner_count: int = 1,
         operation_type: str | None = None,
         no_business_argument: bool = False,
+        business_argument: str | None = None,
         bytecode_only: bool = False,
     ) -> DeployResult:
         """Deploy or upgrade the named application to the target version.
@@ -119,7 +121,12 @@ class DeployCommand:
                 return result
             creator_chain_id = family.creator_chain_id
 
-        business_argument = None if no_business_argument else {}
+        if business_argument is not None:
+            business_instantiation_argument = json.loads(business_argument)
+        elif no_business_argument:
+            business_instantiation_argument = None
+        else:
+            business_instantiation_argument = {}
 
         result = self._build_and_execute_plan(
             result=result,
@@ -132,7 +139,7 @@ class DeployCommand:
             creator_chain_id=creator_chain_id,
             repo_dir=repo_dir,
             dry_run=dry_run,
-            business_instantiation_argument=business_argument,
+            business_instantiation_argument=business_instantiation_argument,
             bytecode_only=bytecode_only,
         )
         if result.status == "failed":

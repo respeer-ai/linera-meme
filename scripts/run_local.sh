@@ -38,6 +38,10 @@ DOMAIN_FILE="${SCRIPT_DIR}/../webui-v2/src/constant/domain.ts"
 OUTPUT_DIR="${SCRIPT_DIR}/../output/local"
 mkdir -p $OUTPUT_DIR
 
+# Track PIDs of background services so we can clean them up on exit or on
+# the next run if a previous invocation left them behind.
+RUN_LOCAL_PID_FILE="$OUTPUT_DIR/run_local_pids"
+
 # Generate config
 CONFIG_DIR="${OUTPUT_DIR}/config"
 mkdir -p $CONFIG_DIR
@@ -79,6 +83,7 @@ LINEST_VENV_DIR="$OUTPUT_DIR/linest-venv"
 LINEST_BIN="$LINEST_VENV_DIR/bin/linest"
 if [ ! -x "$LINEST_BIN" ]; then
     python3 -m venv "$LINEST_VENV_DIR"
+    "$LINEST_VENV_DIR/bin/pip" install -r "$ROOT_DIR/tools/deploy/requirements.txt"
     "$LINEST_VENV_DIR/bin/pip" install -e "$ROOT_DIR/tools/deploy"
 fi
 
@@ -147,6 +152,7 @@ if [ "x$COMPILE" = "x1" ]; then
         CARGO_PROFILE_RELEASE_LTO=off \
         CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
         cargo build --release --bin linera --features storage-service,enable-wallet-rpc -j 1
+        rm -f $COMMON_BIN_DIR/linera
         cp target/release/linera $COMMON_BIN_DIR/linera
     fi
     test -x "$COMMON_BIN_DIR/linera"
@@ -158,6 +164,7 @@ if [ "x$COMPILE" = "x1" ]; then
         fi
 
         if [ "x$LATEST_COMMIT" != "x$MAKER_COMMIT" ]; then
+            rm -f $MAKER_BIN_DIR/linera
             cp target/release/linera $MAKER_BIN_DIR/linera
         fi
         test -x "$MAKER_BIN_DIR/linera"
@@ -170,6 +177,7 @@ cd $SCRIPT_DIR/..
 # should not participate in the wasm target build.
 cargo build --release --target wasm32-unknown-unknown -j 1 \
     -p proxy \
+    -p proxy-state \
     -p meme-app \
     -p meme-state \
     -p swap \
@@ -179,8 +187,47 @@ cargo build --release --target wasm32-unknown-unknown -j 1 \
     -p ams-app \
     -p ams-state
 
+function cleanup_run_local_services() {
+    # Kill known run_local background processes by command line pattern.
+    # This handles cases where the PID file was lost or a previous run crashed
+    # before writing all PIDs.
+    pkill -f "linera.*service --port" 2>/dev/null || true
+    pkill -f "service/kline/src/maker_api.py" 2>/dev/null || true
+    pkill -f "service/kline/src/maker.py" 2>/dev/null || true
+    pkill -f "service/kline/src/funder.py" 2>/dev/null || true
+
+    # Kill any tracked background services from this or a previous run.
+    if [ -f "$RUN_LOCAL_PID_FILE" ]; then
+        local pids=()
+        while IFS= read -r pid; do
+            pids+=("$pid")
+        done < "$RUN_LOCAL_PID_FILE"
+
+        for pid in "${pids[@]}"; do
+            if kill -0 "$pid" 2>/dev/null; then
+                kill -TERM "$pid" 2>/dev/null || true
+            fi
+        done
+
+        sleep 1
+
+        for pid in "${pids[@]}"; do
+            if kill -0 "$pid" 2>/dev/null; then
+                kill -KILL "$pid" 2>/dev/null || true
+            fi
+        done
+
+        rm -f "$RUN_LOCAL_PID_FILE"
+    fi
+}
+
 # Make sure to clean up child processes on exit.
-trap 'jobs -p | xargs -r kill' EXIT
+trap cleanup_run_local_services EXIT INT TERM
+
+# Clean up services left behind by a previous interrupted run before we try to
+# overwrite the shared linera binary (a running executable cannot be overwritten
+# on Linux, leading to "Text file busy").
+cleanup_run_local_services
 
 RUN_LOCAL_LOG_DIR="$OUTPUT_DIR/logs"
 mkdir -p "$RUN_LOCAL_LOG_DIR"
@@ -381,9 +428,6 @@ function create_operator_wallet() {
 # Create wallet for swap
 SWAP_OWNERS=$(create_wallets swap)
 
-# Create wallet for proxy
-PROXY_OWNERS=$(create_wallets proxy)
-
 function publish_bytecode_on_chain() {
     application_name=$1
     wasm_name=$(echo $2 | sed 's/-/_/g')
@@ -401,7 +445,6 @@ function publish_bytecode() {
 # Publish bytecode then create applications
 SWAP_MODULE_ID=$(publish_bytecode swap)
 POOL_MODULE_ID=$(publish_bytecode_on_chain swap pool)
-PROXY_MODULE_ID=$(publish_bytecode proxy)
 
 function wallet_owner() {
     wallet_name=$1
@@ -522,13 +565,9 @@ function open_multi_owner_chain() {
     echo $chain_id
 }
 
-# Create multi owner chains
-# Create proxy multi owner chains
-PROXY_CHAIN_ID=$(open_multi_owner_chain proxy $PROXY_OWNERS)
-# Create swap multi owner chains
+# Create swap multi owner chain (swap is not yet managed by linest).
 SWAP_CHAIN_ID=$(open_multi_owner_chain swap $SWAP_OWNERS)
 
-PROXY_QUERY_OWNER=$(wallet_chain_owner proxy 0 $PROXY_CHAIN_ID)
 SWAP_QUERY_OWNER=$(wallet_chain_owner swap 0 $SWAP_CHAIN_ID)
 
 function process_inbox() {
@@ -619,8 +658,7 @@ function import_query_chain() {
     exit 1
 }
 
-# Exhaust chain messages
-process_inboxes proxy
+# Exhaust swap chain messages (proxy inboxes are handled by linest post-deploy sync).
 process_inboxes swap
 
 # Bootstrap shared wallets and services for linest.
@@ -639,6 +677,7 @@ env $(linera_env_args) "$LINEST_BIN" \
     --query-wallet-dir "$WALLET_DIR/query/0" \
     --query-service-port 24080 > "$RUN_LOCAL_LOG_DIR/linest_bootstrap.log" 2>&1 &
 linest_bootstrap_pid=$!
+echo "$linest_bootstrap_pid" >> "$RUN_LOCAL_PID_FILE"
 
 wait_query_service_ready "$linest_bootstrap_pid"
 
@@ -672,7 +711,6 @@ BLOB_GATEWAY_CHAIN_ID=$(echo "$BLOB_GATEWAY_STATUS_JSON" | jq -r '.business_app.
 BLOB_GATEWAY_APPLICATION_ID=$(echo "$BLOB_GATEWAY_STATUS_JSON" | jq -r '.business_app.application_id')
 BLOB_GATEWAY_STATE_APPLICATION_ID=$(echo "$BLOB_GATEWAY_STATUS_JSON" | jq -r '.state_apps[0].application_id // empty')
 
-import_query_chain "$PROXY_QUERY_OWNER" "$PROXY_CHAIN_ID" proxy
 import_query_chain "$SWAP_QUERY_OWNER" "$SWAP_CHAIN_ID" swap
 
 function create_application() {
@@ -746,7 +784,52 @@ if [ -z "$MEME_MODULE_ID" ] || [ -z "$MEME_STATE_VERSION" ] || [ -z "$MEME_STATE
     exit 1
 fi
 
-PROXY_APPLICATION_ID=$(create_application proxy $PROXY_MODULE_ID "{\"meme_bytecode_id\": \"$MEME_MODULE_ID\", \"meme_state_bytecode_ids\": [[$MEME_STATE_VERSION, \"$MEME_STATE_MODULE_ID\"]], \"operators\": [], \"swap_application_id\": \"$SWAP_APPLICATION_ID\"}" '' $PROXY_CHAIN_ID)
+run_linest "linest_deploy_proxy" \
+    "$LINEST_BIN" \
+    --base-dir "$LINEST_BASE_DIR" \
+    --env local \
+    app deploy \
+    --repo-dir "$ROOT_DIR" \
+    --name proxy \
+    --contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/proxy_contract.wasm" \
+    --service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/proxy_service.wasm" \
+    --state-contract-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/proxy_state_contract.wasm" \
+    --state-service-bytecode "$ROOT_DIR/target/wasm32-unknown-unknown/release/proxy_state_service.wasm" \
+    --ensure-wallet \
+    --faucet-url "$FAUCET_URL" \
+    --wallet-owner-count "$CHAIN_OWNER_COUNT"
+
+PROXY_STATUS_JSON=$("$LINEST_BIN" --base-dir "$LINEST_BASE_DIR" --env local app status --name proxy --format json)
+PROXY_CHAIN_ID=$(echo "$PROXY_STATUS_JSON" | jq -r '.business_app.creator_chain_id')
+PROXY_APPLICATION_ID=$(echo "$PROXY_STATUS_JSON" | jq -r '.business_app.application_id')
+PROXY_STATE_APPLICATION_ID=$(echo "$PROXY_STATUS_JSON" | jq -r '.state_apps[0].application_id // empty')
+
+INIT_MUTATION='mutation Initialize($argument: InitializeArgument!) { initialize(argument: $argument) }'
+INIT_VARS=$(jq -n \
+    --arg swap "$SWAP_APPLICATION_ID" \
+    --arg meme "$MEME_MODULE_ID" \
+    --argjson meme_state_version "$MEME_STATE_VERSION" \
+    --arg meme_state_module "$MEME_STATE_MODULE_ID" \
+    '{argument: {initialOperators: [], genesisMinerOwners: [], swapApplicationId: $swap, memeBytecodeId: $meme, memeStateBytecodeIds: [{version: $meme_state_version, moduleId: $meme_state_module}]}}')
+
+PROXY_INIT_OPERATION=$(run_linera_capture "bcs_serialize_proxy_initialize" \
+    --wallet $WALLET_DIR/proxy/0/wallet.json \
+    --keystore $WALLET_DIR/proxy/0/keystore.json \
+    --storage rocksdb://$WALLET_DIR/proxy/0/client.db \
+    bcs-serilize-application-operation \
+    --operation-type-crate "$ROOT_DIR/abi" \
+    --operation-type "abi::proxy::ProxyOperation" \
+    --query "$INIT_MUTATION" \
+    --variables "$INIT_VARS")
+
+run_linera "execute_proxy_initialize" \
+    --wallet $WALLET_DIR/proxy/0/wallet.json \
+    --keystore $WALLET_DIR/proxy/0/keystore.json \
+    --storage rocksdb://$WALLET_DIR/proxy/0/client.db \
+    execute-application-operation \
+    --chain-id "$PROXY_CHAIN_ID" \
+    --application-id "$PROXY_APPLICATION_ID" \
+    --operation "$PROXY_INIT_OPERATION"
 
 # Register non-linest apps so domain.ts can be generated from one place.
 run_linest "linest_domain_register_blob_gateway" \
@@ -834,7 +917,7 @@ function change_multi_owner_chain_single_leader() {
            --multi-leader-rounds 0
 }
 
-change_multi_owner_chain_single_leader proxy $PROXY_CHAIN_ID $PROXY_OWNERS
+# Proxy ownership is switched to single-leader by linest post-deploy sync.
 change_multi_owner_chain_single_leader swap $SWAP_CHAIN_ID $SWAP_OWNERS
 
 # Top up linest-managed chains (e.g. AMS) to the target minimum balance.
@@ -938,6 +1021,7 @@ function run_service() {
                --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
                --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
                service --port $port > ${wallet_name}_${port}.log 2>&1 &
+    echo $! >> "$RUN_LOCAL_PID_FILE"
 }
 
 function ensure_background_process() {
@@ -953,6 +1037,7 @@ function ensure_background_process() {
         fi
         exit 1
     fi
+    echo "$pid" >> "$RUN_LOCAL_PID_FILE"
 }
 
 function wait_http_ready() {
@@ -1164,6 +1249,9 @@ function print_deployment_summary() {
     fi
     echo -e "  PROXY_CHAIN_ID=$PROXY_CHAIN_ID"
     echo -e "  PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID"
+    if [ -n "${PROXY_STATE_APPLICATION_ID:-}" ]; then
+        echo -e "  PROXY_STATE_APPLICATION_ID=$PROXY_STATE_APPLICATION_ID"
+    fi
     echo -e "  SWAP_CHAIN_ID=$SWAP_CHAIN_ID"
     echo -e "  SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID"
     if [ -n "${MEME_MODULE_ID:-}" ]; then

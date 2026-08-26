@@ -215,7 +215,7 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
     }
 
     fn call_application<A: ContractAbi + Send>(
-        &mut self,
+        &self,
         application: ApplicationId<A>,
         call: &A::Operation,
     ) -> A::Response {

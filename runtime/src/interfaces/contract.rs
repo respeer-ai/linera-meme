@@ -39,7 +39,7 @@ pub trait ContractRuntimeContext: BaseRuntimeContext {
         InstantiationArgument: Serialize;
 
     fn call_application<A: ContractAbi + Send>(
-        &mut self,
+        &self,
         application: ApplicationId<A>,
         call: &A::Operation,
     ) -> A::Response;

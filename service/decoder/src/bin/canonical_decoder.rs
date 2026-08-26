@@ -446,6 +446,9 @@ fn decode_proxy_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Res
         ProxyOperation::ProposeBanOperator { .. } => "propose_ban_operator",
         ProxyOperation::ApproveBanOperator { .. } => "approve_ban_operator",
         ProxyOperation::SetMemeBytecodeIds { .. } => "set_meme_bytecode_ids",
+        ProxyOperation::Initialize { .. } => "initialize",
+        ProxyOperation::AppendState { .. } => "append_state",
+        ProxyOperation::Handoff { .. } => "handoff",
     };
     Ok(json!({
         "payload_type": payload_type,

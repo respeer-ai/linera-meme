@@ -1,6 +1,7 @@
 [workspace]
 members = [
-    "proxy",
+    "proxy/app",
+    "proxy/state",
     "meme/app",
     "meme/state",
     "meme/test-proxy",
@@ -58,7 +59,8 @@ abi = { path = "./abi" }
 meme-app = { path = "./meme/app" }
 meme-state = { path = "./meme/state" }
 meme-test-proxy = { path = "./meme/test-proxy" }
-proxy = { path = "./proxy" }
+proxy = { path = "./proxy/app" }
+proxy-state = { path = "./proxy/state" }
 swap = { path = "./swap" }
 pool = { path = "./pool" }
 blob-gateway = { path = "./blob-gateway/app", package = "blob-gateway-app" }

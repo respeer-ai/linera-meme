@@ -52,35 +52,35 @@ def _write_file(path: Path, content: bytes = b"wasm") -> str:
     return str(path)
 
 
-def _seed_v1(registry: DeploymentRegistry) -> None:
-    family = AppFamily.create("ams", "local")
+def _seed_v1(registry: DeploymentRegistry, name: str = "ams") -> None:
+    family = AppFamily.create(name, "local")
     business = BusinessAppDeployment.create(
-        name="ams-v1",
+        name=f"{name}-v1",
         version=1,
         network="local",
         module_id="module-v1",
-        application_id="app-biz-v1",
+        application_id=f"app-biz-{name}-v1",
         creator_chain_id="chain1",
         contract_bytecode_path="/tmp/c.wasm",
         service_bytecode_path="/tmp/s.wasm",
         contract_bytecode_hash="sha256:a",
         service_bytecode_hash="sha256:b",
-        state_apps=["ams-state-v1"],
+        state_apps=[f"{name}-state-v1"],
     )
     state = StateAppDeployment.create(
-        name="ams-state-v1",
+        name=f"{name}-state-v1",
         version=1,
         network="local",
         module_id="module-state-v1",
-        application_id="app-state-v1",
+        application_id=f"app-state-{name}-v1",
         creator_chain_id="chain1",
         contract_bytecode_path="/tmp/sc.wasm",
         service_bytecode_path="/tmp/ss.wasm",
         contract_bytecode_hash="sha256:c",
         service_bytecode_hash="sha256:d",
-        business_application_id="app-biz-v1",
+        business_application_id=f"app-biz-{name}-v1",
     )
-    family.add_version(1, "ams-v1", ["ams-state-v1"], status="active")
+    family.add_version(1, f"{name}-v1", [f"{name}-state-v1"], status="active")
     family.current_version = 1
     registry.save_deployment(business)
     registry.save_deployment(state)
@@ -122,6 +122,41 @@ def test_upgrade_v1_to_v2(
     assert linera_client.submit_application_operation.call_count == 2
 
 
+def test_upgrade_proxy_v1_to_v2(
+    registry: DeploymentRegistry,
+    config: NetworkConfig,
+    linera_client: MagicMock,
+    query_client: MagicMock,
+    tmp_path: Path,
+) -> None:
+    _seed_v1(registry, "proxy")
+    command = DeployCommand(config, registry, linera_client, query_client)
+    contract = _write_file(tmp_path / "contract.wasm")
+    service = _write_file(tmp_path / "service.wasm")
+
+    query_client.query_state_applications.return_value = []
+    query_client.query_business_application_id.return_value = "app-biz-proxy-v1"
+
+    command.deploy(
+        name="proxy",
+        version=2,
+        contract_bytecode=contract,
+        service_bytecode=service,
+        state_contract_bytecode=None,
+        state_service_bytecode=None,
+        dry_run=False,
+    )
+
+    family = registry.load_family("proxy")
+    assert family.current_version == 2
+    assert family.versions[2].status == "active"
+    assert family.versions[1].status == "handed_off"
+
+    assert linera_client.publish_module.call_count == 1
+    assert linera_client.create_application.call_count == 1
+    assert linera_client.submit_application_operation.call_count == 2
+
+
 def test_upgrade_recovers_after_append_state(
     registry: DeploymentRegistry,
     config: NetworkConfig,
@@ -136,9 +171,9 @@ def test_upgrade_recovers_after_append_state(
 
     # Chain already has the state app appended to v2 business app, but handoff not done.
     query_client.query_state_applications.return_value = [
-        {"version": 1, "applicationId": "app-state-v1"}
+        {"version": 1, "applicationId": "app-state-ams-v1"}
     ]
-    query_client.query_business_application_id.return_value = "app-biz-v1"
+    query_client.query_business_application_id.return_value = "app-biz-ams-v1"
 
     command.deploy(
         name="ams",
@@ -174,7 +209,7 @@ def test_upgrade_recovers_after_handoff(
 
     # Chain already shows handoff completed.
     query_client.query_state_applications.return_value = [
-        {"version": 1, "applicationId": "app-state-v1"}
+        {"version": 1, "applicationId": "app-state-ams-v1"}
     ]
     query_client.query_business_application_id.return_value = "app-biz-v2"
 

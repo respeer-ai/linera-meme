@@ -114,6 +114,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Do not pass --json-argument when creating the business app",
     )
     deploy_parser.add_argument(
+        "--business-argument",
+        dest="business_argument",
+        help="JSON instantiation argument for the business app (default: {})",
+    )
+    deploy_parser.add_argument(
         "--bytecode-only",
         dest="bytecode_only",
         action="store_true",
@@ -391,6 +396,7 @@ def _handle_deploy(args: argparse.Namespace) -> int:
         wallet_owner_count=args.wallet_owner_count,
         operation_type=args.operation_type,
         no_business_argument=args.no_business_argument,
+        business_argument=args.business_argument,
         bytecode_only=args.bytecode_only,
     )
     return 0 if result.status in ("skipped", "deployed") else 1
