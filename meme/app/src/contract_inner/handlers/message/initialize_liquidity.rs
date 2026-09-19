@@ -4,7 +4,7 @@ use crate::{
 };
 use abi::{
     meme::{MemeMessage, MemeResponse},
-    swap::pool::{PoolAbi, PoolInitializeLiquidityCall, PoolOperation},
+    pool::{PoolAbi, PoolInitializeLiquidityCall, PoolOperation},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};

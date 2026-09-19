@@ -1,10 +1,8 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
     policy::open_chain_fee_budget,
-    swap::{
-        pool::BootstrapPolicy,
-        router::{SwapMessage, SwapResponse},
-    },
+    pool::BootstrapPolicy,
+    swap::router::{SwapMessage, SwapResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -111,6 +109,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         }
 
         let pool_bytecode_id = self.state.borrow_mut().pool_bytecode_id();
+        let pool_state_bytecode_ids = self.state.borrow_mut().pool_state_bytecode_ids();
 
         let destination = self.create_child_chain(self.token_0, self.token_1)?;
 
@@ -126,6 +125,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             SwapMessage::CreatePool {
                 creator: self.creator,
                 pool_bytecode_id,
+                pool_state_bytecode_ids,
                 token_0: self.token_0,
                 token_1: self.token_1,
                 amount_0: self.amount_0,

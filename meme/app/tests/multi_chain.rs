@@ -11,6 +11,7 @@ use abi::{
         Liquidity, Meme, MemeAbi, MemeOperation, MemeParameters, Metadata,
         StateInstantiationArgument,
     },
+    proxy::StateBytecodeId,
     store_type::StoreType,
     swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi, SwapParameters},
 };
@@ -116,7 +117,11 @@ impl TestSuite {
     pub async fn create_swap_application(&mut self) {
         let pool_bytecode_id = self
             .swap_chain
-            .publish_bytecode_files_in("../../pool")
+            .publish_bytecode_files_in("../../pool/app")
+            .await;
+        let pool_state_bytecode_id = self
+            .swap_chain
+            .publish_bytecode_files_in("../../pool/state")
             .await;
         let swap_bytecode_id = self
             .swap_chain
@@ -128,7 +133,13 @@ impl TestSuite {
                 .create_application::<SwapAbi, SwapParameters, SwapInstantiationArgument>(
                     swap_bytecode_id,
                     SwapParameters {},
-                    SwapInstantiationArgument { pool_bytecode_id },
+                    SwapInstantiationArgument {
+                        pool_bytecode_id,
+                        pool_state_bytecode_ids: vec![StateBytecodeId {
+                            version: 1,
+                            module_id: pool_state_bytecode_id,
+                        }],
+                    },
                     vec![],
                 )
                 .await

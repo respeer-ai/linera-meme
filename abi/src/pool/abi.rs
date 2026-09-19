@@ -8,8 +8,6 @@ use rust_decimal::prelude::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::swap::transaction::Transaction;
-
 pub struct PoolAbi;
 
 impl ContractAbi for PoolAbi {
@@ -210,12 +208,38 @@ pub enum PoolOperation {
     SwapTransferReceipt {
         receipt: SwapTransferReceipt,
     },
+
+    SetOperator {
+        new_operator: Account,
+    },
+
+    Initialize {
+        argument: PoolInitializeArgument,
+    },
+
+    AppendState {
+        state_application_id: ApplicationId,
+    },
+    AppendStates {
+        state_application_ids: Vec<ApplicationId>,
+    },
+
+    Handoff {
+        new_business_application_id: ApplicationId,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, InputObject)]
+pub struct PoolInitializeArgument {
+    pub router_application_id: ApplicationId,
+    pub pool_fee_percent_mul_100: u16,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub enum PoolResponse {
     #[default]
     Ok,
+    Fail(String),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -356,6 +380,14 @@ pub struct Pool {
 }
 
 scalar!(Pool);
+
+#[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize, async_graphql::SimpleObject)]
+#[serde(rename_all = "camelCase")]
+pub struct LiquidityAmount {
+    pub liquidity: Amount,
+    pub amount_0: Amount,
+    pub amount_1: Amount,
+}
 
 impl Pool {
     pub fn create(
@@ -974,3 +1006,30 @@ mod tests {
         );
     }
 }
+
+#[derive(Default, Debug, Deserialize, Serialize, Clone, Eq, PartialEq, Copy)]
+pub enum TransactionType {
+    #[default]
+    BuyToken0,
+    SellToken0,
+    AddLiquidity,
+    RemoveLiquidity,
+}
+
+scalar!(TransactionType);
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Transaction {
+    pub transaction_id: Option<u32>,
+    pub transaction_type: TransactionType,
+    pub from: Account,
+    pub amount_0_in: Option<Amount>,
+    pub amount_0_out: Option<Amount>,
+    pub amount_1_in: Option<Amount>,
+    pub amount_1_out: Option<Amount>,
+    pub liquidity: Option<Amount>,
+    pub created_at: Timestamp,
+}
+
+scalar!(Transaction);

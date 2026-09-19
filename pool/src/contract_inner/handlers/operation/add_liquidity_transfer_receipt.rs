@@ -5,7 +5,7 @@ use crate::{
     },
     interfaces::{parameters::ParametersInterface, state::StateInterface},
 };
-use abi::swap::pool::{
+use abi::pool::{
     AddLiquidityTransferReceipt, FundRequest, FundType, PoolMessage, PoolOperation, PoolResponse,
 };
 use async_trait::async_trait;

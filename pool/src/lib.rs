@@ -2,8 +2,8 @@ pub mod contract_inner;
 pub mod interfaces;
 pub mod state;
 
-pub use abi::swap::pool::FundType;
-use abi::swap::pool::PoolError as _PoolError;
+pub use abi::pool::FundType;
+use abi::pool::PoolError as _PoolError;
 use async_graphql::SimpleObject;
 use linera_sdk::{
     linera_base_types::{Amount, ArithmeticError},

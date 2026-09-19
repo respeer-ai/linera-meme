@@ -7,10 +7,8 @@
 
 use abi::{
     meme::MemeAbi,
-    swap::{
-        pool::{PoolAbi, PoolOperation},
-        router::{Pool as PoolIndex, SwapAbi},
-    },
+    pool::{PoolAbi, PoolOperation},
+    swap::router::{Pool as PoolIndex, SwapAbi},
 };
 use linera_sdk::{
     linera_base_types::{AccountOwner, Amount, ApplicationId, BlobType, ChainDescription},

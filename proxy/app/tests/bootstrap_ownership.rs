@@ -154,13 +154,20 @@ async fn bootstrap_multi_owner_single_leader_apps_process_frontend_protocol_oper
         .await;
     ams_chain.handle_received_messages().await;
 
-    let pool_bytecode_id = swap_chain.publish_bytecode_files_in("../../pool").await;
+    let pool_bytecode_id = swap_chain.publish_bytecode_files_in("../../pool/app").await;
+    let pool_state_bytecode_id = swap_chain.publish_bytecode_files_in("../../pool/state").await;
     let swap_bytecode_id = swap_chain.publish_bytecode_files_in("../../swap").await;
     let swap_application_id = swap_chain
         .create_application::<abi::swap::router::SwapAbi, abi::swap::router::SwapParameters, abi::swap::router::InstantiationArgument>(
             swap_bytecode_id,
             abi::swap::router::SwapParameters {},
-            abi::swap::router::InstantiationArgument { pool_bytecode_id },
+            abi::swap::router::InstantiationArgument {
+                pool_bytecode_id,
+                pool_state_bytecode_ids: vec![StateBytecodeId {
+                    version: 1,
+                    module_id: pool_state_bytecode_id,
+                }],
+            },
             vec![],
         )
         .await;

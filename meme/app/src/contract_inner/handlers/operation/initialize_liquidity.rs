@@ -1,7 +1,7 @@
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
 use abi::{
     meme::{MemeMessage, MemeOperation, MemeResponse},
-    swap::pool::PoolInitializeLiquidityCall,
+    pool::PoolInitializeLiquidityCall,
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};

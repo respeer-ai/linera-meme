@@ -1,7 +1,7 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::swap::pool::BootstrapPolicy;
+use crate::pool::BootstrapPolicy;
 use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
@@ -11,7 +11,7 @@ use linera_sdk::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::swap::transaction::Transaction;
+use crate::pool::Transaction;
 
 pub struct SwapAbi;
 
@@ -86,6 +86,7 @@ pub enum SwapMessage {
     CreatePool {
         creator: Account,
         pool_bytecode_id: ModuleId,
+        pool_state_bytecode_ids: Vec<(u16, ModuleId)>,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
@@ -153,6 +154,7 @@ pub struct Pool {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
 pub struct InstantiationArgument {
     pub pool_bytecode_id: ModuleId,
+    pub pool_state_bytecode_ids: Vec<crate::proxy::StateBytecodeId>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

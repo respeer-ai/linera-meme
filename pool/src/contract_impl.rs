@@ -1,7 +1,7 @@
 use super::PoolContract;
 use std::{cell::RefCell, rc::Rc};
 
-use abi::swap::pool::{InstantiationArgument, PoolMessage, PoolOperation, PoolResponse};
+use abi::pool::{InstantiationArgument, PoolMessage, PoolOperation, PoolResponse};
 
 use pool::{
     contract_inner::handlers::HandlerFactory,

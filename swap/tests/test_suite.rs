@@ -64,16 +64,25 @@ impl ProxyMemeSetup {
         let mut swap_chain = validator.new_chain().await;
         let mut proxy_chain = validator.new_chain().await;
 
-        let pool_bytecode_id = swap_chain.publish_bytecode_files_in("../pool").await;
+        let pool_bytecode_id = swap_chain.publish_bytecode_files_in("../pool/app").await;
+        let pool_state_bytecode_id = swap_chain.publish_bytecode_files_in("../pool/state").await;
         let meme_bytecode_id = proxy_chain.publish_bytecode_files_in("../meme/app").await;
         let meme_state_bytecode_id = proxy_chain.publish_bytecode_files_in("../meme/state").await;
-        let proxy_state_bytecode_id = proxy_chain.publish_bytecode_files_in("../proxy/state").await;
+        let proxy_state_bytecode_id = proxy_chain
+            .publish_bytecode_files_in("../proxy/state")
+            .await;
 
         let swap_application_id = swap_chain
             .create_application::<SwapAbi, SwapParameters, SwapInstantiationArgument>(
                 swap_bytecode_id,
                 SwapParameters {},
-                SwapInstantiationArgument { pool_bytecode_id },
+                SwapInstantiationArgument {
+                    pool_bytecode_id,
+                    pool_state_bytecode_ids: vec![StateBytecodeId {
+                        version: 1,
+                        module_id: pool_state_bytecode_id,
+                    }],
+                },
                 vec![],
             )
             .await;

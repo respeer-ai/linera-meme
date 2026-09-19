@@ -54,9 +54,9 @@ pub struct ProxyMemeSetup {
 impl ProxyMemeSetup {
     pub async fn new() -> Self {
         let (validator, pool_bytecode_id) = TestValidator::with_current_module::<
-            abi::swap::pool::PoolAbi,
-            abi::swap::pool::PoolParameters,
-            abi::swap::pool::InstantiationArgument,
+            abi::pool::PoolAbi,
+            abi::pool::PoolParameters,
+            abi::pool::InstantiationArgument,
         >()
         .await;
 
@@ -68,7 +68,9 @@ impl ProxyMemeSetup {
         let proxy_bytecode_id = proxy_chain.publish_bytecode_files_in("../proxy/app").await;
         let meme_bytecode_id = proxy_chain.publish_bytecode_files_in("../meme/app").await;
         let meme_state_bytecode_id = proxy_chain.publish_bytecode_files_in("../meme/state").await;
-        let proxy_state_bytecode_id = proxy_chain.publish_bytecode_files_in("../proxy/state").await;
+        let proxy_state_bytecode_id = proxy_chain
+            .publish_bytecode_files_in("../proxy/state")
+            .await;
 
         let swap_application_id = swap_chain
             .create_application::<SwapAbi, SwapParameters, SwapInstantiationArgument>(

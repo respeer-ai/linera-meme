@@ -1,6 +1,6 @@
 use std::{env, process};
 
-use abi::swap::pool::PoolMessage;
+use abi::pool::PoolMessage;
 
 fn hex_value(byte: u8) -> Result<u8, String> {
     match byte {

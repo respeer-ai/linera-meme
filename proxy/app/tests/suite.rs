@@ -215,7 +215,14 @@ impl TestSuite {
     }
 
     pub async fn create_swap_application(&mut self) {
-        let pool_bytecode_id = self.swap_chain.publish_bytecode_files_in("../../pool").await;
+        let pool_bytecode_id = self
+            .swap_chain
+            .publish_bytecode_files_in("../../pool/app")
+            .await;
+        let pool_state_bytecode_id = self
+            .swap_chain
+            .publish_bytecode_files_in("../../pool/state")
+            .await;
         let swap_bytecode_id = self.swap_chain.publish_bytecode_files_in("../../swap").await;
 
         self.swap_application_id = Some(
@@ -223,7 +230,13 @@ impl TestSuite {
                 .create_application::<SwapAbi, SwapParameters, SwapInstantiationArgument>(
                     swap_bytecode_id,
                     SwapParameters {},
-                    SwapInstantiationArgument { pool_bytecode_id },
+                    SwapInstantiationArgument {
+                        pool_bytecode_id,
+                        pool_state_bytecode_ids: vec![StateBytecodeId {
+                            version: 1,
+                            module_id: pool_state_bytecode_id,
+                        }],
+                    },
                     vec![],
                 )
                 .await,

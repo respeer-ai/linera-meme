@@ -11,7 +11,7 @@ pub enum StateError {
     ArithmeticError(#[from] linera_sdk::linera_base_types::ArithmeticError),
 
     #[error(transparent)]
-    PoolError(#[from] abi::swap::pool::PoolError),
+    PoolError(#[from] abi::pool::PoolError),
 }
 
 impl From<StateError> for HandlerError {

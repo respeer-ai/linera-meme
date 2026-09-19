@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::pool::{FundRequest, PoolMessage, PoolResponse};
+use abi::pool::{FundRequest, PoolMessage, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use runtime::interfaces::{

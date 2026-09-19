@@ -5,7 +5,7 @@ use abi::{
         TransferFromApplicationReceiptPayload, TransferFromApplicationReceiptPurpose,
     },
     meme_token::MemeToken,
-    swap::pool::{
+    pool::{
         AddLiquidityTransferReceiptPayload, FundRequest, FundType, PoolMessage, PoolResponse,
         SwapTransferReceiptPayload,
     },

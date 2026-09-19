@@ -4,13 +4,12 @@ use abi::meme::{
     MemeMessage, MemeOperation, TransferFromApplicationReceipt,
     TransferFromApplicationReceiptPayload,
 };
-use abi::proxy::{ProxyMessage, ProxyOperation};
-use abi::swap::pool::{
+use abi::pool::{
     AddLiquidityTransferReceipt, AddLiquidityTransferReceiptPayload, BootstrapPolicy,
-    ClaimTransferReceipt, FundRequest, PoolMessage, PoolOperation,
+    ClaimTransferReceipt, FundRequest, PoolMessage, PoolOperation, Transaction, TransactionType,
 };
+use abi::proxy::{ProxyMessage, ProxyOperation};
 use abi::swap::router::{SwapMessage, SwapOperation};
-use abi::swap::transaction::{Transaction, TransactionType};
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, Timestamp};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -234,6 +233,47 @@ fn decode_pool_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
                 "operation_type": "swap_transfer_receipt",
                 "application_id": application_id,
                 "receipt": encode_swap_transfer_receipt(receipt),
+            }),
+        ),
+        PoolOperation::SetOperator { new_operator } => (
+            "set_operator",
+            json!({
+                "operation_type": "set_operator",
+                "application_id": application_id,
+                "new_operator": encode_account(new_operator),
+            }),
+        ),
+        PoolOperation::Initialize { argument } => (
+            "initialize",
+            json!({
+                "operation_type": "initialize",
+                "application_id": application_id,
+                "router_application_id": argument.router_application_id.to_string(),
+                "pool_fee_percent_mul_100": argument.pool_fee_percent_mul_100,
+            }),
+        ),
+        PoolOperation::AppendState { state_application_id } => (
+            "append_state",
+            json!({
+                "operation_type": "append_state",
+                "application_id": application_id,
+                "state_application_id": state_application_id.to_string(),
+            }),
+        ),
+        PoolOperation::AppendStates { state_application_ids } => (
+            "append_states",
+            json!({
+                "operation_type": "append_states",
+                "application_id": application_id,
+                "state_application_ids": state_application_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
+            }),
+        ),
+        PoolOperation::Handoff { new_business_application_id } => (
+            "handoff",
+            json!({
+                "operation_type": "handoff",
+                "application_id": application_id,
+                "new_business_application_id": new_business_application_id.to_string(),
             }),
         ),
     };
@@ -1399,16 +1439,14 @@ fn encode_add_liquidity_transfer_receipt_payload(
     })
 }
 
-fn encode_swap_transfer_receipt(value: abi::swap::pool::SwapTransferReceipt) -> Value {
+fn encode_swap_transfer_receipt(value: abi::pool::SwapTransferReceipt) -> Value {
     json!({
         "result": encode_unit_result(value.result),
         "request": encode_fund_request(value.request),
     })
 }
 
-fn encode_swap_transfer_receipt_payload(
-    value: abi::swap::pool::SwapTransferReceiptPayload,
-) -> Value {
+fn encode_swap_transfer_receipt_payload(value: abi::pool::SwapTransferReceiptPayload) -> Value {
     json!({
         "request": encode_fund_request(value.request),
     })

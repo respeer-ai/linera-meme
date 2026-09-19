@@ -1,9 +1,7 @@
 use crate::interfaces::state::StateInterface;
 use crate::state::{errors::StateError, SwapState};
-use abi::swap::{
-    router::{InstantiationArgument, Pool},
-    transaction::Transaction,
-};
+use abi::pool::Transaction;
+use abi::swap::router::{InstantiationArgument, Pool};
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId, ModuleId, Timestamp};
 
@@ -13,6 +11,17 @@ impl StateInterface for SwapState {
 
     fn instantiate(&mut self, _owner: Account, argument: InstantiationArgument) {
         self.pool_bytecode_id.set(Some(argument.pool_bytecode_id));
+        assert!(
+            !argument.pool_state_bytecode_ids.is_empty(),
+            "pool_state_bytecode_ids must not be empty"
+        );
+        self.pool_state_bytecode_ids.set(
+            argument
+                .pool_state_bytecode_ids
+                .iter()
+                .map(|entry| (entry.version, entry.module_id))
+                .collect(),
+        );
         self.pool_id.set(1000);
     }
 
@@ -51,6 +60,12 @@ impl StateInterface for SwapState {
         self.pool_bytecode_id
             .get()
             .expect("Not initialized pool_bytecode_id")
+    }
+
+    fn pool_state_bytecode_ids(&self) -> Vec<(u16, ModuleId)> {
+        self.pool_state_bytecode_ids
+            .get()
+            .clone()
     }
 
     async fn create_pool(

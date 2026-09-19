@@ -6,7 +6,7 @@ pub mod request_meme_fund;
 pub mod transfer_meme_from_application;
 
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
-use abi::swap::pool::{PoolMessage, PoolOperation, PoolResponse};
+use abi::pool::{PoolMessage, PoolOperation, PoolResponse};
 use base::handler::{Handler, HandlerError};
 use message::{
     add_liquidity::AddLiquidityHandler as MessageAddLiquidityHandler,

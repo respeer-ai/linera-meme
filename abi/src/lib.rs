@@ -8,6 +8,7 @@ pub mod meme;
 pub mod meme_token;
 pub mod namespace;
 pub mod policy;
+pub mod pool;
 pub mod proxy;
 pub mod store_type;
 pub mod swap;

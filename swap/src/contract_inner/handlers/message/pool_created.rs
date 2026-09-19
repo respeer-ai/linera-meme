@@ -1,10 +1,8 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
     meme::{MemeAbi, MemeOperation},
-    swap::{
-        pool::{BootstrapPolicy, PoolInitializeLiquidityCall},
-        router::{SwapMessage, SwapResponse},
-    },
+    pool::{BootstrapPolicy, PoolInitializeLiquidityCall},
+    swap::router::{SwapMessage, SwapResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};

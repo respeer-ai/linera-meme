@@ -1,8 +1,6 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::{
-    router::{SwapMessage, SwapOperation, SwapResponse},
-    transaction::Transaction,
-};
+use abi::pool::Transaction;
+use abi::swap::router::{SwapMessage, SwapOperation, SwapResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Amount, ApplicationId};

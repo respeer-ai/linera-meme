@@ -1,9 +1,6 @@
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
-use abi::swap::{
-    pool::{PoolMessage, PoolResponse},
-    router::{SwapAbi, SwapOperation},
-    transaction::Transaction,
-};
+use abi::pool::{PoolMessage, PoolResponse, Transaction};
+use abi::swap::router::{SwapAbi, SwapOperation};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};

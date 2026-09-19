@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::pool::{PoolMessage, PoolOperation, PoolResponse};
+use abi::pool::{PoolMessage, PoolOperation, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Amount, ApplicationId};

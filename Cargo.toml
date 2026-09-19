@@ -6,7 +6,8 @@ members = [
     "meme/state",
     "meme/test-proxy",
     "swap",
-    "pool",
+    "pool/app",
+    "pool/state",
     "blob-gateway/app",
     "blob-gateway/state",
     "ams/app",
@@ -62,7 +63,8 @@ meme-test-proxy = { path = "./meme/test-proxy" }
 proxy = { path = "./proxy/app" }
 proxy-state = { path = "./proxy/state" }
 swap = { path = "./swap" }
-pool = { path = "./pool" }
+pool = { path = "./pool/app" }
+pool-state = { path = "./pool/state" }
 blob-gateway = { path = "./blob-gateway/app", package = "blob-gateway-app" }
 blob-gateway-state = { path = "./blob-gateway/state" }
 ams-app = { path = "./ams/app" }

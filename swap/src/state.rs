@@ -19,6 +19,8 @@ pub struct SwapState {
 
     pub pool_bytecode_id: RegisterView<Option<ModuleId>>,
 
+    pub pool_state_bytecode_ids: RegisterView<Vec<(u16, ModuleId)>>,
+
     pub pool_chains: MapView<ChainId, bool>,
     // We cannot invoke meme application to get meme creator chain id due to reentrant error
     // So we have to record it

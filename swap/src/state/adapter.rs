@@ -2,10 +2,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::errors::StateError;
 use crate::{interfaces::state::StateInterface, state::SwapState};
-use abi::swap::{
-    router::{InstantiationArgument, Pool},
-    transaction::Transaction,
-};
+use abi::pool::Transaction;
+use abi::swap::router::{InstantiationArgument, Pool};
 use async_trait::async_trait;
 
 use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId, ModuleId, Timestamp};
@@ -49,6 +47,10 @@ impl StateInterface for StateAdapter {
 
     fn pool_bytecode_id(&self) -> ModuleId {
         self.state.borrow().pool_bytecode_id()
+    }
+
+    fn pool_state_bytecode_ids(&self) -> Vec<(u16, ModuleId)> {
+        self.state.borrow().pool_state_bytecode_ids()
     }
 
     async fn create_pool(

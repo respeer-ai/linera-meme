@@ -13,7 +13,7 @@ use abi::{
     policy::open_chain_fee_budget,
     proxy::{Miner, ProxyOperation},
     store_type::StoreType,
-    swap::pool::PoolAbi,
+    pool::PoolAbi,
 };
 use async_graphql::{Request, Variables};
 use linera_sdk::{

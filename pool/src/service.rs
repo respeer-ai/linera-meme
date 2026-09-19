@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use abi::{
     meme_token::MemeToken,
-    swap::pool::{BootstrapPolicy, Pool, PoolAbi, PoolOperation, PoolParameters},
+    pool::{BootstrapPolicy, Pool, PoolAbi, PoolOperation, PoolParameters},
 };
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
@@ -291,7 +291,7 @@ impl MutationRoot {
 #[cfg(test)]
 mod tests {
     use super::{effective_total_supply, query_liquidity_amounts, PoolService};
-    use abi::{meme_token::MemeToken, swap::pool::Pool};
+    use abi::{meme_token::MemeToken, pool::Pool};
     use async_graphql::{Request, Variables};
     use linera_sdk::{
         linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId},

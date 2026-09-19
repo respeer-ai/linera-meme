@@ -12,11 +12,11 @@ use abi::{
         TransferFromApplicationReceipt, TransferFromApplicationReceiptPayload,
         TransferFromApplicationReceiptPurpose,
     },
-    store_type::StoreType,
-    swap::pool::{
+    pool::{
         AddLiquidityTransferReceiptPayload, ClaimTransferReceipt, FundRequest, FundType,
         PoolInitializeLiquidityCall, PoolOperation, PoolResponse, SwapTransferReceiptPayload,
     },
+    store_type::StoreType,
 };
 use futures::FutureExt as _;
 use linera_sdk::{

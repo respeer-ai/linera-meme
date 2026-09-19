@@ -1,0 +1,400 @@
+use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
+use abi::pool::{PoolError, PoolMessage, PoolResponse, Transaction, TransactionType};
+use async_trait::async_trait;
+use base::handler::{Handler, HandlerError, HandlerOutcome};
+use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, Timestamp};
+use runtime::interfaces::{
+    access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
+};
+use std::{cell::RefCell, rc::Rc};
+
+pub struct SwapHandler<
+    R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
+    S: StateInterface,
+> {
+    runtime: Rc<RefCell<R>>,
+    state: S,
+
+    origin: Account,
+    amount_0_in: Option<Amount>,
+    amount_1_in: Option<Amount>,
+    amount_0_out_min: Option<Amount>,
+    amount_1_out_min: Option<Amount>,
+    to: Option<Account>,
+    block_timestamp: Option<Timestamp>,
+}
+
+impl<
+        R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
+        S: StateInterface,
+    > SwapHandler<R, S>
+{
+    pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &PoolMessage) -> Self {
+        let PoolMessage::Swap {
+            origin,
+            amount_0_in,
+            amount_1_in,
+            amount_0_out_min,
+            amount_1_out_min,
+            to,
+            block_timestamp,
+        } = msg
+        else {
+            panic!("Invalid message");
+        };
+
+        Self {
+            runtime,
+            state,
+
+            origin: *origin,
+            amount_0_in: *amount_0_in,
+            amount_1_in: *amount_1_in,
+            amount_0_out_min: *amount_0_out_min,
+            amount_1_out_min: *amount_1_out_min,
+            to: *to,
+            block_timestamp: *block_timestamp,
+        }
+    }
+
+    async fn credit(
+        &mut self,
+        token: Option<ApplicationId>,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), HandlerError> {
+        if amount == Amount::ZERO {
+            return Ok(());
+        }
+
+        self.state
+            .credit_claimable(token, owner, amount)
+            .await
+            .map_err(|error| HandlerError::ProcessError(error.into()))
+    }
+
+    async fn credit_amount_in(
+        &mut self,
+        origin: Account,
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+    ) -> Result<(), HandlerError> {
+        let token_0 = self.runtime.borrow_mut().token_0();
+        let token_1 = self.runtime.borrow_mut().token_1();
+
+        self.credit(Some(token_0), origin, amount_0_in.unwrap_or(Amount::ZERO))
+            .await?;
+        self.credit(token_1, origin, amount_1_in.unwrap_or(Amount::ZERO))
+            .await
+    }
+
+    async fn credit_amount_out(
+        &mut self,
+        owner: Account,
+        amount_0_out: Amount,
+        amount_1_out: Amount,
+    ) -> Result<(), HandlerError> {
+        let token_0 = self.runtime.borrow_mut().token_0();
+        let token_1 = self.runtime.borrow_mut().token_1();
+
+        self.credit(Some(token_0), owner, amount_0_out).await?;
+        self.credit(token_1, owner, amount_1_out).await
+    }
+
+    // Always be run on creation chain
+    async fn do_swap(
+        &mut self,
+        origin: Account,
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        _block_timestamp: Option<Timestamp>,
+    ) -> Result<HandlerOutcome<PoolMessage, PoolResponse>, HandlerError> {
+        // Here we already funded
+        let pool = self
+            .state
+            .pool()
+            .await
+            .map_err(|error| HandlerError::ProcessError(error.into()))?;
+
+        // 1: Calculate pair token amount
+        let amount_0_out = if let Some(amount_1_in) = amount_1_in {
+            let calculated = pool.calculate_swap_amount_0(amount_1_in);
+            match calculated {
+                Ok(amount) => amount,
+                Err(err) => {
+                    self.credit_amount_in(origin, amount_0_in, Some(amount_1_in))
+                        .await?;
+                    return Err(HandlerError::ProcessError(Box::new(err)));
+                }
+            }
+        } else {
+            Amount::ZERO
+        };
+        if let Some(amount_0_out_min) = amount_0_out_min {
+            if amount_0_out < amount_0_out_min {
+                self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                    .await?;
+                log::warn!(
+                    "Amount 0 out {} less than minimum {}",
+                    amount_0_out,
+                    amount_0_out_min
+                );
+                return Err(HandlerError::InvalidAmount);
+            }
+        }
+
+        let amount_1_out = if let Some(amount_0_in) = amount_0_in {
+            let calculated = pool.calculate_swap_amount_1(amount_0_in);
+            match calculated {
+                Ok(amount) => amount,
+                Err(err) => {
+                    self.credit_amount_in(origin, Some(amount_0_in), amount_1_in)
+                        .await?;
+                    return Err(HandlerError::ProcessError(Box::new(err)));
+                }
+            }
+        } else {
+            Amount::ZERO
+        };
+        if let Some(amount_1_out_min) = amount_1_out_min {
+            if amount_1_out < amount_1_out_min {
+                self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                    .await?;
+                log::warn!(
+                    "Amount 1 out {} less than minimum {}",
+                    amount_1_out,
+                    amount_1_out_min
+                );
+                return Err(HandlerError::InvalidAmount);
+            }
+        }
+
+        if amount_0_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_1_out == Amount::ZERO {
+            self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                .await?;
+            log::warn!(
+                "Amount 0 in {:?} > 0 but amount 1 out {} is ZERO",
+                amount_0_in,
+                amount_1_out
+            );
+            return Err(HandlerError::InvalidAmount);
+        }
+        if amount_1_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_0_out == Amount::ZERO {
+            self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                .await?;
+            log::warn!(
+                "Amount 1 in {:?} > 0 but amount 0 out {} is ZERO",
+                amount_1_in,
+                amount_0_out
+            );
+            return Err(HandlerError::InvalidAmount);
+        }
+        if amount_0_out == Amount::ZERO && amount_1_out == Amount::ZERO {
+            self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                .await?;
+            log::warn!("Both amount 0 and 1 out are ZERO");
+            return Err(HandlerError::InvalidAmount);
+        }
+
+        // 2: Check liquidity
+        let invariant_check = pool.validate_swap_invariant(
+            amount_0_in.unwrap_or(Amount::ZERO),
+            amount_1_in.unwrap_or(Amount::ZERO),
+            amount_0_out,
+            amount_1_out,
+        );
+        match invariant_check {
+            Ok(_) => {}
+            Err(err) => {
+                self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                    .await?;
+                log::warn!(
+                    "Failed caculate adjusted amount pair amount 0 out {}, amount 1 out {}",
+                    amount_0_out,
+                    amount_1_out
+                );
+                return Err(match err {
+                    PoolError::InvalidAmount => HandlerError::InvalidAmount,
+                    PoolError::BrokenK | PoolError::InsufficientLiquidity => {
+                        HandlerError::InsufficientFunds
+                    }
+                });
+            }
+        }
+
+        // 3: Validate output dispatch prerequisites
+        let to = to.unwrap_or(origin);
+        let application =
+            AccountOwner::from(self.runtime.borrow_mut().application_id().forget_abi());
+        let token_0 = self.runtime.borrow_mut().token_0();
+
+        if amount_1_out > Amount::ZERO {
+            let token_1 = self.runtime.borrow_mut().token_1();
+            if token_1.is_none() {
+                let balance = self.runtime.borrow_mut().owner_balance(application);
+                if balance < amount_1_out {
+                    self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                        .await?;
+                    log::warn!(
+                        "Application balance {} less than amount 1 out {}",
+                        balance,
+                        amount_1_out
+                    );
+                    return Err(HandlerError::InsufficientFunds);
+                }
+            }
+        }
+
+        // 4: Commit the swap before dispatching outputs.
+        //
+        // This gives BuyToken0 and SellToken0 the same transaction semantics:
+        // the input asset has already been locked to the pool, the output amounts
+        // are final, and the reserves have been updated. Output delivery is
+        // represented as claimable balance after the transaction is fixed.
+        let balance_0_result = pool
+            .reserve_0
+            .try_sub(amount_0_out)
+            .and_then(|amount| amount.try_add(amount_0_in.unwrap_or(Amount::ZERO)));
+        let balance_0 = match balance_0_result {
+            Ok(balance) => balance,
+            Err(err) => {
+                self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                    .await?;
+                return Err(HandlerError::ProcessError(Box::new(err)));
+            }
+        };
+        let balance_1_result = pool
+            .reserve_1
+            .try_sub(amount_1_out)
+            .and_then(|amount| amount.try_add(amount_1_in.unwrap_or(Amount::ZERO)));
+        let balance_1 = match balance_1_result {
+            Ok(balance) => balance,
+            Err(err) => {
+                self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                    .await?;
+                return Err(HandlerError::ProcessError(Box::new(err)));
+            }
+        };
+        let timestamp = self.runtime.borrow_mut().system_time();
+
+        let mut pool = pool;
+        pool.liquid(balance_0, balance_1, timestamp);
+        self.state
+            .set_pool(pool)
+            .await
+            .map_err(|error| HandlerError::ProcessError(error.into()))?;
+
+        let amount_0_out_opt = if amount_0_out > Amount::ZERO {
+            Some(amount_0_out)
+        } else {
+            None
+        };
+        let amount_1_out_opt = if amount_1_out > Amount::ZERO {
+            Some(amount_1_out)
+        } else {
+            None
+        };
+        let transaction_type = if amount_0_in.is_some() && amount_1_out_opt.is_some() {
+            TransactionType::SellToken0
+        } else {
+            TransactionType::BuyToken0
+        };
+        let transaction = self
+            .state
+            .build_transaction(Transaction {
+                transaction_id: None,
+                transaction_type,
+                from: origin,
+                amount_0_in,
+                amount_1_in,
+                amount_0_out: amount_0_out_opt,
+                amount_1_out: amount_1_out_opt,
+                liquidity: None,
+                created_at: timestamp,
+            })
+            .await
+            .map_err(|error| HandlerError::ProcessError(error.into()))?;
+        // We already on creator chain
+        let destination = self.runtime.borrow_mut().chain_id();
+        let mut outcome = HandlerOutcome::new();
+
+        log::info!(
+            "Swapped token_0 {} to {} amount 0 {:?}/{} amount 1 {:?}/{}",
+            token_0,
+            to,
+            amount_0_in,
+            amount_0_out,
+            amount_1_in,
+            amount_1_out
+        );
+
+        outcome.with_message(
+            destination,
+            PoolMessage::NewTransaction { transaction },
+            false,
+        );
+
+        // 5: Output delivery is represented as claimable balance. This keeps
+        // swap settlement local to the pool creator chain; the user exits funds
+        // through the unified Claim path.
+        self.credit_amount_out(to, amount_0_out, amount_1_out)
+            .await?;
+
+        Ok(outcome)
+    }
+}
+
+#[async_trait(?Send)]
+impl<
+        R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
+        S: StateInterface,
+    > Handler<PoolMessage, PoolResponse> for SwapHandler<R, S>
+{
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
+        let pool_ready = {
+            let pool = self
+                .state
+                .pool()
+                .await
+                .map_err(|error| HandlerError::ProcessError(error.into()))?;
+            let total_supply = self
+                .state
+                .total_supply()
+                .await
+                .map_err(|error| HandlerError::ProcessError(error.into()))?;
+            pool.reserve_0 > Amount::ZERO
+                && pool.reserve_1 > Amount::ZERO
+                && total_supply > Amount::ZERO
+        };
+        if !pool_ready {
+            self.credit_amount_in(self.origin, self.amount_0_in, self.amount_1_in)
+                .await?;
+            return Ok(None);
+        }
+
+        // We just return OK to refund the failed balance here
+        match self
+            .do_swap(
+                self.origin,
+                self.amount_0_in,
+                self.amount_1_in,
+                self.amount_0_out_min,
+                self.amount_1_out_min,
+                self.to,
+                self.block_timestamp,
+            )
+            .await
+        {
+            Ok(outcome) => Ok(Some(outcome)),
+            Err(err) => {
+                log::warn!("Failed swap: {}", err);
+                Ok(None)
+            }
+        }
+    }
+}

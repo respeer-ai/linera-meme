@@ -1,9 +1,9 @@
 use crate::{
     meme::{HandoffArgument, InitializeArgument},
-    store_type::StoreType,
-    swap::pool::{
+    pool::{
         AddLiquidityTransferReceiptPayload, PoolInitializeLiquidityCall, SwapTransferReceiptPayload,
     },
+    store_type::StoreType,
 };
 use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{

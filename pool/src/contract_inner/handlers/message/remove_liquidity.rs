@@ -1,6 +1,6 @@
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
 use abi::meme_token::MemeToken;
-use abi::swap::pool::{PoolMessage, PoolResponse};
+use abi::pool::{PoolMessage, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, Amount, Timestamp};

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use abi::meme_token::MemeToken;
-use abi::swap::pool::Pool;
+use abi::pool::Pool;
 use linera_sdk::{
     linera_base_types::{Account, Amount, ApplicationId},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},

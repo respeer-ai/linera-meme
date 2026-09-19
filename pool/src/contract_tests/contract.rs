@@ -6,7 +6,7 @@ use abi::{
         TransferFromApplicationReceiptPurpose,
     },
     meme_token::MemeToken,
-    swap::pool::{
+    pool::{
         AddLiquidityTransferReceipt, BootstrapPolicy, ClaimTransferReceipt, FundRequest, FundType,
         InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters, PoolResponse,
         SwapTransferReceipt,

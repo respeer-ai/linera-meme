@@ -1,5 +1,5 @@
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
-use abi::swap::pool::{
+use abi::pool::{
     FundRequest, FundType, PoolMessage, PoolOperation, PoolResponse, SwapTransferReceipt,
 };
 use async_trait::async_trait;

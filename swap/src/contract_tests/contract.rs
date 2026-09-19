@@ -3,13 +3,11 @@ use super::super::{SwapContract, SwapState};
 use abi::{
     meme::MemeResponse,
     policy::open_chain_fee_budget,
-    swap::{
-        pool::{BootstrapPolicy, PoolOperation},
-        router::{
-            InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapParameters,
-            SwapResponse,
-        },
-        transaction::{Transaction, TransactionType},
+    pool::{BootstrapPolicy, PoolOperation},
+    pool::{Transaction, TransactionType},
+    proxy::StateBytecodeId,
+    swap::router::{
+        InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapParameters, SwapResponse,
     },
 };
 use futures::FutureExt as _;
@@ -1449,9 +1447,14 @@ where
     };
 
     let bytecode_id = ModuleId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300").unwrap();
+    let state_bytecode_id = ModuleId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301").unwrap();
     contract
         .instantiate(InstantiationArgument {
             pool_bytecode_id: bytecode_id,
+            pool_state_bytecode_ids: vec![StateBytecodeId {
+                version: 1,
+                module_id: state_bytecode_id,
+            }],
         })
         .now_or_never()
         .expect("Initialization of swap state should not await anything");

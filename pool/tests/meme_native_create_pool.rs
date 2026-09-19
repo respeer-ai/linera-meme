@@ -8,10 +8,8 @@
 use abi::{
     meme::MemeAbi,
     policy::open_chain_fee_budget,
-    swap::{
-        pool::{Pool, PoolAbi, PoolOperation},
-        router::{Pool as PoolIndex, SwapAbi},
-    },
+    pool::{Pool, PoolAbi, PoolOperation},
+    swap::router::{Pool as PoolIndex, SwapAbi},
 };
 use async_graphql::{Request, Variables};
 use linera_sdk::{

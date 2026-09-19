@@ -1,4 +1,4 @@
-use abi::swap::pool::PoolOperation;
+use abi::pool::PoolOperation;
 use async_graphql::{Error, Object};
 use linera_base::{
     data_types::{Amount, Timestamp},

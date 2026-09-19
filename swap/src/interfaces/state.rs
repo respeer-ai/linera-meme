@@ -1,7 +1,5 @@
-use abi::swap::{
-    router::{InstantiationArgument, Pool},
-    transaction::Transaction,
-};
+use abi::pool::Transaction;
+use abi::swap::router::{InstantiationArgument, Pool};
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{Amount, ApplicationId, ChainId, ModuleId, Timestamp};
 
@@ -28,6 +26,8 @@ pub trait StateInterface {
     ) -> Result<Option<Pool>, Self::Error>;
 
     fn pool_bytecode_id(&self) -> ModuleId;
+
+    fn pool_state_bytecode_ids(&self) -> Vec<(u16, ModuleId)>;
 
     async fn create_pool(
         &mut self,

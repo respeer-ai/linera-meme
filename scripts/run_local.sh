@@ -445,6 +445,7 @@ function publish_bytecode() {
 # Publish bytecode then create applications
 SWAP_MODULE_ID=$(publish_bytecode swap)
 POOL_MODULE_ID=$(publish_bytecode_on_chain swap pool)
+POOL_STATE_MODULE_ID=$(publish_bytecode_on_chain swap pool-state)
 
 function wallet_owner() {
     wallet_name=$1
@@ -756,7 +757,7 @@ function create_application() {
 }
 
 # Create applications
-SWAP_APPLICATION_ID=$(create_application swap $SWAP_MODULE_ID "{\"pool_bytecode_id\": \"$POOL_MODULE_ID\"}" '{}' $SWAP_CHAIN_ID)
+SWAP_APPLICATION_ID=$(create_application swap $SWAP_MODULE_ID "{\"pool_bytecode_id\": \"$POOL_MODULE_ID\", \"pool_state_bytecode_ids\": [{\"version\": 1, \"module_id\": \"$POOL_STATE_MODULE_ID\"}]}" '{}' $SWAP_CHAIN_ID)
 
 # Deploy meme bytecode via linest (bytecode-only: no application instances are created).
 # Proxy will later use these module ids when it creates individual meme apps.

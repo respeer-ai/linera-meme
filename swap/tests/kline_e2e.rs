@@ -9,10 +9,8 @@ use abi::{
     hash::hash_cmp,
     meme::{MemeAbi, MemeOperation, MiningBase, MiningInfo},
     policy::open_chain_fee_budget,
-    swap::{
-        pool::{PoolAbi, PoolOperation},
-        router::Pool as PoolIndex,
-    },
+    pool::{PoolAbi, PoolOperation},
+    swap::router::Pool as PoolIndex,
 };
 use linera_chain::types::ConfirmedBlockCertificate;
 use linera_sdk::{

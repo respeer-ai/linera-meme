@@ -2,7 +2,7 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use abi::swap::pool::{InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters};
+use abi::pool::{InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters};
 
 use linera_sdk::{
     linera_base_types::WithContractAbi,

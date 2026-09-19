@@ -6,8 +6,7 @@ use async_graphql::{Request, Response};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{
-        Account, AccountOwner, ApplicationId, ChainId, ContractAbi, ModuleId, ServiceAbi,
-        Timestamp,
+        Account, AccountOwner, ApplicationId, ChainId, ContractAbi, ModuleId, ServiceAbi, Timestamp,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -41,36 +40,79 @@ pub enum ProxyStateV1Operation {
         state_bytecode_id: ModuleId,
     },
 
-    AddOperator { owner: Account },
-    ApproveAddOperator { owner: Account, operator: Account },
-    BanOperator { owner: Account },
-    ApproveBanOperator { owner: Account, operator: Account },
+    AddOperator {
+        owner: Account,
+    },
+    ApproveAddOperator {
+        owner: Account,
+        operator: Account,
+    },
+    BanOperator {
+        owner: Account,
+    },
+    ApproveBanOperator {
+        owner: Account,
+        operator: Account,
+    },
 
-    AddGenesisMiner { owner: Account },
-    ApproveAddGenesisMiner { owner: Account, operator: Account },
-    RemoveGenesisMiner { owner: Account },
-    ApproveRemoveGenesisMiner { owner: Account, operator: Account },
+    AddGenesisMiner {
+        owner: Account,
+    },
+    ApproveAddGenesisMiner {
+        owner: Account,
+        operator: Account,
+    },
+    RemoveGenesisMiner {
+        owner: Account,
+    },
+    ApproveRemoveGenesisMiner {
+        owner: Account,
+        operator: Account,
+    },
 
-    RegisterMiner { owner: Account, now: Timestamp },
-    DeregisterMiner { owner: Account },
+    RegisterMiner {
+        owner: Account,
+        now: Timestamp,
+    },
+    DeregisterMiner {
+        owner: Account,
+    },
 
-    CreateChain { chain_id: ChainId, created_at: Timestamp },
-    CreateChainToken { chain_id: ChainId, token: ApplicationId },
+    CreateChain {
+        chain_id: ChainId,
+        created_at: Timestamp,
+    },
+    CreateChainToken {
+        chain_id: ChainId,
+        token: ApplicationId,
+    },
 
     MemeBytecodeId,
     MemeStateBytecodeIds,
     SwapApplicationId,
-    IsGenesisMiner { owner: Account },
+    IsGenesisMiner {
+        owner: Account,
+    },
     Miners,
     MinerOwners,
     GenesisMiners,
-    Chain { chain_id: ChainId },
-    Chains { created_after: Option<Timestamp> },
-    ChainByToken { token: ApplicationId },
+    Chain {
+        chain_id: ChainId,
+    },
+    Chains {
+        created_after: Option<Timestamp>,
+    },
+    ChainByToken {
+        token: ApplicationId,
+    },
 
-    ValidateOperator { owner: Account },
+    ValidateOperator {
+        owner: Account,
+    },
 
-    SetOperator { new_operator: Account },
+    SetOperator {
+        new_operator: Account,
+    },
 
     Handoff {
         new_business_application_id: ApplicationId,

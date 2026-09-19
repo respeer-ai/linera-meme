@@ -2,7 +2,7 @@ use crate::{
     contract_inner::handlers::transfer_meme_from_application::TransferMemeFromApplicationHandler,
     interfaces::{parameters::ParametersInterface, state::StateInterface},
 };
-use abi::swap::pool::{PoolMessage, PoolResponse};
+use abi::pool::{PoolMessage, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId};

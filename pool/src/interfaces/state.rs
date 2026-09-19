@@ -1,8 +1,5 @@
 use abi::meme_token::MemeToken;
-use abi::swap::{
-    pool::{InstantiationArgument, Pool, PoolParameters},
-    transaction::Transaction,
-};
+use abi::pool::{InstantiationArgument, Pool, PoolParameters, Transaction};
 use async_trait::async_trait;
 use base::handler::HandlerError;
 use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, Timestamp};

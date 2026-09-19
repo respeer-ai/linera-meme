@@ -2901,3 +2901,166 @@ groups:
           Design only. No ABI or contract changes.
 
           Define pair-keyed pool records and pool-chain state. Avoid `token_0 -> HashMap<token_1, Pool>` contract reads.
+      - id: TSTATE-041
+        status: Done
+        priority: P0
+        depends_on: [TSTATE-010K]
+        title: Pool ABI migration to abi/src/pool/
+        notes: |
+          Plan: documents/POOL_SWAP_STATE_SPLIT_PLAN.md §3.1/§3.4. Covers TSTATE-040 design execution.
+
+          - New `abi/src/pool.rs` entry (re-export only) + `abi/src/pool/abi.rs` (PoolOperation/PoolMessage/Pool math/PoolParameters/InstantiationArgument/FundRequest/BootstrapPolicy/receipts) + `abi/src/pool/state_v1.rs` (PoolStateV1Operation/Response/StateInstantiationArgument).
+          - Move `Transaction`/`TransactionType` from `abi/src/swap/transaction.rs` into pool ABI (pool produces, swap consumes).
+          - Update all `abi::swap::pool::*` references (swap, pool, meme, proxy tests, decoder).
+          - Enum variants appended only; no reorder/removal (project-rules.md).
+      - id: TSTATE-042
+        status: Done
+        priority: P0
+        depends_on: [TSTATE-041]
+        title: pool/state crate skeleton
+        notes: |
+          Plan: documents/POOL_SWAP_STATE_SPLIT_PLAN.md §3.1.
+
+          `pool/state/Cargo.toml` (package `pool-state`, bins `pool_state_contract`/`pool_state_service`), directory layout mirroring proxy/state, root Cargo.toml members + workspace.dependencies.
+      - id: TSTATE-043
+        status: Done
+        priority: P0
+        depends_on: [TSTATE-042]
+        title: "pool/state core: PoolState + StateInterface + caller gating"
+        notes: |
+          Plan: documents/POOL_SWAP_STATE_SPLIT_PLAN.md §3.2.
+
+          PoolState members (pool/router_application_id/total_supply/shares/claimable_balances/claiming_balances/transaction_id), StateInterface trait, instantiate storing business_application_id + operator, HandlerFactory with strict caller check (`require_authenticated_caller_id() == business_application_id`, meme model).
+      - id: TSTATE-044
+        status: Done
+        priority: P0
+        depends_on: [TSTATE-043]
+        title: pool/state handlers migration (per-handler diffs)
+        notes: |
+          Plan: documents/POOL_SWAP_STATE_SPLIT_PLAN.md §3.4.
+
+          Migrate settle add/remove/swap liquidity, claim series, fee setters, initialize. One handler per review diff (<= 50 lines). State ops do state updates + funds guards only; business math stays in business app.
+      - id: TSTATE-045
+        status: Done
+        priority: P0
+        depends_on: [TSTATE-044]
+        title: pool/state unit tests
+        notes: |
+          Migrate existing state-related unit tests + add negative caller tests (foreign business app id rejected), mirroring meme/state contract_tests.
+      - id: TSTATE-046
+        status: Done
+        priority: P0
+        depends_on: [TSTATE-041]
+        title: pool/app skeleton + adapter + standard operations
+        notes: |
+          Plan: documents/POOL_SWAP_STATE_SPLIT_PLAN.md §3.1.
+
+          Local state = state_applications + latest_state_version only. Contract/service adapters, Initialize/AppendState/AppendStates/Handoff/SetOperator operations (creator-gated per proxy/meme).
+      - id: TSTATE-047
+        status: Done
+        priority: P0
+        depends_on: [TSTATE-043, TSTATE-046]
+        title: pool/app handlers migration (11 ops + 13 messages)
+        notes: |
+          Plan: documents/POOL_SWAP_STATE_SPLIT_PLAN.md §3.4.
+
+          One handler per review diff. Permissions/chain constraints must match main HEAD exactly; pool/AGENTS.md funds-consistency rules (partial success, refund, payout, downstream failure, duplicate delivery, authenticated-origin) audited per handler.
+      - id: TSTATE-048
+        status: Done
+        priority: P0
+        depends_on: [TSTATE-047]
+        title: pool/app unit test migration (~60 tests)
+        notes: |
+          Migrate swap/src-level pool unit tests to pool/app contract_tests; no test scenario dropped; new code covered.
+      - id: TSTATE-049
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-045, TSTATE-048]
+        title: pool integration test migration
+        notes: |
+          tests/test_suite.rs ProxyMemeSetup extended to deploy pool state app (create pool business + state, AppendStates, Initialize); meme_native_pool, meme_native_create_pool, meme_meme_pair, panic_creator_rug migrated.
+      - id: TSTATE-051
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-041]
+        title: Swap ABI migration to swap.rs entry + state_v1
+        notes: |
+          Plan: documents/POOL_SWAP_STATE_SPLIT_PLAN.md §4.1. Covers TSTATE-050 design execution.
+
+          `abi/src/swap/mod.rs` -> `abi/src/swap.rs` entry (re-export only); router.rs -> `swap/abi.rs`; new `swap/state_v1.rs`; remove swap/pool/ and swap/transaction.rs (moved in TSTATE-041).
+      - id: TSTATE-052
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-051]
+        title: swap/state crate skeleton
+        notes: |
+          Plan: documents/POOL_SWAP_STATE_SPLIT_PLAN.md §4.1. Package `swap-state`, bins `swap_state_contract`/`swap_state_service`, workspace wiring.
+      - id: TSTATE-053
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-052]
+        title: swap/state core + handlers + unit tests
+        notes: |
+          Plan: documents/POOL_SWAP_STATE_SPLIT_PLAN.md §4.2.
+
+          Catalog state (meme_meme_pools/meme_native_pools/pool_id/reverse indexes/pool_bytecode_id/pool_chains) + new pool_state_bytecode_ids MapView<u16, ModuleId>. Drop dead token_creator_chain_ids. Strict caller gating. SetPoolBytecodeIds for upgrades.
+      - id: TSTATE-054
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-052]
+        title: swap/app skeleton + adapter + standard operations
+        notes: |
+          Local state = two views. Adapters, Initialize/AppendState(s)/Handoff/SetOperator/SetPoolBytecodeIds.
+      - id: TSTATE-055
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-053, TSTATE-054]
+        title: swap/app handlers migration incl. pool-with-state creation
+        notes: |
+          Plan: documents/POOL_SWAP_STATE_SPLIT_PLAN.md §2 决策2 + §4.3.
+
+          create_pool creates pool business + pool state app on pool chain, AppendStates, Initialize. CreatePool message carries pool_bytecode_id + pool_state_bytecode_ids (pool-chain swap instance has no state app). Pool-chain handlers must not touch catalog state (review red line).
+      - id: TSTATE-056
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-055]
+        title: swap/app unit test migration (37 tests)
+        notes: |
+          Migrate contract_tests; add coverage for new pool-with-state creation flow and message-carried bytecode ids.
+      - id: TSTATE-057
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-056, TSTATE-049]
+        title: swap integration test migration
+        notes: |
+          meme_meme_pair, kline_e2e (2 variants), 4 meme_native_pair tests migrated against new pool/swap setup.
+      - id: TSTATE-058
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-057]
+        title: linest pool/swap bytecode registration
+        notes: |
+          Plan: documents/POOL_SWAP_STATE_SPLIT_PLAN.md §5.
+
+          pool as bytecode_only (mirrors meme); swap full deploy (business + state + AppendState + Initialize) on creator chain.
+      - id: TSTATE-059
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-058]
+        title: run_local.sh deployment adaptation
+        notes: |
+          Build pool/swap state wasms; pass pool_state_bytecode_ids into swap Initialize; end-to-end createPool message flow with state bytecode ids.
+      - id: TSTATE-060
+        status: Todo
+        priority: P0
+        depends_on: [TSTATE-059]
+        title: End-to-end validation vs main HEAD behavior
+        notes: |
+          create pool -> add liquidity -> swap -> remove/claim -> kline candles; behavior checklist against main HEAD (permissions, fees, refunds, silent no-ops).
+      - id: TSTATE-061
+        status: Todo
+        priority: P1
+        depends_on: []
+        title: proxy/state caller gating + negative UT
+        notes: |
+          proxy/state handlers lack caller verification (meme/state has strict model + 8 negative tests; proxy/state tests never set authenticated_caller). Add require_authenticated_caller_id == business_application_id gating + negative tests.

@@ -1,0 +1,184 @@
+// Copyright (c) Zefchain Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+//! Integration tests for the Pool application.
+
+#![cfg(not(target_arch = "wasm32"))]
+
+use abi::{
+    meme::MemeAbi,
+    pool::{PoolAbi, PoolOperation},
+    swap::router::{Pool as PoolIndex, SwapAbi},
+};
+use linera_sdk::{
+    linera_base_types::{AccountOwner, Amount, ApplicationId, BlobType, ChainDescription},
+    test::{ActiveChain, QueryOutcome, TestValidator},
+};
+
+mod test_suite;
+use test_suite::ProxyMemeSetup;
+
+#[derive(Clone)]
+struct TestSuite {
+    setup: ProxyMemeSetup,
+
+    validator: TestValidator,
+    meme_chain: ActiveChain,
+    user_chain: ActiveChain,
+    pool_chain: Option<ActiveChain>,
+    swap_chain: ActiveChain,
+
+    pool_application_id: Option<ApplicationId<PoolAbi>>,
+    meme_application_id: Option<ApplicationId<MemeAbi>>,
+    swap_application_id: Option<ApplicationId<SwapAbi>>,
+}
+
+impl TestSuite {
+    async fn new() -> Self {
+        let setup = ProxyMemeSetup::new().await;
+        let validator = setup.validator.clone();
+        let meme_chain = validator.new_chain().await;
+        let user_chain = validator.new_chain().await;
+        let swap_chain = setup.swap_chain.clone();
+        let swap_application_id = Some(setup.swap_application_id);
+
+        TestSuite {
+            setup,
+
+            validator,
+            meme_chain,
+            user_chain,
+            pool_chain: None,
+            swap_chain,
+
+            pool_application_id: None,
+            meme_application_id: None,
+            swap_application_id,
+        }
+    }
+
+    async fn create_meme_application(&mut self, virtual_initial_liquidity: bool) {
+        let meme_user_chain = self.validator.new_chain().await;
+        let (meme_chain, meme_application_id) = self
+            .setup
+            .create_meme_application(
+                &meme_user_chain,
+                virtual_initial_liquidity,
+                false,
+                None,
+                None,
+            )
+            .await;
+        self.meme_chain = meme_chain;
+        self.meme_application_id = Some(meme_application_id);
+    }
+
+    async fn swap(&self, chain: &ActiveChain, buy_token_0: bool, amount: Amount) {
+        chain
+            .add_block(|block| {
+                block.with_operation(
+                    self.pool_application_id.unwrap(),
+                    PoolOperation::Swap {
+                        amount_0_in: if buy_token_0 { None } else { Some(amount) },
+                        amount_1_in: if buy_token_0 { Some(amount) } else { None },
+                        amount_0_out_min: None,
+                        amount_1_out_min: None,
+                        to: None,
+                        block_timestamp: None,
+                    },
+                );
+            })
+            .await;
+        self.meme_chain.handle_received_messages().await;
+        chain.handle_received_messages().await;
+        self.pool_chain
+            .clone()
+            .unwrap()
+            .handle_received_messages()
+            .await;
+        self.pool_chain
+            .clone()
+            .unwrap()
+            .handle_received_messages()
+            .await;
+        self.meme_chain.handle_received_messages().await;
+        chain.handle_received_messages().await;
+    }
+}
+
+/// Test setting a pool and testing its coherency across microchains.
+///
+/// Creates the application on a `chain`, initializing it with a 42 then adds 15 and obtains 57.
+/// which is then checked.
+// Should fail if swap in new pool (without buying swap) with virtual initial liquidity
+// At that time there is no balance in application
+#[tokio::test(flavor = "multi_thread")]
+async fn meme_panic_sell_meme_virtual_initial_liquidity_test() {
+    let _ = env_logger::builder().is_test(true).try_init();
+
+    let mut suite = TestSuite::new().await;
+
+    suite.create_meme_application(true).await;
+
+    let meme_chain = &suite.meme_chain;
+    let swap_chain = &suite.swap_chain;
+
+    let swap_key_pair = swap_chain.key_pair();
+
+    // Check initial swap pool
+    meme_chain.handle_received_messages().await;
+    let certificate = swap_chain.handle_received_messages().await;
+
+    assert!(certificate.is_some());
+
+    let (certificate, _) = certificate.unwrap();
+    let block = certificate.inner().block();
+    let description = block
+        .created_blobs()
+        .into_iter()
+               .filter_map(|(blob_id, blob)| {
+            (blob_id.blob_type == BlobType::ChainDescription)
+                .then(|| bcs::from_bytes::<ChainDescription>(blob.content().bytes()).unwrap())
+        })
+        .next()
+        .unwrap();
+
+    let pool_chain = ActiveChain::new(swap_key_pair.copy(), description, suite.clone().validator);
+
+    suite.validator.add_chain(pool_chain.clone());
+    suite.pool_chain = Some(pool_chain.clone());
+
+    pool_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    // Process messages generated by meme application
+    swap_chain.handle_received_messages().await;
+    pool_chain.handle_received_messages().await;
+
+    let QueryOutcome { response, .. } = swap_chain
+        .graphql_query(
+            suite.swap_application_id.unwrap(),
+            "query { pools {
+                creator
+                poolId
+                token0
+                token1
+                poolApplication
+                createdAt
+            } }",
+        )
+        .await;
+    assert_eq!(response["pools"].as_array().unwrap().len(), 1,);
+    let pool: PoolIndex =
+        serde_json::from_value(response["pools"].as_array().unwrap()[0].clone()).unwrap();
+
+    let AccountOwner::Address32(application_description_hash) = pool.pool_application.owner else {
+        panic!("Invalid pool application");
+    };
+    let pool_application_id = ApplicationId::new(application_description_hash);
+    suite.pool_application_id = Some(pool_application_id.with_abi::<PoolAbi>());
+
+    suite
+        .swap(&suite.user_chain, false, Amount::from_tokens(100))
+        .await;
+}

@@ -3,10 +3,8 @@ use crate::{
 };
 use abi::{
     policy::open_chain_fee_budget,
-    swap::{
-        pool::BootstrapPolicy,
-        router::{SwapMessage, SwapResponse},
-    },
+    pool::BootstrapPolicy,
+    swap::router::{SwapMessage, SwapResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
